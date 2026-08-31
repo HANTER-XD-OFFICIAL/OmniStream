@@ -131,8 +131,20 @@ class DownloadRepository(
                         .addHeader("Accept-Encoding", "identity")
                         .addHeader("Connection", "keep-alive")
 
-                    if (item.sourceUrl.isNotBlank()) {
-                        builder.addHeader("Referer", item.sourceUrl)
+                    val lowerStream = streamUrl.lowercase()
+                    when {
+                        lowerStream.contains("pinimg.com") -> {
+                            builder.addHeader("Referer", "https://www.pinterest.com/")
+                        }
+                        lowerStream.contains("terabox") || lowerStream.contains("1024tera") -> {
+                            builder.addHeader("Referer", "https://www.terabox.app/")
+                        }
+                        lowerStream.contains("tikwm") || lowerStream.contains("tiktok") -> {
+                            builder.addHeader("Referer", "https://www.tiktok.com/")
+                        }
+                        item.sourceUrl.isNotBlank() && !item.sourceUrl.contains("pin.it") && !item.sourceUrl.contains("terabox") -> {
+                            builder.addHeader("Referer", item.sourceUrl)
+                        }
                     }
                     return builder.build()
                 }
