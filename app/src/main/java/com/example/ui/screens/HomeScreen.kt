@@ -125,12 +125,22 @@ fun HomeScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var lockedTierInfo by remember { mutableStateOf<QualityTier?>(null) }
     var showPermissionDialog by remember { mutableStateOf(false) }
+    var showSupportedPlatformsDialog by remember { mutableStateOf(false) }
     var pendingDownloadAudioOnly by remember { mutableStateOf<Boolean?>(null) }
 
     val detectedPlatform = remember(urlInput) { PlatformDetector.detect(urlInput) }
     val isTeraBoxUrl = remember(urlInput) {
         val lower = urlInput.lowercase()
         "terabox" in lower || "1024tera" in lower || "terasharelink" in lower
+    }
+
+    if (showSupportedPlatformsDialog) {
+        com.example.ui.components.SupportedPlatformsDialog(
+            onDismiss = { showSupportedPlatformsDialog = false },
+            onSelectSample = { sampleUrl ->
+                viewModel.loadSampleUrl(sampleUrl)
+            }
+        )
     }
 
     if (showPermissionDialog) {
@@ -457,13 +467,45 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Quick Test Links for Instant Verification
-                    Text(
-                        text = "Quick Platform Triggers (Tap to Test Engine):",
-                        fontSize = 11.sp,
-                        color = TextMuted,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Quick Platform Triggers:",
+                            fontSize = 11.sp,
+                            color = TextMuted,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Surface(
+                            onClick = { showSupportedPlatformsDialog = true },
+                            shape = RoundedCornerShape(8.dp),
+                            color = CyanBright.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.6f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = CyanBright,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "1000+ Sites Directory",
+                                    color = CyanBright,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier
@@ -471,23 +513,41 @@ fun HomeScreen(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        DemoChip("📦 TeraBox Cloud Video") {
+                        DemoChip("📦 TeraBox Cloud") {
                             viewModel.loadSampleUrl("https://terabox.com/s/1aB2c3d4e5fG6h7i8j")
                         }
-                        DemoChip("🎬 8K 60FPS Showcase") {
+                        DemoChip("📌 Pinterest 1080p") {
+                            viewModel.loadSampleUrl("https://www.pinterest.com/pin/123456789012345678/")
+                        }
+                        DemoChip("🎬 YouTube 8K/4K") {
                             viewModel.loadSampleUrl("https://www.youtube.com/watch?v=LXb3EKWsInQ")
                         }
-                        DemoChip("⚡ 1080p 120 FPS Master") {
-                            viewModel.loadSampleUrl("https://vimeo.com/76979871")
-                        }
-                        DemoChip("🎧 24-bit Lossless FLAC") {
-                            viewModel.loadSampleUrl("https://soundcloud.com/artist/high-res-master")
-                        }
-                        DemoChip("📱 TikTok Trending No-WM") {
+                        DemoChip("📱 TikTok No-WM") {
                             viewModel.loadSampleUrl("https://www.tiktok.com/@creator/video/72891234")
+                        }
+                        DemoChip("📸 Instagram Reels") {
+                            viewModel.loadSampleUrl("https://www.instagram.com/reel/C8qW1234567/")
                         }
                         DemoChip("🌐 Facebook Video HD") {
                             viewModel.loadSampleUrl("https://www.facebook.com/watch/?v=10928374")
+                        }
+                        DemoChip("📁 Google Drive Stream") {
+                            viewModel.loadSampleUrl("https://drive.google.com/file/d/1a2b3c4d5e6f7g8h9/view")
+                        }
+                        DemoChip("👻 Snapchat Spotlight") {
+                            viewModel.loadSampleUrl("https://www.snapchat.com/spotlight/W7_ED1nYR9")
+                        }
+                        DemoChip("🎮 Twitch 60FPS Clip") {
+                            viewModel.loadSampleUrl("https://clips.twitch.tv/GloriousSampleClip")
+                        }
+                        DemoChip("⚡ Kick VOD/Clip") {
+                            viewModel.loadSampleUrl("https://kick.com/creator/clips/clip_123456")
+                        }
+                        DemoChip("💡 TED Talk Master") {
+                            viewModel.loadSampleUrl("https://www.ted.com/talks/sample_talk_future")
+                        }
+                        DemoChip("📰 BBC Video News") {
+                            viewModel.loadSampleUrl("https://www.bbc.com/news/videos/c12345678")
                         }
                     }
                 }
