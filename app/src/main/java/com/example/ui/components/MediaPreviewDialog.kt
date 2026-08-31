@@ -35,6 +35,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -151,21 +155,51 @@ fun MediaPreviewDialog(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0F17))
                     ) {
                         if (!isAudio) {
-                            AndroidView(
-                                modifier = Modifier.fillMaxWidth().height(220.dp),
-                                factory = { ctx ->
-                                    VideoView(ctx).apply {
-                                        setVideoPath(localFile.absolutePath)
-                                        val mediaController = MediaController(ctx)
-                                        mediaController.setAnchorView(this)
-                                        setMediaController(mediaController)
-                                        setOnPreparedListener { mp ->
-                                            mp.isLooping = true
-                                            start()
+                            var playError by remember { mutableStateOf(false) }
+                            if (playError) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(220.dp)
+                                        .padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Videocam,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Video format requires external player (e.g. VLC / MX Player)",
+                                        color = Color.LightGray,
+                                        fontSize = 12.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            } else {
+                                AndroidView(
+                                    modifier = Modifier.fillMaxWidth().height(220.dp),
+                                    factory = { ctx ->
+                                        VideoView(ctx).apply {
+                                            setVideoPath(localFile.absolutePath)
+                                            val mediaController = MediaController(ctx)
+                                            mediaController.setAnchorView(this)
+                                            setMediaController(mediaController)
+                                            setOnPreparedListener { mp ->
+                                                mp.isLooping = true
+                                                start()
+                                            }
+                                            setOnErrorListener { _, _, _ ->
+                                                playError = true
+                                                true // Consume error so default Android "Can't play this video" popup does not appear
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                         } else {
                             // Audio player interface
                             Column(

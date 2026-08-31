@@ -150,11 +150,23 @@ class DownloadRepository(
                 }
 
                 val body = response.body
+                val contentType = response.header("Content-Type", "")?.lowercase() ?: ""
                 if (body == null) {
                     downloadDao.updateStatus(
                         downloadId,
                         DownloadStatus.FAILED,
                         error = "Empty response stream received from source"
+                    )
+                    return@launch
+                }
+
+                // If server returned an HTML error page or cloud login portal instead of video/audio stream
+                if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
+                    response.close()
+                    downloadDao.updateStatus(
+                        downloadId,
+                        DownloadStatus.FAILED,
+                        error = "Direct stream unavailable. The link is a web portal or requires cloud login. Please use direct download links or configure API in Settings."
                     )
                     return@launch
                 }
@@ -210,6 +222,16 @@ class DownloadRepository(
                     }
 
                     outputStream.flush()
+
+                    if (totalDownloaded <= 1024L) {
+                        try { targetFile.delete() } catch (_: Exception) {}
+                        downloadDao.updateStatus(
+                            id = downloadId,
+                            status = DownloadStatus.FAILED,
+                            error = "Download incomplete: File was empty or inaccessible from remote server."
+                        )
+                        return@launch
+                    }
 
                     // Register file into Android MediaStore index so Gallery & Players detect it immediately
                     try {
