@@ -1,0 +1,6 @@
+{
+  "name": "OmniStream",
+  "description": "Universal all-platform video & audio downloader powered by custom yt-dlp API and TeraBox cloud engine with 8K/4K, 60/120fps, and dynamic quality matrix.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
