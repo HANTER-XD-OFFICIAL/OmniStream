@@ -104,12 +104,16 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
+import com.example.ui.components.StoragePermissionDialog
+import com.example.ui.components.StoragePermissionHelper
+
 @Composable
 fun HomeScreen(
     viewModel: DownloadViewModel,
     onNavigateToDownloads: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    val context = LocalContext.current
     val urlInput by viewModel.urlInput.collectAsStateWithLifecycle()
     val isFetching by viewModel.isFetching.collectAsStateWithLifecycle()
     val fetchError by viewModel.fetchError.collectAsStateWithLifecycle()
@@ -120,10 +124,29 @@ fun HomeScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var lockedTierInfo by remember { mutableStateOf<QualityTier?>(null) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var pendingDownloadAudioOnly by remember { mutableStateOf<Boolean?>(null) }
+
     val detectedPlatform = remember(urlInput) { PlatformDetector.detect(urlInput) }
     val isTeraBoxUrl = remember(urlInput) {
         val lower = urlInput.lowercase()
         "terabox" in lower || "1024tera" in lower || "terasharelink" in lower
+    }
+
+    if (showPermissionDialog) {
+        StoragePermissionDialog(
+            onDismiss = {
+                showPermissionDialog = false
+                pendingDownloadAudioOnly = null
+            },
+            onPermissionGranted = {
+                showPermissionDialog = false
+                val audioOnly = pendingDownloadAudioOnly ?: (selectedFormat?.isAudioOnly == true)
+                viewModel.startDownload(audioOnlyOverride = audioOnly)
+                pendingDownloadAudioOnly = null
+                onNavigateToDownloads()
+            }
+        )
     }
 
     // Locked tier alert dialog explaining why a quality cannot be downloaded for this video
@@ -764,9 +787,46 @@ fun HomeScreen(
                 }
             }
 
+            // Storage Location Indicator
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = CyberDarkSurface,
+                    border = BorderStroke(1.dp, CyberBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = EmeraldSuccess,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "SAVE DIRECTORY: Internal Storage > Download > OmniStream",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "Media automatically indexes to Phone Gallery, VLC, MX Player & Music Players",
+                                fontSize = 10.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+            }
+
             // Big Start Download CTA Button
             item {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 val format = selectedFormat
                 val badge = format?.displayQualityBadge ?: "Selected Quality"
                 val ext = format?.ext?.uppercase() ?: "MP4"
@@ -775,8 +835,13 @@ fun HomeScreen(
                 Button(
                     onClick = {
                         val isAudio = format?.isAudioOnly == true
-                        viewModel.startDownload(audioOnlyOverride = isAudio)
-                        onNavigateToDownloads()
+                        if (!StoragePermissionHelper.hasStoragePermission(context)) {
+                            pendingDownloadAudioOnly = isAudio
+                            showPermissionDialog = true
+                        } else {
+                            viewModel.startDownload(audioOnlyOverride = isAudio)
+                            onNavigateToDownloads()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()

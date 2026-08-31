@@ -165,6 +165,10 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         _selectedFormat.value = format
     }
 
+    fun getStorageLocationText(): String {
+        return "Internal Storage/Download/${DownloadRepository.APP_FOLDER_NAME}"
+    }
+
     fun startDownload(
         customExt: String? = null,
         audioOnlyOverride: Boolean = false
@@ -177,11 +181,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             val mediaType = if (isAudio) MediaType.AUDIO else MediaType.VIDEO
             val ext = customExt ?: (if (isAudio) "mp3" else format.ext)
 
-            val downloadUrl = format.url ?: (if (isAudio) {
-                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-            } else {
-                "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4"
-            })
+            val downloadUrl = format.url ?: info.webpageUrl ?: _urlInput.value.trim()
 
             downloadRepo.enqueueDownload(
                 title = info.title,
@@ -200,7 +200,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 totalBytesEstimated = format.estimatedBytes
             )
 
-            _statusMessage.value = "Download started: ${info.title.take(30)}..."
+            _statusMessage.value = "Saving to ${DownloadRepository.APP_FOLDER_NAME}: ${info.title.take(28)}..."
         }
     }
 

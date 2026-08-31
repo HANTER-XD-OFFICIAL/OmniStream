@@ -54,6 +54,11 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
+import com.example.ui.components.StoragePermissionDialog
+import com.example.ui.components.StoragePermissionHelper
+
 class MainActivity : ComponentActivity() {
 
     private val viewModel: DownloadViewModel by viewModels()
@@ -71,11 +76,25 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainApp(viewModel: DownloadViewModel) {
+    val context = LocalContext.current
     var currentTab by remember { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val previewItem by viewModel.previewItem.collectAsStateWithLifecycle()
     val allDownloads by viewModel.filteredDownloads.collectAsStateWithLifecycle()
+
+    var showPermissionDialog by remember {
+        mutableStateOf(!StoragePermissionHelper.hasStoragePermission(context))
+    }
+
+    if (showPermissionDialog) {
+        StoragePermissionDialog(
+            onDismiss = { showPermissionDialog = false },
+            onPermissionGranted = {
+                showPermissionDialog = false
+            }
+        )
+    }
 
     val activeCount = remember(allDownloads) {
         allDownloads.count { it.status == DownloadStatus.DOWNLOADING || it.status == DownloadStatus.QUEUED }

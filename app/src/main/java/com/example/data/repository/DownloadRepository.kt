@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.os.Environment
 import com.example.data.local.DownloadDao
 import com.example.data.local.DownloadEntity
@@ -27,12 +28,36 @@ class DownloadRepository(
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 ) {
     val allDownloads: Flow<List<DownloadEntity>> = downloadDao.getAllDownloads()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeJobs = ConcurrentHashMap<Long, Job>()
+
+    companion object {
+        const val APP_FOLDER_NAME = "OmniStream"
+
+        fun getAppStorageDirectory(context: Context): File {
+            // First priority: Phone Public Downloads / OmniStream
+            val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val omniStreamFolder = File(publicDownloads, APP_FOLDER_NAME)
+
+            if (omniStreamFolder.exists() || omniStreamFolder.mkdirs()) {
+                return omniStreamFolder
+            }
+
+            // Fallback: App external files directory
+            val extFiles = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            val extFolder = File(extFiles ?: context.filesDir, APP_FOLDER_NAME)
+            if (!extFolder.exists()) {
+                extFolder.mkdirs()
+            }
+            return extFolder
+        }
+    }
 
     suspend fun enqueueDownload(
         title: String,
@@ -85,18 +110,14 @@ class DownloadRepository(
 
             var targetFile: File? = null
             try {
-                // Ensure download directory exists
-                val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                    ?: context.filesDir
-                if (!downloadDir.exists()) {
-                    downloadDir.mkdirs()
-                }
+                // Ensure download directory exists in Internal Storage / Download / OmniStream
+                val downloadDir = getAppStorageDirectory(context)
 
-                // Sanitize filename
+                // Sanitize filename to avoid invalid OS filesystem characters
                 val safeTitle = item.title
-                    .replace(Regex("[^a-zA-Z0-9._ -]"), "_")
+                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
                     .trim()
-                    .take(45)
+                    .take(60)
                 val fileName = "${safeTitle}_${item.resolution.replace(" ", "_")}_${downloadId}.${item.ext}"
                 targetFile = File(downloadDir, fileName)
 
@@ -114,33 +135,16 @@ class DownloadRepository(
                     return builder.build()
                 }
 
-                var activeResponse = try {
-                    okHttpClient.newCall(buildDownloadRequest(item.downloadUrl)).execute()
-                } catch (_: Exception) {
-                    null
-                }
+                val response = okHttpClient.newCall(buildDownloadRequest(item.downloadUrl)).execute()
 
-                // If primary download URL fails or is blocked (e.g. 403 Forbidden or expired CDN token), use reliable fallback stream
-                if (activeResponse == null || !activeResponse.isSuccessful) {
-                    activeResponse?.close()
-                    val fallbackUrl = if (item.mediaType == MediaType.AUDIO) {
-                        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-                    } else {
-                        "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4"
-                    }
-                    try {
-                        activeResponse = okHttpClient.newCall(buildDownloadRequest(fallbackUrl)).execute()
-                    } catch (_: Exception) {}
-                }
-
-                val response = activeResponse
-                if (response == null || !response.isSuccessful) {
-                    val code = response?.code ?: 500
-                    val msg = response?.message ?: "Unable to connect to media source"
+                if (!response.isSuccessful) {
+                    val code = response.code
+                    val msg = response.message
+                    response.close()
                     downloadDao.updateStatus(
                         downloadId,
                         DownloadStatus.FAILED,
-                        error = "Download Error ($code): $msg"
+                        error = "Source server returned HTTP $code ($msg). Video link may be private or token expired."
                     )
                     return@launch
                 }
@@ -150,13 +154,12 @@ class DownloadRepository(
                     downloadDao.updateStatus(
                         downloadId,
                         DownloadStatus.FAILED,
-                        error = "Empty response from server"
+                        error = "Empty response stream received from source"
                     )
                     return@launch
                 }
 
-                val serverContentLength = body.contentLength()
-                val totalBytes = if (serverContentLength > 0) serverContentLength else item.totalBytes
+                val totalBytes = if (body.contentLength() > 0) body.contentLength() else item.totalBytes
 
                 var inputStream: InputStream? = null
                 var outputStream: FileOutputStream? = null
@@ -196,7 +199,7 @@ class DownloadRepository(
                                 id = downloadId,
                                 percent = percent,
                                 downloaded = totalDownloaded,
-                                total = totalBytes,
+                                total = if (totalBytes > 0) totalBytes else totalDownloaded,
                                 speed = speedText,
                                 eta = etaText
                             )
@@ -208,7 +211,18 @@ class DownloadRepository(
 
                     outputStream.flush()
 
-                    // Complete
+                    // Register file into Android MediaStore index so Gallery & Players detect it immediately
+                    try {
+                        val mimeType = if (item.mediaType == MediaType.AUDIO) "audio/*" else "video/*"
+                        MediaScannerConnection.scanFile(
+                            context.applicationContext,
+                            arrayOf(targetFile.absolutePath),
+                            arrayOf(mimeType),
+                            null
+                        )
+                    } catch (_: Exception) {}
+
+                    // Mark complete in Database
                     downloadDao.updateProgress(
                         id = downloadId,
                         percent = 100,
@@ -227,6 +241,7 @@ class DownloadRepository(
                 } finally {
                     try { inputStream?.close() } catch (_: Exception) {}
                     try { outputStream?.close() } catch (_: Exception) {}
+                    try { response.close() } catch (_: Exception) {}
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
