@@ -79,8 +79,7 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Run Unit Tests (Non-blocking)
-        continue-on-error: true
+      - name: Run Unit Tests
         env:
           JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
         run: ./gradlew testDebugUnitTest --no-daemon
