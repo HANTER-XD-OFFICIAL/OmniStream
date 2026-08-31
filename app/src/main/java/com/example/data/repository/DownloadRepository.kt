@@ -3,6 +3,7 @@ package com.example.data.repository
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.Environment
+import com.example.data.api.YtDlpClient
 import com.example.data.local.DownloadDao
 import com.example.data.local.DownloadEntity
 import com.example.data.local.DownloadStatus
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit
 class DownloadRepository(
     private val context: Context,
     private val downloadDao: DownloadDao,
+    private val ytDlpClient: YtDlpClient = YtDlpClient(),
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -135,12 +137,32 @@ class DownloadRepository(
                     return builder.build()
                 }
 
-                val response = okHttpClient.newCall(buildDownloadRequest(item.downloadUrl)).execute()
+                var activeResponse = okHttpClient.newCall(buildDownloadRequest(item.downloadUrl)).execute()
+                var contentType = activeResponse.header("Content-Type", "")?.lowercase() ?: ""
 
-                if (!response.isSuccessful) {
-                    val code = response.code
-                    val msg = response.message
-                    response.close()
+                // If source returned an error or an HTML portal page instead of media stream, attempt auto-resolution
+                if (!activeResponse.isSuccessful || contentType.contains("text/html") || contentType.contains("application/xhtml")) {
+                    activeResponse.close()
+                    val freshInfo = try { ytDlpClient.fetchVideoInfo(item.sourceUrl.ifBlank { item.downloadUrl }) } catch (_: Exception) { null }
+                    val candidateUrl = freshInfo?.formats?.firstOrNull { format ->
+                        val stream = format.url
+                        !stream.isNullOrBlank() && 
+                        stream.startsWith("http") && 
+                        !stream.contains("terabox.app/s/") && 
+                        !stream.contains("1024tera.com/s/") &&
+                        stream != item.downloadUrl
+                    }?.url
+
+                    if (candidateUrl != null) {
+                        activeResponse = okHttpClient.newCall(buildDownloadRequest(candidateUrl)).execute()
+                        contentType = activeResponse.header("Content-Type", "")?.lowercase() ?: ""
+                    }
+                }
+
+                if (!activeResponse.isSuccessful) {
+                    val code = activeResponse.code
+                    val msg = activeResponse.message
+                    activeResponse.close()
                     downloadDao.updateStatus(
                         downloadId,
                         DownloadStatus.FAILED,
@@ -149,24 +171,13 @@ class DownloadRepository(
                     return@launch
                 }
 
-                val body = response.body
-                val contentType = response.header("Content-Type", "")?.lowercase() ?: ""
-                if (body == null) {
+                val body = activeResponse.body
+                if (body == null || contentType.contains("text/html") || contentType.contains("application/xhtml")) {
+                    activeResponse.close()
                     downloadDao.updateStatus(
                         downloadId,
                         DownloadStatus.FAILED,
-                        error = "Empty response stream received from source"
-                    )
-                    return@launch
-                }
-
-                // If server returned an HTML error page or cloud login portal instead of video/audio stream
-                if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
-                    response.close()
-                    downloadDao.updateStatus(
-                        downloadId,
-                        DownloadStatus.FAILED,
-                        error = "Direct stream unavailable. The link is a web portal or requires cloud login. Please use direct download links or configure API in Settings."
+                        error = "Direct media stream could not be established. Link may require cloud login or has expired."
                     )
                     return@launch
                 }
@@ -263,7 +274,7 @@ class DownloadRepository(
                 } finally {
                     try { inputStream?.close() } catch (_: Exception) {}
                     try { outputStream?.close() } catch (_: Exception) {}
-                    try { response.close() } catch (_: Exception) {}
+                    try { activeResponse.close() } catch (_: Exception) {}
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {

@@ -75,7 +75,7 @@ class YtDlpClient(
 
     suspend fun fetchVideoInfo(
         url: String,
-        baseUrl: String,
+        baseUrl: String = "",
         authToken: String? = null,
         extraArgs: String? = null
     ): VideoInfoResponse = withContext(Dispatchers.IO) {
@@ -597,11 +597,18 @@ class YtDlpClient(
      * Resolves short/full share links, parses direct cloud media streams, authentic video metadata and posters.
      */
     private fun extractTeraBoxVideo(tbUrl: String): VideoInfoResponse? {
-        // Method 1: Try public fast TeraBox API resolvers
+        val surl = extractTeraBoxSurl(tbUrl)
+
+        // Method 1: Try public high-speed TeraBox API resolvers
         val apiEndpoints = listOf(
             "https://terabox-dl.qtcloud.workers.dev/api/get-info?url=",
+            "https://terabox-api.depthofcode.tech/api?url=",
+            "https://api.terabox.fun/api?url=",
+            "https://teraboxdownloader.online/api/get-info?url=",
+            "https://tb-api.subhankar.me/api?url=",
+            "https://terabox-download-link.vercel.app/api?url=",
             "https://yt-dlp-terabox.vercel.app/api?url=",
-            "https://teraboxdownloader.org/api/fetch?url="
+            "https://terabox.hnn.workers.dev/api/get-info?url="
         )
 
         for (endpoint in apiEndpoints) {
@@ -616,64 +623,45 @@ class YtDlpClient(
                 val response = okHttpClient.newCall(request).execute()
                 if (response.isSuccessful) {
                     val body = response.body?.string()
-                    if (!body.isNullOrBlank() && (body.contains("download_link") || body.contains("dlink") || body.contains("direct_link") || body.contains("downloadUrl") || body.contains("url"))) {
-                        val json = JSONObject(body)
-                        val fileName = json.optString("file_name", json.optString("filename", json.optString("title", "TeraBox Cloud Video")))
-                        val thumb = json.optString("thumb", json.optString("thumbnail", json.optString("image", "")))
-                        val downloadLink = json.optString("download_link", json.optString("dlink", json.optString("direct_link", json.optString("downloadUrl", json.optString("url", "")))))
-                        val sizeBytes = json.optLong("size_bytes", json.optLong("size", 120_000_000L))
-
-                        if (downloadLink.isNotBlank() && downloadLink.startsWith("http")) {
-                            val formats = mutableListOf<FormatInfo>()
-                            formats.add(
-                                FormatInfo(
-                                    formatId = "tb_direct_master",
-                                    formatNote = "Direct Master Stream • Native Cloud Bitrate",
-                                    resolution = "1920x1080",
-                                    width = 1920,
-                                    height = 1080,
-                                    fps = 30,
-                                    ext = if (fileName.endsWith(".mkv", ignoreCase = true)) "mkv" else "mp4",
-                                    vcodec = "h264",
-                                    acodec = "aac",
-                                    filesizeApprox = sizeBytes,
-                                    tbr = 4500.0,
-                                    url = downloadLink
-                                )
-                            )
-                            formats.add(
-                                FormatInfo(
-                                    formatId = "tb_audio",
-                                    formatNote = "Audio Extract • MP3 320 kbps",
-                                    resolution = "Audio Only",
-                                    ext = "mp3",
-                                    vcodec = "none",
-                                    acodec = "mp3",
-                                    filesizeApprox = 12_000_000L,
-                                    abr = 320.0,
-                                    url = downloadLink
-                                )
-                            )
-
-                            return VideoInfoResponse(
-                                id = Uri.parse(tbUrl).lastPathSegment ?: "tb_${System.currentTimeMillis() % 10000}",
-                                title = fileName,
-                                thumbnail = thumb.ifBlank { null },
-                                duration = 240L,
-                                durationString = "04:00",
-                                uploader = "TeraBox Cloud",
-                                extractor = "TeraBox",
-                                webpageUrl = tbUrl,
-                                description = "Direct TeraBox file stream resolved via high-speed cloud master link.",
-                                formats = formats
-                            )
-                        }
+                    if (!body.isNullOrBlank()) {
+                        val parsed = parseTeraBoxApiResponse(body, tbUrl)
+                        if (parsed != null) return parsed
                     }
                 }
             } catch (_: Exception) {}
         }
 
-        // Method 2: Direct HTML Scraping for js variables and meta tags
+        // Method 2: Call Official TeraBox Share/List API endpoints
+        if (surl.isNotBlank()) {
+            val officialUrls = listOf(
+                "https://www.terabox.app/share/list?app_id=250528&shorturl=$surl&root=1",
+                "https://www.1024tera.com/share/list?app_id=250528&shorturl=$surl&root=1",
+                "https://www.terabox.app/share/list?app_id=250528&shorturl=1$surl&root=1",
+                "https://www.1024tera.com/share/list?app_id=250528&shorturl=1$surl&root=1"
+            )
+
+            for (apiUrl in officialUrls) {
+                try {
+                    val request = Request.Builder()
+                        .url(apiUrl)
+                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                        .addHeader("Referer", "https://www.terabox.app/")
+                        .addHeader("Accept", "application/json, text/plain, */*")
+                        .build()
+
+                    val response = okHttpClient.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrBlank()) {
+                            val parsed = parseTeraBoxOfficialList(body, tbUrl)
+                            if (parsed != null) return parsed
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        // Method 3: Direct HTML Scraping for js variables and meta tags
         try {
             val desktopUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             val request = Request.Builder()
@@ -705,7 +693,7 @@ class YtDlpClient(
                         directStreamUrl = decodeEscapedUrl(dlinkMatch.groupValues[1])
                     }
 
-                    if (title.isNullOrBlank() || title.contains("TeraBox", ignoreCase = true) && title.length <= 10) {
+                    if (title.isNullOrBlank() || (title.contains("TeraBox", ignoreCase = true) && title.length <= 10)) {
                         title = "TeraBox Shared Media"
                     } else {
                         title = cleanHtmlEntities(title).replace(" - Shared via TeraBox", "").trim()
@@ -713,8 +701,26 @@ class YtDlpClient(
 
                     val cleanThumb = if (!thumbnail.isNullOrBlank()) cleanHtmlEntities(thumbnail).trim() else null
 
+                    // If direct stream URL is found from HTML scripts
+                    if (directStreamUrl != null && directStreamUrl.startsWith("http")) {
+                        return VideoInfoResponse(
+                            id = surl.ifBlank { "tb_${System.currentTimeMillis() % 10000}" },
+                            title = title,
+                            thumbnail = cleanThumb,
+                            duration = 180L,
+                            durationString = "03:00",
+                            uploader = "TeraBox Cloud User",
+                            extractor = "TeraBox",
+                            webpageUrl = tbUrl,
+                            description = "TeraBox video parsed and ready for download.",
+                            formats = generateTeraBoxFormats(title, directStreamUrl)
+                        )
+                    }
+
+                    // If only metadata found from HTML, construct resolver gateway format
+                    val gatewayUrl = "https://terabox-dl.qtcloud.workers.dev/api/download?url=${java.net.URLEncoder.encode(tbUrl, "UTF-8")}"
                     return VideoInfoResponse(
-                        id = Uri.parse(tbUrl).lastPathSegment ?: "tb_${System.currentTimeMillis() % 10000}",
+                        id = surl.ifBlank { "tb_${System.currentTimeMillis() % 10000}" },
                         title = title,
                         thumbnail = cleanThumb,
                         duration = 180L,
@@ -722,13 +728,130 @@ class YtDlpClient(
                         uploader = "TeraBox Cloud User",
                         extractor = "TeraBox",
                         webpageUrl = tbUrl,
-                        description = "TeraBox video parsed and ready for download.",
-                        formats = generateTeraBoxFormats(title, directStreamUrl ?: tbUrl)
+                        description = "TeraBox video stream link ready for download.",
+                        formats = generateTeraBoxFormats(title, gatewayUrl)
                     )
                 }
             }
         } catch (_: Exception) {}
 
+        return null
+    }
+
+    private fun extractTeraBoxSurl(url: String): String {
+        return try {
+            val uri = Uri.parse(url)
+            val surlParam = uri.getQueryParameter("surl")
+            if (!surlParam.isNullOrBlank()) {
+                if (surlParam.startsWith("1")) surlParam.substring(1) else surlParam
+            } else {
+                val path = uri.path ?: ""
+                val match = Regex("""/s/(?:1)?([a-zA-Z0-9_-]+)""").find(path)
+                if (match != null) {
+                    match.groupValues[1]
+                } else {
+                    val last = uri.lastPathSegment ?: ""
+                    if (last.startsWith("1") && last.length > 5) last.substring(1) else last
+                }
+            }
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    private fun parseTeraBoxOfficialList(body: String, tbUrl: String): VideoInfoResponse? {
+        try {
+            val json = JSONObject(body)
+            if (json.optInt("errno", -1) == 0 && json.has("list")) {
+                val list = json.getJSONArray("list")
+                if (list.length() > 0) {
+                    val item = list.getJSONObject(0)
+                    val fileName = item.optString("server_filename", "TeraBox Cloud Media")
+                    val sizeBytes = item.optLong("size", 150_000_000L)
+                    val dlink = item.optString("dlink", "")
+                    val thumbs = item.optJSONObject("thumbs")
+                    val thumbUrl = thumbs?.optString("url3") ?: thumbs?.optString("url2") ?: thumbs?.optString("url1")
+
+                    if (dlink.isNotBlank() && dlink.startsWith("http")) {
+                        return VideoInfoResponse(
+                            id = item.optString("fs_id", "tb_${System.currentTimeMillis() % 10000}"),
+                            title = fileName,
+                            thumbnail = thumbUrl?.ifBlank { null },
+                            duration = 240L,
+                            durationString = "04:00",
+                            uploader = "TeraBox Cloud",
+                            extractor = "TeraBox",
+                            webpageUrl = tbUrl,
+                            description = "Direct master stream from TeraBox.",
+                            formats = generateTeraBoxFormats(fileName, dlink, sizeBytes)
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun parseTeraBoxApiResponse(body: String, tbUrl: String): VideoInfoResponse? {
+        try {
+            // Case 1: JSON Array
+            if (body.trim().startsWith("[")) {
+                val arr = JSONArray(body)
+                if (arr.length() > 0) {
+                    val obj = arr.getJSONObject(0)
+                    return buildResponseFromTeraBoxJson(obj, tbUrl)
+                }
+            } else if (body.trim().startsWith("{")) {
+                val json = JSONObject(body)
+                // Case 2: Nested response or list
+                if (json.has("response")) {
+                    val resp = json.get("response")
+                    if (resp is JSONArray && resp.length() > 0) {
+                        return buildResponseFromTeraBoxJson(resp.getJSONObject(0), tbUrl)
+                    } else if (resp is JSONObject) {
+                        return buildResponseFromTeraBoxJson(resp, tbUrl)
+                    }
+                }
+                if (json.has("list")) {
+                    val list = json.getJSONArray("list")
+                    if (list.length() > 0) {
+                        return buildResponseFromTeraBoxJson(list.getJSONObject(0), tbUrl)
+                    }
+                }
+                if (json.has("data")) {
+                    val data = json.get("data")
+                    if (data is JSONArray && data.length() > 0) {
+                        return buildResponseFromTeraBoxJson(data.getJSONObject(0), tbUrl)
+                    } else if (data is JSONObject) {
+                        return buildResponseFromTeraBoxJson(data, tbUrl)
+                    }
+                }
+                return buildResponseFromTeraBoxJson(json, tbUrl)
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun buildResponseFromTeraBoxJson(json: JSONObject, tbUrl: String): VideoInfoResponse? {
+        val fileName = json.optString("file_name", json.optString("filename", json.optString("server_filename", json.optString("title", "TeraBox Cloud Video"))))
+        val thumb = json.optString("thumb", json.optString("thumbnail", json.optString("image", "")))
+        val downloadLink = json.optString("download_link", json.optString("dlink", json.optString("direct_link", json.optString("downloadUrl", json.optString("url", "")))))
+        val sizeBytes = json.optLong("size_bytes", json.optLong("size", 150_000_000L))
+
+        if (downloadLink.isNotBlank() && downloadLink.startsWith("http") && !downloadLink.contains("terabox.app/s/") && !downloadLink.contains("1024tera.com/s/")) {
+            return VideoInfoResponse(
+                id = json.optString("fs_id", Uri.parse(tbUrl).lastPathSegment ?: "tb_${System.currentTimeMillis() % 10000}"),
+                title = fileName,
+                thumbnail = thumb.ifBlank { null },
+                duration = 240L,
+                durationString = "04:00",
+                uploader = "TeraBox Cloud",
+                extractor = "TeraBox",
+                webpageUrl = tbUrl,
+                description = "High-speed direct cloud stream from TeraBox.",
+                formats = generateTeraBoxFormats(fileName, downloadLink, sizeBytes)
+            )
+        }
         return null
     }
 
@@ -907,20 +1030,23 @@ class YtDlpClient(
         )
     }
 
-    fun generateTeraBoxFormats(title: String, directUrl: String? = null): List<FormatInfo> {
+    fun generateTeraBoxFormats(title: String, directUrl: String? = null, sizeBytes: Long? = null): List<FormatInfo> {
         val streamUrl = directUrl
+        val approx = sizeBytes ?: 185_000_000L
+        val ext = if (title.endsWith(".mkv", ignoreCase = true)) "mkv" else "mp4"
+
         return listOf(
             FormatInfo(
                 formatId = "tb_1080p",
-                formatNote = "Full HD • 1080p Source Stream",
+                formatNote = "Full HD • Source Master Stream",
                 resolution = "1920x1080",
                 width = 1920,
                 height = 1080,
                 fps = 30,
-                ext = "mp4",
+                ext = ext,
                 vcodec = "h264",
                 acodec = "aac",
-                filesizeApprox = 185_000_000L,
+                filesizeApprox = approx,
                 tbr = 4200.0,
                 url = streamUrl
             ),
@@ -934,7 +1060,7 @@ class YtDlpClient(
                 ext = "mp4",
                 vcodec = "h264",
                 acodec = "aac",
-                filesizeApprox = 98_000_000L,
+                filesizeApprox = (approx * 0.6).toLong(),
                 tbr = 2200.0,
                 url = streamUrl
             ),
@@ -948,7 +1074,7 @@ class YtDlpClient(
                 ext = "mp4",
                 vcodec = "h264",
                 acodec = "aac",
-                filesizeApprox = 52_000_000L,
+                filesizeApprox = (approx * 0.35).toLong(),
                 tbr = 1200.0,
                 url = streamUrl
             ),
