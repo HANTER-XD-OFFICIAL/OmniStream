@@ -172,11 +172,10 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        PresetChip("TeraBox Cloud Gateway") { apiUrl = "https://terabox-gateway.local/api" }
+                        PresetChip("Render VIP Server (Active)") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
+                        PresetChip("Cobalt Official") { apiUrl = "https://api.cobalt.tools" }
+                        PresetChip("TeraBox Gateway") { apiUrl = "https://terabox-gateway.local/api" }
                         PresetChip("Self-Hosted (:5000)") { apiUrl = "http://192.168.1.100:5000" }
-                        PresetChip("Docker Container (:8080)") { apiUrl = "http://localhost:8080" }
-                        PresetChip("Cobalt API") { apiUrl = "https://api.cobalt.tools" }
-                        PresetChip("OmniStream Core") { apiUrl = "https://omnistream-api.local:5000" }
                     }
 
                     // Ping / Test API Status
