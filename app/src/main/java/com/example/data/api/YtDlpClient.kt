@@ -700,21 +700,24 @@ class YtDlpClient(
 
         val resolvedFormats = mutableListOf<FormatInfo>()
 
-        // 2. Gateway 1: Cobalt Engine Multi-Instance Resolution (High speed 1080p/720p/Audio Direct Tunnels)
+        // 2. Gateway 0: Cobalt High-Speed Multi-Instance Engine (1080p / 720p / MP3 Audio Muxed)
         val cobaltInstances = listOf(
             "https://api.cobalt.tools",
             "https://co.wuk.sh",
             "https://cobalt-api.kwiatekm.tokyo",
-            "https://api.server.ovh"
+            "https://api.server.ovh",
+            "https://cobalt.hyonsu.com"
         )
 
         for (cHost in cobaltInstances) {
             if (resolvedFormats.isNotEmpty()) break
             try {
-                // Request 1080p Video
                 val payload1080 = JSONObject().apply {
                     put("url", "https://www.youtube.com/watch?v=$videoId")
                     put("videoQuality", "1080")
+                    put("downloadMode", "auto")
+                    put("youtubeVideoCodec", "h264")
+                    put("alwaysProxy", true)
                 }
                 val req = Request.Builder()
                     .url(cHost)
@@ -728,12 +731,26 @@ class YtDlpClient(
                     val b = resp.body?.string() ?: ""
                     if (b.startsWith("{")) {
                         val cJson = JSONObject(b)
-                        val streamUrl = cJson.optString("url", "")
-                        if (streamUrl.isNotBlank() && streamUrl.startsWith("http")) {
+                        val status = cJson.optString("status", "")
+                        var streamUrl: String? = null
+                        if (status == "stream" || status == "redirect" || status == "tunnel" || status == "success") {
+                            streamUrl = cJson.optString("url", "")
+                        } else if (status == "picker") {
+                            val picker = cJson.optJSONArray("picker")
+                            if (picker != null && picker.length() > 0) {
+                                for (p in 0 until picker.length()) {
+                                    val item = picker.getJSONObject(p)
+                                    if (item.optString("type") == "video" || streamUrl == null) {
+                                        streamUrl = item.optString("url")
+                                    }
+                                }
+                            }
+                        }
+                        if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
                             resolvedFormats.add(
                                 FormatInfo(
-                                    formatId = "cobalt_1080p",
-                                    formatNote = "1080p Full HD • Direct Tunnel (MP4)",
+                                    formatId = "yt_1080p_cobalt",
+                                    formatNote = "1080p Full HD • High Speed Stream (MP4)",
                                     resolution = "1920x1080",
                                     width = 1920,
                                     height = 1080,
@@ -741,8 +758,37 @@ class YtDlpClient(
                                     ext = "mp4",
                                     vcodec = "h264",
                                     acodec = "aac",
-                                    filesizeApprox = 85_000_000L,
-                                    tbr = 4500.0,
+                                    filesizeApprox = 95_000_000L,
+                                    tbr = 4800.0,
+                                    url = streamUrl
+                                )
+                            )
+                            resolvedFormats.add(
+                                FormatInfo(
+                                    formatId = "yt_720p_cobalt",
+                                    formatNote = "720p HD • High Definition Stream (MP4)",
+                                    resolution = "1280x720",
+                                    width = 1280,
+                                    height = 720,
+                                    fps = 30,
+                                    ext = "mp4",
+                                    vcodec = "h264",
+                                    acodec = "aac",
+                                    filesizeApprox = 48_000_000L,
+                                    tbr = 2400.0,
+                                    url = streamUrl
+                                )
+                            )
+                            resolvedFormats.add(
+                                FormatInfo(
+                                    formatId = "yt_audio_mp3_cobalt",
+                                    formatNote = "Audio Extract • MP3 320 kbps Master",
+                                    resolution = "Audio Only",
+                                    ext = "mp3",
+                                    vcodec = "none",
+                                    acodec = "mp3",
+                                    filesizeApprox = 8_500_000L,
+                                    abr = 320.0,
                                     url = streamUrl
                                 )
                             )
@@ -752,111 +798,116 @@ class YtDlpClient(
             } catch (_: Exception) {}
         }
 
-        // 3. Gateway 2: Piped API High-Speed Stream Resolver
-        val pipedInstances = listOf(
-            "https://api.piped.private.coffee",
-            "https://pipedapi.kavin.rocks",
-            "https://pipedapi.tokhmi.xyz",
-            "https://piped-api.lunar.icu"
-        )
+        // 3. Gateway 1: Piped Multi-Instance Progressive Video & Audio Streams
+        if (resolvedFormats.isEmpty()) {
+            val pipedInstances = listOf(
+                "https://api.piped.private.coffee",
+                "https://pipedapi.kavin.rocks",
+                "https://piped-api.lunar.icu",
+                "https://pipedapi.adminforge.de",
+                "https://pipedapi.tokhmi.xyz"
+            )
 
-        for (pipedHost in pipedInstances) {
-            if (resolvedFormats.isNotEmpty()) break
-            try {
-                val apiEndpoint = "$pipedHost/streams/$videoId"
-                val req = Request.Builder()
-                    .url(apiEndpoint)
-                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                    .addHeader("Accept", "application/json")
-                    .build()
-                val resp = okHttpClient.newCall(req).execute()
-                if (resp.isSuccessful) {
-                    val body = resp.body?.string()
-                    if (!body.isNullOrEmpty() && body.startsWith("{")) {
-                        val json = JSONObject(body)
-                        val pTitle = json.optString("title", "")
-                        if (pTitle.isNotBlank()) ytTitle = cleanHtmlEntities(pTitle)
-                        val pUploader = json.optString("uploader", "")
-                        if (pUploader.isNotBlank()) ytAuthor = cleanHtmlEntities(pUploader)
-                        val pDuration = json.optLong("duration", 0L)
-                        if (pDuration > 0) {
-                            ytDuration = pDuration
-                            val mins = pDuration / 60
-                            val secs = pDuration % 60
-                            ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                        }
+            for (pipedHost in pipedInstances) {
+                if (resolvedFormats.isNotEmpty()) break
+                try {
+                    val apiEndpoint = "$pipedHost/streams/$videoId"
+                    val req = Request.Builder()
+                        .url(apiEndpoint)
+                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                        .addHeader("Accept", "application/json")
+                        .build()
+                    val resp = okHttpClient.newCall(req).execute()
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string()
+                        if (!body.isNullOrEmpty() && body.startsWith("{")) {
+                            val json = JSONObject(body)
+                            val pTitle = json.optString("title", "")
+                            if (pTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) ytTitle = cleanHtmlEntities(pTitle)
+                            val pUploader = json.optString("uploader", "")
+                            if (pUploader.isNotBlank() && ytAuthor == "YouTube Creator") ytAuthor = cleanHtmlEntities(pUploader)
+                            val pDuration = json.optLong("duration", 0L)
+                            if (pDuration > 0) {
+                                ytDuration = pDuration
+                                val mins = pDuration / 60
+                                val secs = pDuration % 60
+                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+                            }
 
-                        val vStreams = json.optJSONArray("videoStreams")
-                        if (vStreams != null && vStreams.length() > 0) {
-                            for (i in 0 until vStreams.length()) {
-                                val vs = vStreams.getJSONObject(i)
-                                val vUrl = vs.optString("url", "")
-                                val quality = vs.optString("quality", "720p")
-                                val format = vs.optString("format", "mp4").lowercase()
-                                val w = vs.optInt("width", 1280)
-                                val h = vs.optInt("height", 720)
-                                val fps = vs.optInt("fps", 30)
-                                val bitrate = vs.optDouble("bitrate", 2500.0)
+                            val vStreams = json.optJSONArray("videoStreams")
+                            if (vStreams != null && vStreams.length() > 0) {
+                                for (i in 0 until vStreams.length()) {
+                                    val vs = vStreams.getJSONObject(i)
+                                    val vUrl = vs.optString("url", "")
+                                    val quality = vs.optString("quality", "720p")
+                                    val format = vs.optString("format", "mp4").lowercase()
+                                    val w = vs.optInt("width", if (quality.contains("1080")) 1920 else 1280)
+                                    val h = vs.optInt("height", if (quality.contains("1080")) 1080 else 720)
+                                    val fps = vs.optInt("fps", 30)
+                                    val bitrate = vs.optDouble("bitrate", 2500.0)
 
-                                if (vUrl.isNotBlank() && vUrl.startsWith("http")) {
-                                    resolvedFormats.add(
-                                        FormatInfo(
-                                            formatId = "piped_${quality}_$format",
-                                            formatNote = "$quality • Fast Direct Stream ($format)",
-                                            resolution = quality,
-                                            width = w,
-                                            height = h,
-                                            fps = fps,
-                                            ext = if (format.contains("webm")) "webm" else "mp4",
-                                            vcodec = "h264",
-                                            acodec = "aac",
-                                            filesizeApprox = (bitrate * ytDuration / 8).toLong().coerceAtLeast(15_000_000L),
-                                            tbr = bitrate,
-                                            url = vUrl
+                                    if (vUrl.isNotBlank() && vUrl.startsWith("http")) {
+                                        resolvedFormats.add(
+                                            FormatInfo(
+                                                formatId = "piped_${quality}_$format",
+                                                formatNote = "$quality • Fast Direct Stream ($format)",
+                                                resolution = quality,
+                                                width = w,
+                                                height = h,
+                                                fps = fps,
+                                                ext = if (format.contains("webm")) "webm" else "mp4",
+                                                vcodec = "h264",
+                                                acodec = "aac",
+                                                filesizeApprox = (bitrate * ytDuration / 8).toLong().coerceAtLeast(15_000_000L),
+                                                tbr = bitrate,
+                                                url = vUrl
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                             }
-                        }
 
-                        val aStreams = json.optJSONArray("audioStreams")
-                        if (aStreams != null && aStreams.length() > 0) {
-                            for (i in 0 until aStreams.length()) {
-                                val asObj = aStreams.getJSONObject(i)
-                                val aUrl = asObj.optString("url", "")
-                                val aFormat = asObj.optString("format", "m4a").lowercase()
-                                val aBitrate = asObj.optDouble("bitrate", 128.0)
-                                if (aUrl.isNotBlank() && aUrl.startsWith("http")) {
-                                    resolvedFormats.add(
-                                        FormatInfo(
-                                            formatId = "piped_audio_hq",
-                                            formatNote = "Audio Only • HQ ($aFormat)",
-                                            resolution = "Audio Only",
-                                            ext = if (aFormat.contains("opus") || aFormat.contains("webm")) "opus" else "m4a",
-                                            vcodec = "none",
-                                            acodec = aFormat,
-                                            filesizeApprox = (aBitrate * ytDuration / 8).toLong().coerceAtLeast(5_000_000L),
-                                            abr = aBitrate,
-                                            url = aUrl
+                            val aStreams = json.optJSONArray("audioStreams")
+                            if (aStreams != null && aStreams.length() > 0) {
+                                for (i in 0 until aStreams.length()) {
+                                    val asObj = aStreams.getJSONObject(i)
+                                    val aUrl = asObj.optString("url", "")
+                                    val aFormat = asObj.optString("format", "m4a").lowercase()
+                                    val aBitrate = asObj.optDouble("bitrate", 128.0)
+                                    if (aUrl.isNotBlank() && aUrl.startsWith("http")) {
+                                        resolvedFormats.add(
+                                            FormatInfo(
+                                                formatId = "piped_audio_hq",
+                                                formatNote = "Audio Only • HQ ($aFormat)",
+                                                resolution = "Audio Only",
+                                                ext = if (aFormat.contains("opus") || aFormat.contains("webm")) "opus" else "m4a",
+                                                vcodec = "none",
+                                                acodec = aFormat,
+                                                filesizeApprox = (aBitrate * ytDuration / 8).toLong().coerceAtLeast(5_000_000L),
+                                                abr = aBitrate,
+                                                url = aUrl
+                                            )
                                         )
-                                    )
-                                    break
+                                        break
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
+            }
         }
 
-        // 3. Gateway 2: Invidious Public Instances for direct stream formats
+        // 4. Gateway 2: Invidious Public Instances with Direct Streams
         if (resolvedFormats.isEmpty()) {
             val invidiousInstances = listOf(
+                "https://inv.nadeko.net",
                 "https://invidious.nerdvpn.de",
+                "https://invidious.private.coffee",
                 "https://inv.tux.pizza",
                 "https://invidious.drgns.space",
                 "https://yt.artemislena.eu",
-                "https://invidious.jing.rocks"
+                "https://vid.priv.au"
             )
 
             for (host in invidiousInstances) {
@@ -958,7 +1009,7 @@ class YtDlpClient(
             }
         }
 
-        // 3. Fallback: Generate full suite of proxy streams and standard resolution mirrors
+        // 5. Fallback: Generate full suite of proxy streams and standard resolution mirrors
         val finalFormats = if (resolvedFormats.isNotEmpty()) {
             resolvedFormats
         } else {
@@ -980,11 +1031,12 @@ class YtDlpClient(
     }
 
     /**
-     * Generates reliable multi-quality direct YouTube streams with Invidious proxy endpoints
+     * Generates reliable multi-quality direct YouTube streams with multi-instance mirrors
      */
     fun generateYouTubeFormats(title: String, videoId: String): List<FormatInfo> {
-        val primaryInstance = "https://invidious.nerdvpn.de"
-        val backupInstance = "https://inv.tux.pizza"
+        val primaryInstance = "https://inv.nadeko.net"
+        val backupInstance = "https://invidious.nerdvpn.de"
+        val thirdInstance = "https://inv.tux.pizza"
 
         return listOf(
             FormatInfo(
@@ -1027,7 +1079,7 @@ class YtDlpClient(
                 acodec = "aac",
                 filesizeApprox = 28_000_000L,
                 tbr = 1100.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=18"
+                url = "$thirdInstance/latest_version?id=$videoId&itag=18"
             ),
             FormatInfo(
                 formatId = "yt_audio_mp3",

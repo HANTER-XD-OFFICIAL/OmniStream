@@ -154,18 +154,21 @@ class DownloadRepository(
                 var streamBody: okhttp3.ResponseBody? = null
                 var primaryUrl = item.downloadUrl
 
-                // Multi-gateway stream retrieval: Try primary URL, then candidate URLs, then verified high-speed media mirrors
+                // Multi-gateway stream retrieval: Try primary URL, then candidate URLs, then fresh dynamic streams
                 val candidateUrls = mutableListOf<String>()
                 if (primaryUrl.isNotBlank() && primaryUrl.startsWith("http")) {
                     candidateUrls.add(primaryUrl)
                 }
 
-                // If primaryUrl was the page URL itself or failed, resolve fresh format URLs
-                val freshInfo = try { ytDlpClient.fetchVideoInfo(item.sourceUrl.ifBlank { primaryUrl }) } catch (_: Exception) { null }
-                freshInfo?.formats?.forEach { f ->
-                    val u = f.url
-                    if (!u.isNullOrBlank() && u.startsWith("http") && !candidateUrls.contains(u)) {
-                        candidateUrls.add(u)
+                // If primaryUrl was the page URL itself or format list needed, resolve fresh format URLs
+                val targetQuery = if (item.sourceUrl.isNotBlank() && item.sourceUrl.startsWith("http")) item.sourceUrl else primaryUrl
+                if (targetQuery.startsWith("http")) {
+                    val freshInfo = try { ytDlpClient.fetchVideoInfo(targetQuery) } catch (_: Exception) { null }
+                    freshInfo?.formats?.forEach { f ->
+                        val u = f.url
+                        if (!u.isNullOrBlank() && u.startsWith("http") && !candidateUrls.contains(u)) {
+                            candidateUrls.add(u)
+                        }
                     }
                 }
 
@@ -178,14 +181,14 @@ class DownloadRepository(
                 candidateUrls.add(backupStream)
 
                 for (urlToTry in candidateUrls) {
-                    if (activeResponse != null) break
+                    if (activeResponse != null && streamBody != null) break
                     if (urlToTry.isBlank() || !urlToTry.startsWith("http")) continue
 
                     // Attempt 1: Standard request with platform referer
                     try {
                         val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = true)).execute()
                         val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
-                        if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml") && !cType.contains("application/json")) {
+                        if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
                             activeResponse = resp
                             streamBody = resp.body
                             break
@@ -199,7 +202,7 @@ class DownloadRepository(
                         try {
                             val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = false)).execute()
                             val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
-                            if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml") && !cType.contains("application/json")) {
+                            if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
                                 activeResponse = resp
                                 streamBody = resp.body
                                 break
