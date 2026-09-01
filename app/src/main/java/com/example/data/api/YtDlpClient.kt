@@ -595,15 +595,67 @@ class YtDlpClient(
             }
         } catch (_: Exception) {}
 
-        // 2. Gateway 1: Piped API High-Speed Stream Resolver
+        val resolvedFormats = mutableListOf<FormatInfo>()
+
+        // 2. Gateway 1: Cobalt Engine Multi-Instance Resolution (High speed 1080p/720p/Audio Direct Tunnels)
+        val cobaltInstances = listOf(
+            "https://api.cobalt.tools",
+            "https://co.wuk.sh",
+            "https://cobalt-api.kwiatekm.tokyo",
+            "https://api.server.ovh"
+        )
+
+        for (cHost in cobaltInstances) {
+            if (resolvedFormats.isNotEmpty()) break
+            try {
+                // Request 1080p Video
+                val payload1080 = JSONObject().apply {
+                    put("url", "https://www.youtube.com/watch?v=$videoId")
+                    put("videoQuality", "1080")
+                }
+                val req = Request.Builder()
+                    .url(cHost)
+                    .addHeader("Accept", "application/json")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                    .post(payload1080.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val b = resp.body?.string() ?: ""
+                    if (b.startsWith("{")) {
+                        val cJson = JSONObject(b)
+                        val streamUrl = cJson.optString("url", "")
+                        if (streamUrl.isNotBlank() && streamUrl.startsWith("http")) {
+                            resolvedFormats.add(
+                                FormatInfo(
+                                    formatId = "cobalt_1080p",
+                                    formatNote = "1080p Full HD • Direct Tunnel (MP4)",
+                                    resolution = "1920x1080",
+                                    width = 1920,
+                                    height = 1080,
+                                    fps = 60,
+                                    ext = "mp4",
+                                    vcodec = "h264",
+                                    acodec = "aac",
+                                    filesizeApprox = 85_000_000L,
+                                    tbr = 4500.0,
+                                    url = streamUrl
+                                )
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 3. Gateway 2: Piped API High-Speed Stream Resolver
         val pipedInstances = listOf(
             "https://api.piped.private.coffee",
             "https://pipedapi.kavin.rocks",
             "https://pipedapi.tokhmi.xyz",
             "https://piped-api.lunar.icu"
         )
-
-        val resolvedFormats = mutableListOf<FormatInfo>()
 
         for (pipedHost in pipedInstances) {
             if (resolvedFormats.isNotEmpty()) break

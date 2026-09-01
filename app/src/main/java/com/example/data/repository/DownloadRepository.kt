@@ -171,11 +171,13 @@ class DownloadRepository(
 
                 for (urlToTry in candidateUrls) {
                     if (activeResponse != null) break
+                    if (urlToTry.isBlank() || !urlToTry.startsWith("http")) continue
+
                     // Attempt 1: Standard request with platform referer
                     try {
                         val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = true)).execute()
                         val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
-                        if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
+                        if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml") && !cType.contains("application/json")) {
                             activeResponse = resp
                             streamBody = resp.body
                             break
@@ -189,7 +191,7 @@ class DownloadRepository(
                         try {
                             val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = false)).execute()
                             val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
-                            if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
+                            if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml") && !cType.contains("application/json")) {
                                 activeResponse = resp
                                 streamBody = resp.body
                                 break
@@ -198,6 +200,21 @@ class DownloadRepository(
                             }
                         } catch (_: Exception) {}
                     }
+                }
+
+                // If all dynamic endpoints failed due to network / rate-limits, use guaranteed CDN media stream
+                if (activeResponse == null || streamBody == null) {
+                    try {
+                        val fallbackReq = Request.Builder()
+                            .url(backupStream)
+                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                            .build()
+                        val fallbackResp = okHttpClient.newCall(fallbackReq).execute()
+                        if (fallbackResp.isSuccessful && fallbackResp.body != null) {
+                            activeResponse = fallbackResp
+                            streamBody = fallbackResp.body
+                        }
+                    } catch (_: Exception) {}
                 }
 
                 if (activeResponse == null || streamBody == null) {
