@@ -90,44 +90,71 @@ class YtDlpClient(
                 !cleanBaseUrl.contains("localhost")
 
         if (isCustomApiAvailable) {
-            try {
-                val encodedUrl = Uri.encode(url)
-                val targetUrl = "$cleanBaseUrl/api/info?url=$encodedUrl"
-                val requestBuilder = Request.Builder().url(targetUrl).get()
-                if (!authToken.isNullOrBlank()) {
-                    requestBuilder.addHeader("Authorization", "Bearer $authToken")
+            // Render / Flask / FastAPI / Node yt-dlp API servers typically use POST with JSON {"url": ...}
+            val jsonPayload = JSONObject().apply {
+                put("url", url)
+                if (!extraArgs.isNullOrBlank()) {
+                    put("args", extraArgs)
                 }
-                val response = okHttpClient.newCall(requestBuilder.build()).execute()
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrEmpty()) {
-                        parsedResult = parseYtDlpJson(body, url)
-                    }
-                }
-            } catch (_: Exception) {}
+            }
+            val reqBody = jsonPayload.toString().toRequestBody("application/json".toMediaType())
 
-            if (parsedResult == null) {
+            // 1. Try POST endpoints first (most Render/FastAPI yt-dlp microservices accept POST /api/info or POST /info)
+            val postEndpoints = listOf(
+                "$cleanBaseUrl/api/info",
+                "$cleanBaseUrl/info",
+                "$cleanBaseUrl/api/json",
+                "$cleanBaseUrl/json",
+                "$cleanBaseUrl/api/extract",
+                "$cleanBaseUrl/extract",
+                "$cleanBaseUrl/"
+            )
+
+            for (endpoint in postEndpoints) {
+                if (parsedResult != null) break
                 try {
-                    val postUrl = "$cleanBaseUrl/api/extract"
-                    val jsonPayload = JSONObject().apply {
-                        put("url", url)
-                        if (!extraArgs.isNullOrBlank()) {
-                            put("args", extraArgs)
-                        }
-                    }
-                    val reqBody = jsonPayload.toString().toRequestBody("application/json".toMediaType())
-                    val requestBuilder = Request.Builder().url(postUrl).post(reqBody)
+                    val requestBuilder = Request.Builder().url(endpoint).post(reqBody)
                     if (!authToken.isNullOrBlank()) {
                         requestBuilder.addHeader("Authorization", "Bearer $authToken")
                     }
                     val response = okHttpClient.newCall(requestBuilder.build()).execute()
                     if (response.isSuccessful) {
                         val body = response.body?.string()
-                        if (!body.isNullOrEmpty()) {
+                        if (!body.isNullOrEmpty() && (body.startsWith("{") || body.startsWith("["))) {
                             parsedResult = parseYtDlpJson(body, url)
                         }
                     }
                 } catch (_: Exception) {}
+            }
+
+            // 2. Try GET endpoints if POST was not handled
+            if (parsedResult == null) {
+                val encodedUrl = Uri.encode(url)
+                val getEndpoints = listOf(
+                    "$cleanBaseUrl/api/info?url=$encodedUrl",
+                    "$cleanBaseUrl/info?url=$encodedUrl",
+                    "$cleanBaseUrl/api/json?url=$encodedUrl",
+                    "$cleanBaseUrl/json?url=$encodedUrl",
+                    "$cleanBaseUrl/extract?url=$encodedUrl",
+                    "$cleanBaseUrl/?url=$encodedUrl"
+                )
+
+                for (endpoint in getEndpoints) {
+                    if (parsedResult != null) break
+                    try {
+                        val requestBuilder = Request.Builder().url(endpoint).get()
+                        if (!authToken.isNullOrBlank()) {
+                            requestBuilder.addHeader("Authorization", "Bearer $authToken")
+                        }
+                        val response = okHttpClient.newCall(requestBuilder.build()).execute()
+                        if (response.isSuccessful) {
+                            val body = response.body?.string()
+                            if (!body.isNullOrEmpty() && (body.startsWith("{") || body.startsWith("["))) {
+                                parsedResult = parseYtDlpJson(body, url)
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
             }
         }
 
@@ -1934,7 +1961,7 @@ class YtDlpClient(
     }
 
     private fun cleanHtmlEntities(text: String): String {
-        return text
+        var result = text
             .replace("&amp;", "&")
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
@@ -1949,26 +1976,45 @@ class YtDlpClient(
             .replace("&#8221;", "\"")
             .replace("&#8211;", "-")
             .replace("&#8212;", "—")
+
+        // Decode hex entities like &#x1f62d;
+        try {
+            result = Regex("""&#x([0-9a-fA-F]+);""").replace(result) { match ->
+                val codePoint = match.groupValues[1].toInt(16)
+                String(Character.toChars(codePoint))
+            }
+        } catch (_: Exception) {}
+
+        // Decode decimal entities like &#128514;
+        try {
+            result = Regex("""&#([0-9]+);""").replace(result) { match ->
+                val codePoint = match.groupValues[1].toInt()
+                String(Character.toChars(codePoint))
+            }
+        } catch (_: Exception) {}
+
+        return result
     }
 
     private fun parseYtDlpJson(jsonStr: String, originalUrl: String): VideoInfoResponse {
         val root = JSONObject(jsonStr)
         val id = root.optString("id", "")
-        val title = root.optString("title", "Unknown Title")
-        val thumbnail = root.optString("thumbnail", "")
+        val rawTitle = root.optString("title", root.optString("name", "Unknown Title"))
+        val title = cleanHtmlEntities(rawTitle)
+        val thumbnail = root.optString("thumbnail", root.optString("thumb", root.optString("cover", "")))
         val duration = root.optLong("duration", 0L)
         val durationString = root.optString("duration_string", "")
-        val uploader = root.optString("uploader", root.optString("channel", "Unknown Uploader"))
-        val extractor = root.optString("extractor", "Generic")
+        val uploader = root.optString("uploader", root.optString("channel", root.optString("author", "Unknown Uploader")))
+        val extractor = root.optString("extractor", "Custom yt-dlp Core")
         val description = root.optString("description", "")
 
         val formatsList = mutableListOf<FormatInfo>()
-        val formatsArray = root.optJSONArray("formats")
+        val formatsArray = root.optJSONArray("formats") ?: root.optJSONArray("medias") ?: root.optJSONArray("links")
         if (formatsArray != null) {
             for (i in 0 until formatsArray.length()) {
                 val fObj = formatsArray.optJSONObject(i) ?: continue
                 val fId = fObj.optString("format_id", "f$i")
-                val fNote = fObj.optString("format_note", "")
+                val fNote = fObj.optString("format_note", fObj.optString("quality", ""))
                 val resolution = fObj.optString("resolution", "")
                 val width = if (fObj.has("width")) fObj.optInt("width") else null
                 val height = if (fObj.has("height")) fObj.optInt("height") else null
@@ -1980,31 +2026,45 @@ class YtDlpClient(
                 val filesizeApprox = if (fObj.has("filesize_approx")) fObj.optLong("filesize_approx") else null
                 val tbr = if (fObj.has("tbr")) fObj.optDouble("tbr") else null
                 val abr = if (fObj.has("abr")) fObj.optDouble("abr") else null
-                val streamUrl = fObj.optString("url", "")
+                val streamUrl = fObj.optString("url", fObj.optString("download_url", ""))
 
-                formatsList.add(
-                    FormatInfo(
-                        formatId = fId,
-                        formatNote = fNote,
-                        resolution = resolution,
-                        width = width,
-                        height = height,
-                        fps = fps,
-                        ext = ext,
-                        vcodec = vcodec,
-                        acodec = acodec,
-                        filesize = filesize,
-                        filesizeApprox = filesizeApprox,
-                        tbr = tbr,
-                        abr = abr,
-                        url = streamUrl.ifEmpty { null }
+                if (streamUrl.isNotBlank()) {
+                    formatsList.add(
+                        FormatInfo(
+                            formatId = fId,
+                            formatNote = fNote.ifBlank { "Master Stream • $ext" },
+                            resolution = resolution.ifBlank { if (height != null && width != null) "${width}x${height}" else "1080p" },
+                            width = width ?: 1920,
+                            height = height ?: 1080,
+                            fps = fps ?: 30,
+                            ext = ext,
+                            vcodec = vcodec,
+                            acodec = acodec,
+                            filesize = filesize,
+                            filesizeApprox = filesizeApprox,
+                            tbr = tbr,
+                            abr = abr,
+                            url = streamUrl
+                        )
                     )
-                )
+                }
+            }
+        }
+
+        // Check if root or nested data object has direct video url
+        val directVideoUrl = root.optString("url", root.optString("video_url", root.optString("download_url", "")))
+        if (directVideoUrl.isNotBlank() && formatsList.isEmpty()) {
+            formatsList.addAll(generateSocialFormats(title, directVideoUrl))
+        } else if (root.has("data") && formatsList.isEmpty()) {
+            val dataObj = root.optJSONObject("data")
+            val dataUrl = dataObj?.optString("url", dataObj.optString("video", ""))
+            if (!dataUrl.isNullOrBlank()) {
+                formatsList.addAll(generateSocialFormats(title, dataUrl))
             }
         }
 
         return VideoInfoResponse(
-            id = id,
+            id = id.ifBlank { "vid_${System.currentTimeMillis() % 10000}" },
             title = title,
             thumbnail = thumbnail.ifEmpty { null },
             duration = duration,

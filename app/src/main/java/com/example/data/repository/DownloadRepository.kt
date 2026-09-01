@@ -43,21 +43,14 @@ class DownloadRepository(
         const val APP_FOLDER_NAME = "OmniStream"
 
         fun getAppStorageDirectory(context: Context): File {
-            // First priority: Phone Public Downloads / OmniStream
-            val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val omniStreamFolder = File(publicDownloads, APP_FOLDER_NAME)
-
-            if (omniStreamFolder.exists() || omniStreamFolder.mkdirs()) {
-                return omniStreamFolder
-            }
-
-            // Fallback: App external files directory
+            // Use app external files directory for 100% permission-safe storage without EPERM errors
             val extFiles = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            val extFolder = File(extFiles ?: context.filesDir, APP_FOLDER_NAME)
-            if (!extFolder.exists()) {
-                extFolder.mkdirs()
+            val baseDir = extFiles ?: context.filesDir
+            val appFolder = File(baseDir, APP_FOLDER_NAME)
+            if (!appFolder.exists()) {
+                appFolder.mkdirs()
             }
-            return extFolder
+            return appFolder
         }
     }
 
@@ -115,12 +108,18 @@ class DownloadRepository(
                 // Ensure download directory exists in Internal Storage / Download / OmniStream
                 val downloadDir = getAppStorageDirectory(context)
 
-                // Sanitize filename to avoid invalid OS filesystem characters
+                // Sanitize filename to avoid invalid OS filesystem characters and unescaped HTML entities
                 val safeTitle = item.title
-                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                    .trim()
-                    .take(60)
-                val fileName = "${safeTitle}_${item.resolution.replace(" ", "_")}_${downloadId}.${item.ext}"
+                    .replace(Regex("&[a-zA-Z0-9#x]+;"), "")
+                    .replace(Regex("""[\\/:*?"<>|;#,\r\n\t]"""), "_")
+                    .replace(Regex("""[^a-zA-Z0-9._ -]"""), "_")
+                    .replace(Regex("""_{2,}"""), "_")
+                    .trim(' ', '_', '.')
+                    .take(40)
+                    .ifBlank { "OmniStream_Media" }
+
+                val cleanRes = item.resolution.replace(Regex("[^a-zA-Z0-9]"), "_")
+                val fileName = "${safeTitle}_${cleanRes}_${downloadId}.${item.ext.ifBlank { "mp4" }}"
                 targetFile = File(downloadDir, fileName)
 
                 fun buildDownloadRequest(streamUrl: String): Request {
