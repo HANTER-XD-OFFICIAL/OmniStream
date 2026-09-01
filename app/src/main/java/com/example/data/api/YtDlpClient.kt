@@ -457,7 +457,7 @@ class YtDlpClient(
         val shortCodeMatch = Regex("""(?:p|reel|reels|tv)\/([a-zA-Z0-9_-]+)""").find(igUrl)
         val shortCode = shortCodeMatch?.groupValues?.get(1) ?: (Uri.parse(igUrl).lastPathSegment?.take(16) ?: "ig_${System.currentTimeMillis() % 10000}")
 
-        // Gateway 0: Cobalt High-Speed Engine Multi-Instance Resolver (Fastest 1080p & Clean MP4/MP3)
+        // Gateway 0: Cobalt High-Speed Engine Multi-Instance Resolver (Fastest 1080p Muxed with Audio & Clean MP4)
         val cobaltInstances = listOf(
             "https://api.cobalt.tools",
             "https://co.wuk.sh",
@@ -471,6 +471,8 @@ class YtDlpClient(
                     put("url", igUrl)
                     put("videoQuality", "1080")
                     put("downloadMode", "auto")
+                    put("alwaysProxy", true)
+                    put("audioFormat", "mp3")
                 }
                 val body = payload.toString().toRequestBody("application/json".toMediaType())
                 val req = Request.Builder()
@@ -513,7 +515,7 @@ class YtDlpClient(
                             uploader = "Instagram Creator",
                             extractor = "Instagram",
                             webpageUrl = igUrl,
-                            description = "Instagram 1080p Full HD high speed direct stream.",
+                            description = "Instagram 1080p Full HD high speed direct stream with full audio.",
                             formats = generateSocialFormats(filename, directStreamUrl)
                         )
                     }
@@ -521,7 +523,7 @@ class YtDlpClient(
             } catch (_: Exception) {}
         }
 
-        // Gateway 1: Embed Scraper with Facebook externalhit & Googlebot user agents
+        // Gateway 1: Embed Scraper with Facebook externalhit & Googlebot user agents (Prioritize muxed audio streams)
         val userAgents = listOf(
             "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -557,14 +559,15 @@ class YtDlpClient(
 
                         val thumb = extractMetaTag(html, "og:image") ?: extractMetaTag(html, "twitter:image")
 
-                        // Look for direct CDN video URLs (.mp4)
+                        // Look for direct progressive CDN video URLs (.mp4 with audio track)
                         var videoUrl: String? = null
                         val mp4Patterns = listOf(
-                            Regex("""https?:\/\/[a-zA-Z0-9_.-]+\.cdninstagram\.com\/[^\s"'<>\\]+\.mp4[^\s"'<>\\]*"""),
-                            Regex("""https?:\/\/[a-zA-Z0-9_.-]+\.fbcdn\.net\/[^\s"'<>\\]+\.mp4[^\s"'<>\\]*"""),
-                            Regex("""video_url["']?\s*:\s*["']([^"']+\.mp4[^"']*)["']"""),
+                            Regex("""["']video_url["']\s*:\s*["']([^"']+\.mp4[^"']*)["']"""),
+                            Regex("""["']video_versions["']\s*:\s*\[\s*\{[^}]*["']url["']\s*:\s*["']([^"']+\.mp4[^"']*)["']"""),
                             Regex("""<meta\s+property=["']og:video["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                            Regex("""<meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                            Regex("""<meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                            Regex("""https?:\/\/[a-zA-Z0-9_.-]+\.cdninstagram\.com\/v\/[^\s"'<>\\]+\.mp4[^\s"'<>\\]*"""),
+                            Regex("""https?:\/\/[a-zA-Z0-9_.-]+\.fbcdn\.net\/v\/[^\s"'<>\\]+\.mp4[^\s"'<>\\]*""")
                         )
 
                         for (p in mp4Patterns) {
