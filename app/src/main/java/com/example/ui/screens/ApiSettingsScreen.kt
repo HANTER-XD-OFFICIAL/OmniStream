@@ -319,6 +319,25 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         )
                     )
 
+                    // Quick Flag Presets
+                    Text("Recommended Engine Flags:", fontSize = 11.sp, color = TextMuted)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PresetChip("Bypass Bot Challenge (Android Client)") {
+                            cliFlags = "--extractor-args \"youtube:player_client=android,ios,web\""
+                        }
+                        PresetChip("Embed Meta & Art") {
+                            cliFlags = "--embed-metadata --embed-thumbnail"
+                        }
+                        PresetChip("Best Multi-Stream") {
+                            cliFlags = "-f \"bestvideo+bestaudio/best\" --no-check-certificates"
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

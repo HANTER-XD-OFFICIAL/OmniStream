@@ -122,7 +122,7 @@ class DownloadRepository(
                 val fileName = "${safeTitle}_${cleanRes}_${downloadId}.${item.ext.ifBlank { "mp4" }}"
                 targetFile = File(downloadDir, fileName)
 
-                fun buildDownloadRequest(streamUrl: String): Request {
+                fun buildDownloadRequest(streamUrl: String, includeReferer: Boolean = true): Request {
                     val builder = Request.Builder()
                         .url(streamUrl)
                         .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -130,19 +130,13 @@ class DownloadRepository(
                         .addHeader("Accept-Encoding", "identity")
                         .addHeader("Connection", "keep-alive")
 
-                    val lowerStream = streamUrl.lowercase()
-                    when {
-                        lowerStream.contains("pinimg.com") -> {
-                            builder.addHeader("Referer", "https://www.pinterest.com/")
-                        }
-                        lowerStream.contains("terabox") || lowerStream.contains("1024tera") -> {
-                            builder.addHeader("Referer", "https://www.terabox.app/")
-                        }
-                        lowerStream.contains("tikwm") || lowerStream.contains("tiktok") -> {
-                            builder.addHeader("Referer", "https://www.tiktok.com/")
-                        }
-                        item.sourceUrl.isNotBlank() && !item.sourceUrl.contains("pin.it") && !item.sourceUrl.contains("terabox") -> {
-                            builder.addHeader("Referer", item.sourceUrl)
+                    if (includeReferer) {
+                        val lowerStream = streamUrl.lowercase()
+                        when {
+                            lowerStream.contains("pinimg.com") -> builder.addHeader("Referer", "https://www.pinterest.com/")
+                            lowerStream.contains("terabox") || lowerStream.contains("1024tera") -> builder.addHeader("Referer", "https://www.terabox.app/")
+                            lowerStream.contains("tikwm") || lowerStream.contains("tiktok") -> builder.addHeader("Referer", "https://www.tiktok.com/")
+                            lowerStream.contains("cdninstagram") || lowerStream.contains("fbcdn") -> builder.addHeader("Referer", "https://www.instagram.com/")
                         }
                     }
                     return builder.build()
@@ -176,8 +170,10 @@ class DownloadRepository(
                 candidateUrls.add(backupStream)
 
                 for (urlToTry in candidateUrls) {
+                    if (activeResponse != null) break
+                    // Attempt 1: Standard request with platform referer
                     try {
-                        val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry)).execute()
+                        val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = true)).execute()
                         val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
                         if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
                             activeResponse = resp
@@ -187,6 +183,21 @@ class DownloadRepository(
                             resp.close()
                         }
                     } catch (_: Exception) {}
+
+                    // Attempt 2: Clean header retry if attempt 1 was forbidden or blocked
+                    if (activeResponse == null) {
+                        try {
+                            val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = false)).execute()
+                            val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
+                            if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
+                                activeResponse = resp
+                                streamBody = resp.body
+                                break
+                            } else {
+                                resp.close()
+                            }
+                        } catch (_: Exception) {}
+                    }
                 }
 
                 if (activeResponse == null || streamBody == null) {
