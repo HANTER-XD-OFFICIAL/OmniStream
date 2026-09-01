@@ -700,7 +700,151 @@ class YtDlpClient(
 
         val resolvedFormats = mutableListOf<FormatInfo>()
 
-        // 2. Gateway 0: Cobalt High-Speed Multi-Instance Engine (1080p / 720p / MP3 Audio Muxed)
+        // 2. Gateway 0: YouTube Native Innertube Player API (Direct Client-Bound Googlevideo Streams)
+        try {
+            val innertubeClients = listOf(
+                Pair("ANDROID", "19.09.37"),
+                Pair("TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0"),
+                Pair("IOS", "19.09.3")
+            )
+            for ((clientName, clientVer) in innertubeClients) {
+                if (resolvedFormats.isNotEmpty()) break
+                val payload = JSONObject().apply {
+                    put("videoId", videoId)
+                    put("context", JSONObject().apply {
+                        put("client", JSONObject().apply {
+                            put("clientName", clientName)
+                            put("clientVersion", clientVer)
+                            put("androidSdkVersion", 34)
+                            put("hl", "en")
+                            put("gl", "US")
+                        })
+                    })
+                }
+                val req = Request.Builder()
+                    .url("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("User-Agent", "com.google.android.youtube/$clientVer (Linux; U; Android 14; US) gzip")
+                    .addHeader("X-YouTube-Client-Name", if (clientName == "ANDROID") "3" else if (clientName == "IOS") "5" else "85")
+                    .addHeader("X-YouTube-Client-Version", clientVer)
+                    .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val bodyStr = resp.body?.string() ?: ""
+                    if (bodyStr.startsWith("{")) {
+                        val pJson = JSONObject(bodyStr)
+                        val videoDetails = pJson.optJSONObject("videoDetails")
+                        if (videoDetails != null) {
+                            val pTitle = videoDetails.optString("title", "")
+                            if (pTitle.isNotBlank()) ytTitle = cleanHtmlEntities(pTitle)
+                            val pAuthor = videoDetails.optString("author", "")
+                            if (pAuthor.isNotBlank()) ytAuthor = cleanHtmlEntities(pAuthor)
+                            val lengthSec = videoDetails.optLong("lengthSeconds", 0L)
+                            if (lengthSec > 0) {
+                                ytDuration = lengthSec
+                                val mins = lengthSec / 60
+                                val secs = lengthSec % 60
+                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+                            }
+                        }
+                        val streamingData = pJson.optJSONObject("streamingData")
+                        if (streamingData != null) {
+                            // 1. Progressive streams (Video + Audio Combined in single MP4)
+                            val formats = streamingData.optJSONArray("formats")
+                            if (formats != null && formats.length() > 0) {
+                                for (i in 0 until formats.length()) {
+                                    val fObj = formats.getJSONObject(i)
+                                    val directUrl = fObj.optString("url", "")
+                                    val itag = fObj.optInt("itag", 18)
+                                    val qualityLabel = fObj.optString("qualityLabel", if (itag == 22) "720p" else "360p")
+                                    val mimeType = fObj.optString("mimeType", "video/mp4")
+                                    val ext = if (mimeType.contains("webm")) "webm" else "mp4"
+                                    val width = fObj.optInt("width", if (itag == 22) 1280 else 640)
+                                    val height = fObj.optInt("height", if (itag == 22) 720 else 360)
+                                    val fps = fObj.optInt("fps", 30)
+                                    val contentLength = fObj.optLong("contentLength", 0L)
+
+                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
+                                        resolvedFormats.add(
+                                            FormatInfo(
+                                                formatId = "yt_innertube_${itag}",
+                                                formatNote = "$qualityLabel • Direct Progressive MP4 (Full Audio)",
+                                                resolution = "${width}x${height}",
+                                                width = width,
+                                                height = height,
+                                                fps = fps,
+                                                ext = ext,
+                                                vcodec = "h264",
+                                                acodec = "aac",
+                                                filesizeApprox = if (contentLength > 0) contentLength else 28_000_000L,
+                                                url = directUrl
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 2. Adaptive formats (1080p Full HD & HQ Audio tracks)
+                            val adaptive = streamingData.optJSONArray("adaptiveFormats")
+                            if (adaptive != null && adaptive.length() > 0) {
+                                for (i in 0 until adaptive.length()) {
+                                    val fObj = adaptive.getJSONObject(i)
+                                    val directUrl = fObj.optString("url", "")
+                                    val itag = fObj.optInt("itag", 0)
+                                    val mimeType = fObj.optString("mimeType", "")
+                                    val qualityLabel = fObj.optString("qualityLabel", "")
+                                    val width = fObj.optInt("width", 0)
+                                    val height = fObj.optInt("height", 0)
+                                    val fps = fObj.optInt("fps", 30)
+                                    val contentLength = fObj.optLong("contentLength", 0L)
+                                    val bitrate = fObj.optDouble("bitrate", 128000.0) / 1000.0
+
+                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
+                                        if (mimeType.contains("video/mp4") && height >= 720) {
+                                            resolvedFormats.add(
+                                                FormatInfo(
+                                                    formatId = "yt_innertube_${qualityLabel}_${itag}",
+                                                    formatNote = "$qualityLabel • Direct YouTube High Speed MP4",
+                                                    resolution = "${width}x${height}",
+                                                    width = width,
+                                                    height = height,
+                                                    fps = fps,
+                                                    ext = "mp4",
+                                                    vcodec = "h264",
+                                                    acodec = "aac",
+                                                    filesizeApprox = if (contentLength > 0) contentLength else (bitrate * ytDuration / 8).toLong().coerceAtLeast(30_000_000L),
+                                                    tbr = bitrate,
+                                                    url = directUrl
+                                                )
+                                            )
+                                        } else if (mimeType.contains("audio/mp4") || mimeType.contains("audio/webm")) {
+                                            if (resolvedFormats.none { it.resolution == "Audio Only" }) {
+                                                resolvedFormats.add(
+                                                    FormatInfo(
+                                                        formatId = "yt_innertube_audio_${itag}",
+                                                        formatNote = "Audio Extract • MP3 / M4A HQ Sound",
+                                                        resolution = "Audio Only",
+                                                        ext = if (mimeType.contains("mp4")) "m4a" else "mp3",
+                                                        vcodec = "none",
+                                                        acodec = "aac",
+                                                        filesizeApprox = if (contentLength > 0) contentLength else 8_000_000L,
+                                                        abr = bitrate,
+                                                        url = directUrl
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3. Gateway 1: Cobalt High-Speed Multi-Instance Engine (1080p / 720p / MP3 Audio Muxed)
         val cobaltInstances = listOf(
             "https://api.cobalt.tools",
             "https://co.wuk.sh",

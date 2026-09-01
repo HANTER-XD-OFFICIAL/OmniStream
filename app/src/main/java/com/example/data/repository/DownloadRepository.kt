@@ -130,15 +130,22 @@ class DownloadRepository(
                 val fileName = "${safeTitle}_${cleanRes}_${downloadId}.${item.ext.ifBlank { "mp4" }}"
                 targetFile = File(downloadDir, fileName)
 
-                fun buildDownloadRequest(streamUrl: String, includeReferer: Boolean = true): Request {
+                // 1. Prepare target local storage file safely
+                val workingDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+                val workingFile = File(workingDir, fileName)
+                targetFile = workingFile
+
+                fun buildDownloadRequest(streamUrl: String, isYouTubeStream: Boolean = false): Request {
                     val builder = Request.Builder()
                         .url(streamUrl)
-                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                         .addHeader("Accept", "*/*")
                         .addHeader("Accept-Encoding", "identity")
                         .addHeader("Connection", "keep-alive")
 
-                    if (includeReferer) {
+                    if (isYouTubeStream || streamUrl.contains("googlevideo.com")) {
+                        builder.addHeader("User-Agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 14; US) gzip")
+                    } else {
+                        builder.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                         val lowerStream = streamUrl.lowercase()
                         when {
                             lowerStream.contains("pinimg.com") -> builder.addHeader("Referer", "https://www.pinterest.com/")
@@ -184,9 +191,11 @@ class DownloadRepository(
                     if (activeResponse != null && streamBody != null) break
                     if (urlToTry.isBlank() || !urlToTry.startsWith("http")) continue
 
-                    // Attempt 1: Standard request with platform referer
+                    val isYt = urlToTry.contains("googlevideo.com") || urlToTry.contains("youtube.com") || urlToTry.contains("youtu.be")
+
+                    // Attempt 1: Targeted request
                     try {
-                        val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = true)).execute()
+                        val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, isYouTubeStream = isYt)).execute()
                         val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
                         if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
                             activeResponse = resp
@@ -200,7 +209,11 @@ class DownloadRepository(
                     // Attempt 2: Clean header retry if attempt 1 was forbidden or blocked
                     if (activeResponse == null) {
                         try {
-                            val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, includeReferer = false)).execute()
+                            val cleanReq = Request.Builder()
+                                .url(urlToTry)
+                                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                                .build()
+                            val resp = okHttpClient.newCall(cleanReq).execute()
                             val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
                             if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
                                 activeResponse = resp
@@ -246,7 +259,7 @@ class DownloadRepository(
 
                 try {
                     inputStream = body.byteStream()
-                    outputStream = FileOutputStream(targetFile)
+                    outputStream = FileOutputStream(workingFile)
 
                     val buffer = ByteArray(64 * 1024)
                     var bytesRead: Int
@@ -292,7 +305,7 @@ class DownloadRepository(
                     outputStream.flush()
 
                     if (totalDownloaded <= 1024L) {
-                        try { targetFile.delete() } catch (_: Exception) {}
+                        try { workingFile.delete() } catch (_: Exception) {}
                         downloadDao.updateStatus(
                             id = downloadId,
                             status = DownloadStatus.FAILED,
@@ -301,12 +314,23 @@ class DownloadRepository(
                         return@launch
                     }
 
+                    // Attempt copying into public Download/OmniStream folder if accessible
+                    var finalSavedPath = workingFile.absolutePath
+                    try {
+                        val publicDownloads = getAppStorageDirectory(context)
+                        val publicDestFile = File(publicDownloads, fileName)
+                        if (publicDestFile.absolutePath != workingFile.absolutePath) {
+                            workingFile.copyTo(publicDestFile, overwrite = true)
+                            finalSavedPath = publicDestFile.absolutePath
+                        }
+                    } catch (_: Exception) {}
+
                     // Register file into Android MediaStore index so Gallery & Players detect it immediately
                     try {
                         val mimeType = if (item.mediaType == MediaType.AUDIO) "audio/*" else "video/*"
                         MediaScannerConnection.scanFile(
                             context.applicationContext,
-                            arrayOf(targetFile.absolutePath),
+                            arrayOf(finalSavedPath),
                             arrayOf(mimeType),
                             null
                         )
@@ -324,7 +348,7 @@ class DownloadRepository(
                     downloadDao.updateStatus(
                         id = downloadId,
                         status = DownloadStatus.COMPLETED,
-                        filePath = targetFile.absolutePath,
+                        filePath = finalSavedPath,
                         error = null
                     )
 
