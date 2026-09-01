@@ -43,14 +43,22 @@ class DownloadRepository(
         const val APP_FOLDER_NAME = "OmniStream"
 
         fun getAppStorageDirectory(context: Context): File {
-            // Use app external files directory for 100% permission-safe storage without EPERM errors
+            // 1. Primary: Direct internal public storage -> /storage/emulated/0/Download/OmniStream
+            try {
+                val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val publicAppFolder = File(publicDownloads, APP_FOLDER_NAME)
+                if (publicAppFolder.exists() || publicAppFolder.mkdirs()) {
+                    return publicAppFolder
+                }
+            } catch (_: Exception) {}
+
+            // 2. Secondary: External files directory with fallback
             val extFiles = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            val baseDir = extFiles ?: context.filesDir
-            val appFolder = File(baseDir, APP_FOLDER_NAME)
-            if (!appFolder.exists()) {
-                appFolder.mkdirs()
+            val fallbackFolder = File(extFiles ?: context.filesDir, APP_FOLDER_NAME)
+            if (!fallbackFolder.exists()) {
+                fallbackFolder.mkdirs()
             }
-            return appFolder
+            return fallbackFolder
         }
     }
 
