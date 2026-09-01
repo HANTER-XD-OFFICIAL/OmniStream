@@ -52,6 +52,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -884,41 +885,74 @@ fun HomeScreen(
                 }
             }
 
-            // Big Start Download CTA Button
+            // Dual Download CTA Buttons: Video & Audio
             item {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 val format = selectedFormat
                 val badge = format?.displayQualityBadge ?: "Selected Quality"
                 val ext = format?.ext?.uppercase() ?: "MP4"
                 val size = format?.readableSize ?: ""
 
-                Button(
-                    onClick = {
-                        val isAudio = format?.isAudioOnly == true
-                        if (!StoragePermissionHelper.hasStoragePermission(context)) {
-                            pendingDownloadAudioOnly = isAudio
-                            showPermissionDialog = true
-                        } else {
-                            viewModel.startDownload(audioOnlyOverride = isAudio)
-                            onNavigateToDownloads()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .testTag("start_download_button"),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (format?.isAudioOnly == true) NeonPurple else CyanBright,
-                        contentColor = Color.Black
-                    )
-                ) {
-                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "DOWNLOAD [$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}]",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Primary Video Download Button
+                    Button(
+                        onClick = {
+                            val isAudio = format?.isAudioOnly == true
+                            if (!StoragePermissionHelper.hasStoragePermission(context)) {
+                                pendingDownloadAudioOnly = isAudio
+                                showPermissionDialog = true
+                            } else {
+                                viewModel.startDownload(audioOnlyOverride = isAudio)
+                                onNavigateToDownloads()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("start_download_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (format?.isAudioOnly == true) NeonPurple else CyanBright,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "DOWNLOAD VIDEO [$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}]",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        )
+                    }
+
+                    // Direct MP3 Audio Extract Button (Always Active for Any Video)
+                    OutlinedButton(
+                        onClick = {
+                            if (!StoragePermissionHelper.hasStoragePermission(context)) {
+                                pendingDownloadAudioOnly = true
+                                showPermissionDialog = true
+                            } else {
+                                viewModel.startDownload(customExt = "mp3", audioOnlyOverride = true)
+                                onNavigateToDownloads()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("download_audio_mp3_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.5.dp, NeonPurple),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = NeonPurple.copy(alpha = 0.12f),
+                            contentColor = NeonPurple
+                        )
+                    ) {
+                        Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(18.dp), tint = NeonPurple)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "🎵 EXTRACT & DOWNLOAD AUDIO (MP3 320k)",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }

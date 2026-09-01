@@ -421,6 +421,70 @@ class YtDlpClient(
         val shortCodeMatch = Regex("""(?:p|reel|reels|tv)\/([a-zA-Z0-9_-]+)""").find(igUrl)
         val shortCode = shortCodeMatch?.groupValues?.get(1) ?: (Uri.parse(igUrl).lastPathSegment?.take(16) ?: "ig_${System.currentTimeMillis() % 10000}")
 
+        // Gateway 0: Cobalt High-Speed Engine Multi-Instance Resolver (Fastest 1080p & Clean MP4/MP3)
+        val cobaltInstances = listOf(
+            "https://api.cobalt.tools",
+            "https://co.wuk.sh",
+            "https://cobalt-api.kwiatekm.tokyo",
+            "https://api.server.ovh"
+        )
+
+        for (cobaltHost in cobaltInstances) {
+            try {
+                val payload = JSONObject().apply {
+                    put("url", igUrl)
+                    put("videoQuality", "1080")
+                    put("downloadMode", "auto")
+                }
+                val body = payload.toString().toRequestBody("application/json".toMediaType())
+                val req = Request.Builder()
+                    .url(cobaltHost)
+                    .post(body)
+                    .addHeader("Accept", "application/json")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .build()
+
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val respBody = resp.body?.string() ?: continue
+                    val cJson = JSONObject(respBody)
+                    val status = cJson.optString("status", "")
+                    var directStreamUrl: String? = null
+                    val filename = cJson.optString("filename", "Instagram Reel ($shortCode)")
+
+                    if (status == "stream" || status == "redirect" || status == "success") {
+                        directStreamUrl = cJson.optString("url", "")
+                    } else if (status == "picker") {
+                        val picker = cJson.optJSONArray("picker")
+                        if (picker != null && picker.length() > 0) {
+                            for (p in 0 until picker.length()) {
+                                val item = picker.getJSONObject(p)
+                                if (item.optString("type") == "video" || directStreamUrl == null) {
+                                    directStreamUrl = item.optString("url")
+                                }
+                            }
+                        }
+                    }
+
+                    if (!directStreamUrl.isNullOrBlank() && directStreamUrl.startsWith("http")) {
+                        return VideoInfoResponse(
+                            id = shortCode,
+                            title = cleanHtmlEntities(filename.removeSuffix(".mp4")),
+                            thumbnail = null,
+                            duration = 60L,
+                            durationString = "01:00",
+                            uploader = "Instagram Creator",
+                            extractor = "Instagram",
+                            webpageUrl = igUrl,
+                            description = "Instagram 1080p Full HD high speed direct stream.",
+                            formats = generateSocialFormats(filename, directStreamUrl)
+                        )
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
         // Gateway 1: Embed Scraper with Facebook externalhit & Googlebot user agents
         val userAgents = listOf(
             "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",

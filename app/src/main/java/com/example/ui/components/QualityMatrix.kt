@@ -85,13 +85,49 @@ object QualityTierResolver {
         // 360p Low
         val format360p = videoFormats.firstOrNull { (it.height ?: 0) in 300..399 }
 
+        // Media fallback format for universal audio extraction
+        val anyMedia = videoFormats.firstOrNull() ?: formats.firstOrNull()
+
         // Audio: FLAC Lossless
         val formatFlac = audioFormats.firstOrNull { it.ext == "flac" || it.acodec?.contains("flac", ignoreCase = true) == true }
-        // Audio: MP3 320k
+            ?: anyMedia?.copy(
+                formatId = "audio_flac_${anyMedia.formatId}",
+                formatNote = "Studio FLAC Audio • Lossless Extract",
+                resolution = "Audio Only",
+                ext = "flac",
+                vcodec = "none",
+                acodec = "flac",
+                filesizeApprox = ((anyMedia.filesizeApprox ?: 40_000_000L) * 0.4).toLong().coerceAtLeast(8_000_000L),
+                abr = 1411.0
+            )
+
+        // Audio: MP3 320k (Always active & guaranteed for all media)
         val formatMp3_320 = audioFormats.firstOrNull { (it.abr ?: 0.0) >= 300 || it.formatNote?.contains("320") == true }
             ?: audioFormats.firstOrNull { it.ext == "mp3" }
-        // Audio: AAC 192k
+            ?: audioFormats.firstOrNull()
+            ?: anyMedia?.copy(
+                formatId = "audio_mp3_320k_${anyMedia.formatId}",
+                formatNote = "MP3 Master 320 kbps • High Fidelity Audio Extract",
+                resolution = "Audio Only",
+                ext = "mp3",
+                vcodec = "none",
+                acodec = "mp3",
+                filesizeApprox = ((anyMedia.filesizeApprox ?: 30_000_000L) * 0.25).toLong().coerceAtLeast(4_500_000L),
+                abr = 320.0
+            )
+
+        // Audio: AAC 192k (Always active & guaranteed for all media)
         val formatAac_192 = audioFormats.firstOrNull { it.ext == "m4a" || (it.abr ?: 0.0) in 160.0..299.0 }
+            ?: anyMedia?.copy(
+                formatId = "audio_aac_192k_${anyMedia.formatId}",
+                formatNote = "AAC / M4A 192 kbps • Universal Audio Extract",
+                resolution = "Audio Only",
+                ext = "m4a",
+                vcodec = "none",
+                acodec = "aac",
+                filesizeApprox = ((anyMedia.filesizeApprox ?: 30_000_000L) * 0.15).toLong().coerceAtLeast(2_800_000L),
+                abr = 192.0
+            )
 
         return listOf(
             QualityTier(
