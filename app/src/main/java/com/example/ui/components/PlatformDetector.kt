@@ -311,6 +311,46 @@ object PlatformDetector {
             features = "High quality 320kbps MP3 / FLAC audio stream",
             category = PlatformCategory.SOCIAL,
             sampleUrl = "https://soundcloud.com/artist/high-res-master"
+        ),
+        SupportedPlatformItem(
+            name = "Bluesky",
+            domainPattern = "bsky.app",
+            brandColor = Color(0xFF0085FF),
+            features = "Decentralized video and audio posts HD",
+            category = PlatformCategory.SOCIAL,
+            sampleUrl = "https://bsky.app/profile/user.bsky.social/post/123456"
+        ),
+        SupportedPlatformItem(
+            name = "Loom",
+            domainPattern = "loom.com",
+            brandColor = Color(0xFF625DF5),
+            features = "High-definition screen & camera video recordings",
+            category = PlatformCategory.VIDEO_SHARING,
+            sampleUrl = "https://www.loom.com/share/abc123def456"
+        ),
+        SupportedPlatformItem(
+            name = "Rutube",
+            domainPattern = "rutube.ru",
+            brandColor = Color(0xFF0055FF),
+            features = "HD video streams & creator channels",
+            category = PlatformCategory.VIDEO_SHARING,
+            sampleUrl = "https://rutube.ru/video/1234567890abcdef/"
+        ),
+        SupportedPlatformItem(
+            name = "Newgrounds",
+            domainPattern = "newgrounds.com",
+            brandColor = Color(0xFFFFA500),
+            features = "Animations, music, movies & video stream",
+            category = PlatformCategory.NEWS_ENTERTAINMENT,
+            sampleUrl = "https://www.newgrounds.com/portal/view/123456"
+        ),
+        SupportedPlatformItem(
+            name = "Tumblr",
+            domainPattern = "tumblr.com",
+            brandColor = Color(0xFF36465D),
+            features = "High-res video posts & animated media",
+            category = PlatformCategory.SOCIAL,
+            sampleUrl = "https://creator.tumblr.com/post/1234567890"
         )
     )
 
@@ -342,6 +382,10 @@ object PlatformDetector {
                 PlatformMeta("Pinterest", Color(0xFFE60023), "Pinterest 1080p MP4", PlatformCategory.SOCIAL)
             "snapchat.com" in lower ->
                 PlatformMeta("Snapchat", Color(0xFFFFFC00), "Snapchat Spotlight", PlatformCategory.SOCIAL)
+            "bsky.app" in lower || "bluesky" in lower ->
+                PlatformMeta("Bluesky", Color(0xFF0085FF), "Bluesky Video", PlatformCategory.SOCIAL)
+            "tumblr.com" in lower ->
+                PlatformMeta("Tumblr", Color(0xFF36465D), "Tumblr Video", PlatformCategory.SOCIAL)
             "linkedin.com" in lower ->
                 PlatformMeta("LinkedIn", Color(0xFF0A66C2), "LinkedIn Video", PlatformCategory.SOCIAL)
             "threads.net" in lower ->
@@ -358,6 +402,12 @@ object PlatformDetector {
                 PlatformMeta("Vimeo", Color(0xFF1AB7EA), "Vimeo 4K/60FPS", PlatformCategory.VIDEO_SHARING)
             "dailymotion.com" in lower || "dai.ly" in lower ->
                 PlatformMeta("Dailymotion", Color(0xFF0066DC), "Dailymotion HD", PlatformCategory.VIDEO_SHARING)
+            "loom.com" in lower ->
+                PlatformMeta("Loom", Color(0xFF625DF5), "Loom HD Video", PlatformCategory.VIDEO_SHARING)
+            "rutube.ru" in lower ->
+                PlatformMeta("Rutube", Color(0xFF0055FF), "Rutube Video", PlatformCategory.VIDEO_SHARING)
+            "newgrounds.com" in lower ->
+                PlatformMeta("Newgrounds", Color(0xFFFFA500), "Newgrounds Media", PlatformCategory.NEWS_ENTERTAINMENT)
             "rumble.com" in lower ->
                 PlatformMeta("Rumble", Color(0xFF85C742), "Rumble HD", PlatformCategory.VIDEO_SHARING)
             "bilibili.com" in lower || "bilibili.tv" in lower || "b23.tv" in lower ->
@@ -370,7 +420,7 @@ object PlatformDetector {
                 PlatformMeta("Likee", Color(0xFFFF2442), "Likee No-WM", PlatformCategory.VIDEO_SHARING)
 
             // Live Streaming
-            "twitch.tv" in lower ->
+            "twitch.tv" in lower || "clips.twitch.tv" in lower ->
                 PlatformMeta("Twitch", Color(0xFF9146FF), "Twitch 1080p 60FPS", PlatformCategory.LIVE_STREAMING)
             "kick.com" in lower ->
                 PlatformMeta("Kick", Color(0xFF53FC18), "Kick VODs/Clips", PlatformCategory.LIVE_STREAMING)

@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -275,22 +277,24 @@ fun HomeScreen(
                         modifier = Modifier.testTag("api_status_indicator")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(7.dp)
+                                    .size(6.dp)
                                     .clip(CircleShape)
                                     .background(if (isOnline) EmeraldSuccess else CyanBright)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
                             Text(
                                 text = if (isOnline) "ENGINE LIVE" else "CORE ACTIVE",
                                 color = if (isOnline) EmeraldSuccess else CyanBright,
-                                fontSize = 10.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -514,41 +518,71 @@ fun HomeScreen(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        DemoChip("📦 TeraBox Cloud") {
-                            viewModel.loadSampleUrl("https://terabox.com/s/1aB2c3d4e5fG6h7i8j")
-                        }
-                        DemoChip("📌 Pinterest 1080p") {
-                            viewModel.loadSampleUrl("https://www.pinterest.com/pin/123456789012345678/")
-                        }
-                        DemoChip("🎬 YouTube 8K/4K") {
+                        DemoChip("🎬 YouTube") {
                             viewModel.loadSampleUrl("https://www.youtube.com/watch?v=LXb3EKWsInQ")
                         }
-                        DemoChip("📱 TikTok No-WM") {
+                        DemoChip("📱 TikTok") {
                             viewModel.loadSampleUrl("https://www.tiktok.com/@creator/video/72891234")
                         }
-                        DemoChip("📸 Instagram Reels") {
+                        DemoChip("📸 Instagram") {
                             viewModel.loadSampleUrl("https://www.instagram.com/reel/C8qW1234567/")
                         }
-                        DemoChip("🌐 Facebook Video HD") {
+                        DemoChip("🌐 Facebook") {
                             viewModel.loadSampleUrl("https://www.facebook.com/watch/?v=10928374")
                         }
-                        DemoChip("📁 Google Drive Stream") {
-                            viewModel.loadSampleUrl("https://drive.google.com/file/d/1a2b3c4d5e6f7g8h9/view")
+                        DemoChip("🐦 Twitter / X") {
+                            viewModel.loadSampleUrl("https://x.com/space/status/1789123456789")
                         }
-                        DemoChip("👻 Snapchat Spotlight") {
+                        DemoChip("📌 Pinterest") {
+                            viewModel.loadSampleUrl("https://www.pinterest.com/pin/123456789012345678/")
+                        }
+                        DemoChip("🤖 Reddit") {
+                            viewModel.loadSampleUrl("https://www.reddit.com/r/videos/comments/xyz123/")
+                        }
+                        DemoChip("📺 Bilibili") {
+                            viewModel.loadSampleUrl("https://www.bilibili.com/video/BV1xx411c7mD")
+                        }
+                        DemoChip("🎥 Dailymotion") {
+                            viewModel.loadSampleUrl("https://www.dailymotion.com/video/x8abcdef")
+                        }
+                        DemoChip("👻 Snapchat") {
                             viewModel.loadSampleUrl("https://www.snapchat.com/spotlight/W7_ED1nYR9")
                         }
-                        DemoChip("🎮 Twitch 60FPS Clip") {
+                        DemoChip("🎧 SoundCloud") {
+                            viewModel.loadSampleUrl("https://soundcloud.com/artist/sample-track")
+                        }
+                        DemoChip("🎬 Vimeo") {
+                            viewModel.loadSampleUrl("https://vimeo.com/76979871")
+                        }
+                        DemoChip("💙 VK") {
+                            viewModel.loadSampleUrl("https://vk.com/video-123456_789012")
+                        }
+                        DemoChip("🦋 Bluesky") {
+                            viewModel.loadSampleUrl("https://bsky.app/profile/user.bsky.social/post/123456")
+                        }
+                        DemoChip("📹 Loom") {
+                            viewModel.loadSampleUrl("https://www.loom.com/share/abc123def456")
+                        }
+                        DemoChip("🟠 OK.ru") {
+                            viewModel.loadSampleUrl("https://ok.ru/video/1234567890")
+                        }
+                        DemoChip("⚡ Streamable") {
+                            viewModel.loadSampleUrl("https://streamable.com/moo7b")
+                        }
+                        DemoChip("🎮 Twitch Clips") {
                             viewModel.loadSampleUrl("https://clips.twitch.tv/GloriousSampleClip")
                         }
-                        DemoChip("⚡ Kick VOD/Clip") {
-                            viewModel.loadSampleUrl("https://kick.com/creator/clips/clip_123456")
+                        DemoChip("👾 Newgrounds") {
+                            viewModel.loadSampleUrl("https://www.newgrounds.com/portal/view/123456")
                         }
-                        DemoChip("💡 TED Talk Master") {
-                            viewModel.loadSampleUrl("https://www.ted.com/talks/sample_talk_future")
+                        DemoChip("🇷🇺 Rutube") {
+                            viewModel.loadSampleUrl("https://rutube.ru/video/1234567890abcdef/")
                         }
-                        DemoChip("📰 BBC Video News") {
-                            viewModel.loadSampleUrl("https://www.bbc.com/news/videos/c12345678")
+                        DemoChip("📝 Tumblr") {
+                            viewModel.loadSampleUrl("https://creator.tumblr.com/post/1234567890")
+                        }
+                        DemoChip("📦 TeraBox") {
+                            viewModel.loadSampleUrl("https://terabox.com/s/1aB2c3d4e5fG6h7i8j")
                         }
                     }
                 }
@@ -589,9 +623,18 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF0F172A)),
+                                .height(210.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF070D1E))
+                                .clickable {
+                                    val previewUrl = selectedFormat?.url ?: info.formats.firstOrNull { !it.url.isNullOrBlank() }?.url ?: info.webpageUrl
+                                    if (!previewUrl.isNullOrBlank()) {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(previewUrl))
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             if (!info.thumbnail.isNullOrBlank()) {
@@ -604,20 +647,57 @@ fun HomeScreen(
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
+
+                                // Dark gradient scrim for legibility
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                                            )
+                                        )
+                                )
+
+                                // Center Play Action Button
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.65f))
+                                        .border(1.5.dp, CyanBright, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play Video Preview",
+                                        tint = CyanBright,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
                             } else {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = CyanBright.copy(alpha = 0.8f),
-                                        modifier = Modifier.size(54.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(CircleShape)
+                                            .background(CyanBright.copy(alpha = 0.15f))
+                                            .border(1.dp, CyanBright.copy(alpha = 0.5f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = CyanBright,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "${info.extractor ?: "Media"} Stream Preview",
+                                        text = "${info.extractor ?: "Media"} Stream Verified",
                                         color = TextSecondary,
                                         style = MaterialTheme.typography.labelMedium
                                     )
@@ -628,16 +708,17 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(8.dp)
+                                    .padding(10.dp)
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(Color.Black.copy(alpha = 0.85f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     text = info.displayDuration,
                                     color = Color.White,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
                                 )
                             }
 
@@ -645,10 +726,11 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
-                                    .padding(8.dp)
+                                    .padding(10.dp)
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(CyberBlack.copy(alpha = 0.85f))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    .border(1.dp, CyanBright.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = info.extractor ?: "Media Stream",
@@ -670,12 +752,12 @@ fun HomeScreen(
                         )
 
                         Text(
-                            text = "${info.author} • ${info.formats.size} raw stream tracks",
+                            text = "${info.author} • ${info.formats.size} stream tracks",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Category Tabs: Dynamic Quality Matrix vs Raw Streams vs Controller
                         TabRow(
@@ -695,9 +777,9 @@ fun HomeScreen(
                                 onClick = { selectedTab = 0 },
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.HighQuality, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Quality Matrix", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.HighQuality, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("Quality Matrix", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
                                 }
                             )
@@ -706,9 +788,9 @@ fun HomeScreen(
                                 onClick = { selectedTab = 1 },
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Raw Streams", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("Raw Streams", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
                                 }
                             )
@@ -717,9 +799,9 @@ fun HomeScreen(
                                 onClick = { selectedTab = 2 },
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Options", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("Options", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
                                 }
                             )

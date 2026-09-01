@@ -417,6 +417,11 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Save Settings & Apply", fontWeight = FontWeight.Bold)
             }
+        }
+
+        // Dedicated Developer Support Section
+        item {
+            com.example.ui.components.DeveloperSupportCard()
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

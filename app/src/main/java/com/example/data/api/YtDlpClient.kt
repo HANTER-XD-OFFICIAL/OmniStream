@@ -409,23 +409,67 @@ class YtDlpClient(
 
         // 2. TikTok / Douyin
         else if ("tiktok.com" in lower || "douyin.com" in lower) {
+            // First query TikWM public API which resolves shortlinks (vm.tiktok.com) and gives authentic 100% video cover & author
             try {
-                val oembedUrl = "https://www.tiktok.com/oembed?url=" + Uri.encode(trimmed)
-                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val tikwmUrl = "https://www.tikwm.com/api/?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(tikwmUrl).addHeader("User-Agent", "Mozilla/5.0").build()
                 val resp = okHttpClient.newCall(req).execute()
                 if (resp.isSuccessful) {
                     val body = resp.body?.string() ?: ""
                     if (body.startsWith("{")) {
                         val json = JSONObject(body)
-                        val t = json.optString("title", "")
-                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
-                        val a = json.optString("author_name", "")
-                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
-                        val thumb = json.optString("thumbnail_url", "")
-                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                        if (json.optInt("code", -1) == 0) {
+                            val data = json.optJSONObject("data")
+                            if (data != null) {
+                                val t = data.optString("title", "")
+                                if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                                val authorObj = data.optJSONObject("author")
+                                val authorNickname = authorObj?.optString("nickname", "")
+                                val authorUnique = authorObj?.optString("unique_id", "")
+                                if (!authorNickname.isNullOrBlank()) {
+                                    resolvedAuthor = "@$authorUnique ($authorNickname)"
+                                } else if (!authorUnique.isNullOrBlank()) {
+                                    resolvedAuthor = "@$authorUnique"
+                                }
+                                val cover = data.optString("origin_cover", "").ifBlank { data.optString("cover", "") }
+                                if (cover.isNotBlank()) resolvedThumbnail = cover
+                                val d = data.optLong("duration", 0L)
+                                if (d > 0) durationSec = d
+                            }
+                        }
                     }
                 }
             } catch (_: Exception) {}
+
+            // Fallback: Follow redirects for short URL then call official oEmbed
+            if (resolvedThumbnail.isNullOrBlank() || resolvedTitle.isNullOrBlank()) {
+                try {
+                    var canonicalUrl = trimmed
+                    if ("vm.tiktok.com" in lower || "vt.tiktok.com" in lower) {
+                        val headReq = Request.Builder().url(trimmed).addHeader("User-Agent", "Mozilla/5.0").build()
+                        val headResp = okHttpClient.newCall(headReq).execute()
+                        val finalUrl = headResp.request.url.toString()
+                        if (finalUrl.isNotBlank() && "tiktok.com" in finalUrl) {
+                            canonicalUrl = finalUrl
+                        }
+                    }
+                    val oembedUrl = "https://www.tiktok.com/oembed?url=" + Uri.encode(canonicalUrl)
+                    val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                    val resp = okHttpClient.newCall(req).execute()
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string() ?: ""
+                        if (body.startsWith("{")) {
+                            val json = JSONObject(body)
+                            val t = json.optString("title", "")
+                            if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                            val a = json.optString("author_name", "")
+                            if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                            val thumb = json.optString("thumbnail_url", "")
+                            if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
         }
 
         // 3. Instagram
@@ -681,17 +725,14 @@ class YtDlpClient(
         }
     }
 
-    private fun deriveThumbnailFromUrl(url: String): String {
+    private fun deriveThumbnailFromUrl(url: String): String? {
         val lower = url.lowercase()
         return when {
             "youtube.com" in lower || "youtu.be" in lower -> {
                 val videoId = Regex("""(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})""").find(url)?.groupValues?.get(1)
-                if (videoId != null) "https://i.ytimg.com/vi/$videoId/maxresdefault.jpg" else "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+                if (videoId != null) "https://i.ytimg.com/vi/$videoId/hqdefault.jpg" else null
             }
-            "tiktok.com" in lower -> "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800"
-            "instagram.com" in lower -> "https://images.unsplash.com/photo-1611262588024-d12430b98920?w=800"
-            "facebook.com" in lower || "fb.watch" in lower -> "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
-            else -> "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800"
+            else -> null
         }
     }
 
