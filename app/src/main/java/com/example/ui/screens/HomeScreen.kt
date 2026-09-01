@@ -13,11 +13,13 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -946,21 +948,25 @@ fun HomeScreen(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
                             tint = EmeraldSuccess,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "SAVE DIRECTORY: Internal Storage > Download > OmniStream",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary,
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Media automatically indexes to Phone Gallery, VLC, MX Player & Music Players",
-                                fontSize = 10.sp,
-                                color = TextMuted
+                                text = "Media automatically indexes to Phone Gallery, VLC & Music Players",
+                                fontSize = 10.5.sp,
+                                color = TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -971,42 +977,68 @@ fun HomeScreen(
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 val format = selectedFormat
+                val isAudioSelected = format?.isAudioOnly == true
                 val badge = format?.displayQualityBadge ?: "Selected Quality"
-                val ext = format?.ext?.uppercase() ?: "MP4"
+                val ext = format?.ext?.uppercase() ?: (if (isAudioSelected) "M4A" else "MP4")
                 val size = format?.readableSize ?: ""
 
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     // Primary Video Download Button
                     Button(
                         onClick = {
-                            val isAudio = format?.isAudioOnly == true
                             if (!StoragePermissionHelper.hasStoragePermission(context)) {
-                                pendingDownloadAudioOnly = isAudio
+                                pendingDownloadAudioOnly = isAudioSelected
                                 showPermissionDialog = true
                             } else {
-                                viewModel.startDownload(audioOnlyOverride = isAudio)
+                                viewModel.startDownload(audioOnlyOverride = isAudioSelected)
                                 onNavigateToDownloads()
                             }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .heightIn(min = 56.dp)
                             .testTag("start_download_button"),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (format?.isAudioOnly == true) NeonPurple else CyanBright,
+                            containerColor = if (isAudioSelected) NeonPurple else CyanBright,
                             contentColor = Color.Black
-                        )
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "DOWNLOAD VIDEO [$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}]",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isAudioSelected) Icons.Default.Audiotrack else Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = if (isAudioSelected) "DOWNLOAD AUDIO STREAM" else "DOWNLOAD VIDEO STREAM",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.5.sp,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                )
+                                Text(
+                                    text = "$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    ),
+                                    color = Color.Black.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
                     }
 
-                    // Direct MP3 Audio Extract Button (Always Active for Any Video)
+                    // Direct MP3 320k Audio Extract Button (Always Active for Any Video)
                     OutlinedButton(
                         onClick = {
                             if (!StoragePermissionHelper.hasStoragePermission(context)) {
@@ -1019,24 +1051,48 @@ fun HomeScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 52.dp)
                             .testTag("download_audio_mp3_button"),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.5.dp, NeonPurple),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = NeonPurple.copy(alpha = 0.12f),
                             contentColor = NeonPurple
-                        )
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(18.dp), tint = NeonPurple)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "🎵 EXTRACT & DOWNLOAD AUDIO (MP3 320k)",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Audiotrack,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = NeonPurple
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "EXTRACT MP3 MASTER AUDIO (320 KBPS)",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.3.sp
+                                    ),
+                                    color = NeonPurple
+                                )
+                                Text(
+                                    text = "High Fidelity Studio Sound • Universal Compatibility",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                    color = TextSecondary
+                                )
+                            }
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(36.dp))
             }
         }
     }

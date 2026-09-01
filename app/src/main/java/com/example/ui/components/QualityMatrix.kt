@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.api.FormatInfo
@@ -238,6 +239,8 @@ fun QualityMatrixView(
     onLockedTierTapped: (QualityTier) -> Unit
 ) {
     val tiers = QualityTierResolver.resolveTiers(allFormats)
+    val videoTiers = tiers.filter { !it.isAudio }
+    val audioTiers = tiers.filter { it.isAudio }
     val availableCount = tiers.count { it.isAvailable }
     val totalCount = tiers.size
 
@@ -249,32 +252,32 @@ fun QualityMatrixView(
         colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
         border = BorderStroke(1.dp, CyberBorder)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             // Matrix Header with live stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "QUALITY AVAILABILITY MATRIX",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 1.sp
-                            ),
-                            color = CyanBright
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Source verification: Only uploaded formats are enabled",
+                        text = "QUALITY AVAILABILITY MATRIX",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.8.sp
+                        ),
+                        color = CyanBright
+                    )
+                    Text(
+                        text = "Source verification: Only native uploaded streams enabled",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
-                        fontSize = 11.sp
+                        fontSize = 10.5.sp
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -282,17 +285,19 @@ fun QualityMatrixView(
                     border = BorderStroke(1.dp, if (availableCount > 0) EmeraldSuccess else TextMuted)
                 ) {
                     Text(
-                        text = "$availableCount / $totalCount READY",
+                        text = "$availableCount/$totalCount READY",
                         color = if (availableCount > 0) EmeraldSuccess else TextMuted,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Explanation chip
             Row(
@@ -307,21 +312,76 @@ fun QualityMatrixView(
                     imageVector = Icons.Default.Info,
                     contentDescription = null,
                     tint = CyanBright,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Enabled tiers are verified in the video source. Locked tiers were not uploaded by the creator.",
-                    fontSize = 11.sp,
-                    color = TextSecondary
+                    fontSize = 10.5.sp,
+                    color = TextSecondary,
+                    lineHeight = 14.sp
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Render each tier
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                tiers.forEach { tier ->
+            // Section 1: Video Qualities
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "VIDEO FORMATS (${videoTiers.count { it.isAvailable }}/${videoTiers.size} ACTIVE)",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = CyanBright
+                    ),
+                    fontSize = 10.sp
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                videoTiers.forEach { tier ->
+                    val isSelected = tier.matchingFormat != null && selectedFormat?.formatId == tier.matchingFormat.formatId
+                    QualityTierCard(
+                        tier = tier,
+                        isSelected = isSelected,
+                        onSelect = {
+                            if (tier.isAvailable && tier.matchingFormat != null) {
+                                onSelectFormat(tier.matchingFormat)
+                            } else {
+                                onLockedTierTapped(tier)
+                            }
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Section 2: Studio Audio Extracts
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "STUDIO AUDIO EXTRACTS (ALL READY)",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = NeonPurple
+                    ),
+                    fontSize = 10.sp
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                audioTiers.forEach { tier ->
                     val isSelected = tier.matchingFormat != null && selectedFormat?.formatId == tier.matchingFormat.formatId
                     QualityTierCard(
                         tier = tier,
@@ -375,7 +435,7 @@ fun QualityTierCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 11.dp, vertical = 9.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -388,7 +448,7 @@ fun QualityTierCard(
                 if (isAvailable) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(26.dp)
                             .clip(CircleShape)
                             .background(tier.badgeColor.copy(alpha = 0.15f))
                             .border(1.dp, tier.badgeColor.copy(alpha = 0.6f), CircleShape),
@@ -399,21 +459,21 @@ fun QualityTierCard(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Selected",
                                 tint = CyanBright,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.RadioButtonUnchecked,
                                 contentDescription = "Selectable",
                                 tint = tier.badgeColor,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(26.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF1E293B).copy(alpha = 0.4f)),
                         contentAlignment = Alignment.Center
@@ -422,33 +482,43 @@ fun QualityTierCard(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Locked - Not Available in Source",
                             tint = TextMuted,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
                             text = tier.label,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (isAvailable) TextPrimary else TextMuted
+                            fontSize = 12.5.sp,
+                            color = if (isAvailable) TextPrimary else TextMuted,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         if (tier.isAudio) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFFA855F7).copy(alpha = 0.2f)
+                                color = Color(0xFFA855F7).copy(alpha = 0.2f),
+                                border = BorderStroke(0.5.dp, Color(0xFFA855F7).copy(alpha = 0.5f))
                             ) {
                                 Text(
                                     text = "AUDIO",
-                                    fontSize = 9.sp,
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFA855F7),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                                 )
                             }
                         }
@@ -458,10 +528,13 @@ fun QualityTierCard(
                         text = if (isAvailable && fmt != null) {
                             "${fmt.ext.uppercase()} • ${fmt.readableSize} • ${tier.technicalSpec}"
                         } else {
-                            "Not available in original video stream (Locked)"
+                            "Locked • Original stream not in this tier"
                         },
-                        fontSize = 11.sp,
-                        color = if (isAvailable) TextSecondary else Color(0xFF475569)
+                        fontSize = 10.5.sp,
+                        color = if (isAvailable) TextSecondary else Color(0xFF475569),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -478,10 +551,12 @@ fun QualityTierCard(
                     Text(
                         text = if (isSelected) "SELECTED" else "AVAILABLE",
                         color = tier.badgeColor,
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
             } else {
@@ -493,10 +568,12 @@ fun QualityTierCard(
                     Text(
                         text = "UNAVAILABLE",
                         color = Color(0xFF64748B),
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
             }
