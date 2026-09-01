@@ -331,16 +331,27 @@ class YtDlpClient(
                                 )
                             )
 
-                            val thumb = deriveThumbnailFromUrl(trimmedUrl)
+                            // Resolve REAL thumbnail, actual title, author, and duration from the source platform
+                            val realMeta = fetchRealPlatformMetadata(trimmedUrl)
+                            val finalTitle = if (cleanFilename.isNotBlank() &&
+                                cleanFilename != "Media_Download" &&
+                                !cleanFilename.startsWith("facebook_", ignoreCase = true) &&
+                                !cleanFilename.startsWith("instagram_", ignoreCase = true) &&
+                                !cleanFilename.startsWith("tiktok_", ignoreCase = true)
+                            ) {
+                                cleanFilename
+                            } else {
+                                realMeta.title
+                            }
 
                             return VideoInfoResponse(
                                 id = "render_" + Math.abs(trimmedUrl.hashCode()).toString(),
-                                title = title,
-                                thumbnail = thumb,
-                                duration = 180L,
-                                durationString = "03:00",
-                                uploader = derivePlatformName(trimmedUrl),
-                                extractor = "Render VIP Media Engine",
+                                title = finalTitle,
+                                thumbnail = realMeta.thumbnail ?: deriveThumbnailFromUrl(trimmedUrl),
+                                duration = realMeta.durationSeconds,
+                                durationString = realMeta.durationString,
+                                uploader = realMeta.author,
+                                extractor = derivePlatformName(trimmedUrl),
                                 webpageUrl = trimmedUrl,
                                 description = "Direct high-speed media stream resolved via Render VIP Server ($effectiveBaseUrl)",
                                 formats = formats
@@ -351,6 +362,282 @@ class YtDlpClient(
             } catch (_: Exception) {}
         }
         return null
+    }
+
+    data class RealMediaMetadata(
+        val title: String,
+        val thumbnail: String?,
+        val author: String,
+        val durationSeconds: Long,
+        val durationString: String
+    )
+
+    /**
+     * Resolves the actual video cover/poster thumbnail, real title, author, and duration
+     * for Facebook, YouTube, Instagram, TikTok, Twitter/X, Pinterest, Reddit, Vimeo, etc.
+     */
+    fun fetchRealPlatformMetadata(url: String): RealMediaMetadata {
+        val trimmed = url.trim()
+        val lower = trimmed.lowercase()
+
+        var resolvedTitle: String? = null
+        var resolvedThumbnail: String? = null
+        var resolvedAuthor = derivePlatformName(trimmed)
+        var durationSec = 180L
+
+        // 1. YouTube
+        val ytMatch = Regex("""(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})""").find(trimmed)
+        if (ytMatch != null) {
+            val videoId = ytMatch.groupValues[1]
+            resolvedThumbnail = "https://i.ytimg.com/vi/$videoId/maxresdefault.jpg"
+            try {
+                val oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=$videoId&format=json"
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. TikTok / Douyin
+        else if ("tiktok.com" in lower || "douyin.com" in lower) {
+            try {
+                val oembedUrl = "https://www.tiktok.com/oembed?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val thumb = json.optString("thumbnail_url", "")
+                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 3. Instagram
+        else if ("instagram.com" in lower || "instagr.am" in lower) {
+            val shortCode = Regex("""\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)""").find(trimmed)?.groupValues?.get(1)
+            if (shortCode != null) {
+                resolvedThumbnail = "https://www.instagram.com/p/$shortCode/media/?size=l"
+                resolvedTitle = "Instagram Reel ($shortCode)"
+            }
+            try {
+                val oembedUrl = "https://api.instagram.com/oembed/?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val thumb = json.optString("thumbnail_url", "")
+                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 4. Facebook
+        else if ("facebook.com" in lower || "fb.watch" in lower || "fb.com" in lower) {
+            try {
+                val oembedUrl = "https://www.facebook.com/plugins/video/oembed.json/?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "facebookexternalhit/1.1").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val thumb = json.optString("thumbnail_url", "")
+                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // Direct OpenGraph scrape with facebookexternalhit User-Agent
+            if (resolvedThumbnail.isNullOrBlank() || resolvedTitle.isNullOrBlank()) {
+                try {
+                    val fbReq = Request.Builder()
+                        .url(trimmed)
+                        .addHeader("User-Agent", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")
+                        .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                        .build()
+                    val fbResp = okHttpClient.newCall(fbReq).execute()
+                    if (fbResp.isSuccessful) {
+                        val html = fbResp.body?.string() ?: ""
+                        val ogImg = extractMetaTag(html, "og:image")
+                            ?: extractMetaTag(html, "og:image:url")
+                            ?: extractMetaTag(html, "og:image:secure_url")
+                            ?: extractMetaTag(html, "twitter:image")
+                        if (!ogImg.isNullOrBlank()) resolvedThumbnail = ogImg
+
+                        val ogTitle = extractMetaTag(html, "og:title")
+                            ?: extractMetaTag(html, "twitter:title")
+                            ?: extractHtmlTitle(html)
+                        if (!ogTitle.isNullOrBlank() && !ogTitle.contains("Facebook", true)) {
+                            resolvedTitle = cleanHtmlEntities(ogTitle)
+                        }
+
+                        if (resolvedThumbnail.isNullOrBlank()) {
+                            val fbcdnMatch = Regex("""https:\/\/[a-zA-Z0-9._-]*fbcdn\.net\/[^\s"'<>]+\.(?:jpg|png|webp)[^\s"'<>]*""").find(html)
+                            if (fbcdnMatch != null) {
+                                resolvedThumbnail = cleanHtmlEntities(fbcdnMatch.value)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        // 5. Twitter / X
+        else if ("twitter.com" in lower || "x.com" in lower) {
+            try {
+                val oembedUrl = "https://publish.twitter.com/oembed?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val htmlEmbed = json.optString("html", "")
+                        val textMatch = Regex("""<p[^>]*>(.*?)<\/p>""").find(htmlEmbed)
+                        if (textMatch != null) {
+                            resolvedTitle = cleanHtmlEntities(textMatch.groupValues[1].replace(Regex("<[^>]*>"), ""))
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 6. Pinterest
+        else if ("pinterest." in lower || "pin.it" in lower) {
+            try {
+                val oembedUrl = "https://www.pinterest.com/oembed.json?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val thumb = json.optString("thumbnail_url", "")
+                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 7. Reddit
+        else if ("reddit.com" in lower || "redd.it" in lower) {
+            try {
+                val oembedUrl = "https://www.reddit.com/oembed?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val thumb = json.optString("thumbnail_url", "")
+                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 8. Vimeo
+        else if ("vimeo.com" in lower) {
+            try {
+                val oembedUrl = "https://vimeo.com/api/oembed.json?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val t = json.optString("title", "")
+                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                        val a = json.optString("author_name", "")
+                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                        val thumb = json.optString("thumbnail_url", "")
+                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 9. Universal OpenGraph Web Scraper (Fallback for any website)
+        if (resolvedThumbnail.isNullOrBlank() || resolvedTitle.isNullOrBlank()) {
+            try {
+                val webReq = Request.Builder()
+                    .url(trimmed)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                    .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .build()
+                val webResp = okHttpClient.newCall(webReq).execute()
+                if (webResp.isSuccessful) {
+                    val html = webResp.body?.string() ?: ""
+                    if (resolvedThumbnail.isNullOrBlank()) {
+                        val ogImg = extractMetaTag(html, "og:image")
+                            ?: extractMetaTag(html, "og:image:secure_url")
+                            ?: extractMetaTag(html, "twitter:image")
+                            ?: extractMetaTag(html, "twitter:image:src")
+                            ?: extractMetaTag(html, "thumbnail")
+                        if (!ogImg.isNullOrBlank() && ogImg.startsWith("http")) {
+                            resolvedThumbnail = ogImg
+                        }
+                    }
+                    if (resolvedTitle.isNullOrBlank()) {
+                        val ogTitle = extractMetaTag(html, "og:title")
+                            ?: extractMetaTag(html, "twitter:title")
+                            ?: extractHtmlTitle(html)
+                        if (!ogTitle.isNullOrBlank()) {
+                            resolvedTitle = cleanHtmlEntities(ogTitle)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        val finalTitle = resolvedTitle?.ifBlank { null } ?: deriveTitleFromUrl(trimmed)
+        val finalThumb = resolvedThumbnail?.ifBlank { null }
+        val finalDurationStr = String.format(java.util.Locale.US, "%02d:%02d", durationSec / 60, durationSec % 60)
+
+        return RealMediaMetadata(
+            title = finalTitle,
+            thumbnail = finalThumb,
+            author = resolvedAuthor,
+            durationSeconds = durationSec,
+            durationString = finalDurationStr
+        )
     }
 
     private fun derivePlatformName(url: String): String {
@@ -3088,7 +3375,9 @@ class YtDlpClient(
         }
 
         val videoId = Uri.parse(url).lastPathSegment?.take(16) ?: "vid7492"
-        val sampleTitle = when (platform) {
+        val realMeta = try { fetchRealPlatformMetadata(url) } catch (_: Exception) { null }
+
+        val sampleTitle = realMeta?.title ?: when (platform) {
             "TeraBox Cloud" -> "TeraBox Shared Media ($videoId)"
             "Pinterest" -> "Pinterest Video Pin ($videoId)"
             "YouTube" -> "YouTube Video Stream ($videoId)"
@@ -3102,13 +3391,7 @@ class YtDlpClient(
             else -> "Universal Web Stream [OmniStream Engine]"
         }
 
-        val sampleThumb = when (platform) {
-            "TeraBox Cloud" -> "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=800&auto=format&fit=crop&q=80"
-            "Pinterest" -> "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80"
-            "SoundCloud" -> "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80"
-            "TikTok", "Instagram" -> "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6?w=800&auto=format&fit=crop&q=80"
-            else -> "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80"
-        }
+        val sampleThumb = realMeta?.thumbnail ?: deriveThumbnailFromUrl(url)
 
         val sampleFormats = when (platform) {
             "TeraBox Cloud" -> generateTeraBoxFormats(sampleTitle, url)
@@ -3123,9 +3406,9 @@ class YtDlpClient(
             id = videoId,
             title = sampleTitle,
             thumbnail = sampleThumb,
-            duration = if (platform == "TikTok" || platform == "Pinterest") 45L else 345L,
-            durationString = if (platform == "TikTok" || platform == "Pinterest") "00:45" else "05:45",
-            uploader = "$platform Hub",
+            duration = realMeta?.durationSeconds ?: (if (platform == "TikTok" || platform == "Pinterest") 45L else 345L),
+            durationString = realMeta?.durationString ?: (if (platform == "TikTok" || platform == "Pinterest") "00:45" else "05:45"),
+            uploader = realMeta?.author ?: "$platform Hub",
             extractor = platform,
             webpageUrl = url,
             description = "Extracted media stream from $platform with verified quality formats.",
