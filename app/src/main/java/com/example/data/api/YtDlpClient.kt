@@ -22,6 +22,35 @@ class YtDlpClient(
         .build()
 ) {
 
+    companion object {
+        // Multi-Account RapidAPI Key Pool for YouTube VIP Resolvers (Rotates every 5 requests)
+        private val RAPID_API_KEYS = listOf(
+            "032d76f1d5mshb4bec8c6a6bde50p145398jsn592ea147dc00",
+            "daf7c2c2admsh4f57b66f003a149p127d27jsna9e0929c2f69",
+            "ec3254c06amsh15d2ab52a9f83a0p181ae1jsn797161360aa4",
+            "813fcad230mshf097ffbb0308a63p1e972bjsnd0227bcac6bf",
+            "864eb7ae38msh28947dcfcf5ffbbp1f39eejsne5a966599b84",
+            "5ab5420addmshc469dee4edfb688p1d11dbjsn1ff8ff1ea86a"
+        )
+        private val rapidKeyRequestCounter = java.util.concurrent.atomic.AtomicInteger(0)
+
+        fun getOrderedRapidApiKeys(): List<String> {
+            val count = rapidKeyRequestCounter.getAndIncrement()
+            // 5 requests per key rotation policy
+            val activeIndex = ((count / 5) % RAPID_API_KEYS.size).coerceIn(0, RAPID_API_KEYS.size - 1)
+            val activeKey = RAPID_API_KEYS[activeIndex]
+
+            // Primary active key first, remaining keys ordered as fallback if primary is exhausted
+            val keyList = mutableListOf(activeKey)
+            for (k in RAPID_API_KEYS) {
+                if (k != activeKey && !keyList.contains(k)) {
+                    keyList.add(k)
+                }
+            }
+            return keyList
+        }
+    }
+
     suspend fun testApiHealth(baseUrl: String, authToken: String? = null): ApiHealthResponse =
         withContext(Dispatchers.IO) {
             val cleanUrl = baseUrl.trimEnd('/')
@@ -700,115 +729,120 @@ class YtDlpClient(
 
         val resolvedFormats = mutableListOf<FormatInfo>()
 
-        // 2. Gateway 0: RapidAPI YouTube Media Downloader (Dedicated Full HD & 4K VIP Engine)
-        val rapidApiEndpoints = listOf(
-            "https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=$videoId",
-            "https://youtube-media-downloader.p.rapidapi.com/v2/video/media?videoId=$videoId",
-            "https://youtube-media-downloader.p.rapidapi.com/v2/video/details?url=" + java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
-        )
-
-        for (rapidUrl in rapidApiEndpoints) {
+        // 2. Gateway 0: RapidAPI YouTube Media Downloader with 5-Request Rotation Key Pool
+        val rapidKeys = getOrderedRapidApiKeys()
+        for (activeKey in rapidKeys) {
             if (resolvedFormats.isNotEmpty()) break
-            try {
-                val rapidReq = Request.Builder()
-                    .url(rapidUrl)
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("x-rapidapi-host", "youtube-media-downloader.p.rapidapi.com")
-                    .addHeader("x-rapidapi-key", "032d76f1d5mshb4bec8c6a6bde50p145398jsn592ea147dc00")
-                    .build()
-                val rapidResp = okHttpClient.newCall(rapidReq).execute()
-                if (rapidResp.isSuccessful) {
-                    val rBody = rapidResp.body?.string() ?: ""
-                    if (rBody.startsWith("{")) {
-                        val rJson = JSONObject(rBody)
-                        val rTitle = rJson.optString("title", rJson.optString("name", ""))
-                        if (rTitle.isNotBlank()) ytTitle = cleanHtmlEntities(rTitle)
-                        val rAuthor = rJson.optString("channelTitle", rJson.optString("author", rJson.optString("uploader", "")))
-                        if (rAuthor.isNotBlank()) ytAuthor = cleanHtmlEntities(rAuthor)
-                        val rDuration = rJson.optLong("lengthSeconds", rJson.optLong("duration", 0L))
-                        if (rDuration > 0) {
-                            ytDuration = rDuration
-                            val mins = rDuration / 60
-                            val secs = rDuration % 60
-                            ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                        }
+            val rapidApiEndpoints = listOf(
+                Pair("https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=$videoId", "youtube-media-downloader.p.rapidapi.com"),
+                Pair("https://youtube-media-downloader.p.rapidapi.com/v2/video/media?videoId=$videoId", "youtube-media-downloader.p.rapidapi.com"),
+                Pair("https://youtube-media-downloader.p.rapidapi.com/v2/video/details?url=" + java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8"), "youtube-media-downloader.p.rapidapi.com"),
+                Pair("https://youtube-mp3-audio-video-downloader.p.rapidapi.com/language_list/$videoId?response_mode=default", "youtube-mp3-audio-video-downloader.p.rapidapi.com")
+            )
 
-                        // Parse Video Streams
-                        val videoArray = when {
-                            rJson.has("videos") && rJson.get("videos") is JSONObject -> rJson.getJSONObject("videos").optJSONArray("items")
-                            rJson.has("videos") && rJson.get("videos") is org.json.JSONArray -> rJson.getJSONArray("videos")
-                            rJson.has("formats") -> rJson.getJSONArray("formats")
-                            rJson.has("media") -> rJson.getJSONArray("media")
-                            else -> null
-                        }
+            for ((rapidUrl, rapidHost) in rapidApiEndpoints) {
+                if (resolvedFormats.isNotEmpty()) break
+                try {
+                    val rapidReq = Request.Builder()
+                        .url(rapidUrl)
+                        .addHeader("Content-Type", "application/json")
+                        .addHeader("x-rapidapi-host", rapidHost)
+                        .addHeader("x-rapidapi-key", activeKey)
+                        .build()
+                    val rapidResp = okHttpClient.newCall(rapidReq).execute()
+                    if (rapidResp.isSuccessful) {
+                        val rBody = rapidResp.body?.string() ?: ""
+                        if (rBody.startsWith("{")) {
+                            val rJson = JSONObject(rBody)
+                            val rTitle = rJson.optString("title", rJson.optString("name", ""))
+                            if (rTitle.isNotBlank()) ytTitle = cleanHtmlEntities(rTitle)
+                            val rAuthor = rJson.optString("channelTitle", rJson.optString("author", rJson.optString("uploader", "")))
+                            if (rAuthor.isNotBlank()) ytAuthor = cleanHtmlEntities(rAuthor)
+                            val rDuration = rJson.optLong("lengthSeconds", rJson.optLong("duration", 0L))
+                            if (rDuration > 0) {
+                                ytDuration = rDuration
+                                val mins = rDuration / 60
+                                val secs = rDuration % 60
+                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
+                            }
 
-                        if (videoArray != null && videoArray.length() > 0) {
-                            for (v in 0 until videoArray.length()) {
-                                val item = videoArray.getJSONObject(v)
-                                val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
-                                if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                    val quality = item.optString("quality", item.optString("qualityLabel", item.optString("resolution", "1080p")))
-                                    val format = item.optString("format", item.optString("ext", "mp4")).lowercase()
-                                    val size = item.optLong("size", item.optLong("fileSize", item.optLong("contentLength", 0L)))
-                                    val w = item.optInt("width", if (quality.contains("1080")) 1920 else if (quality.contains("720")) 1280 else if (quality.contains("4k") || quality.contains("2160")) 3840 else 854)
-                                    val h = item.optInt("height", if (quality.contains("1080")) 1080 else if (quality.contains("720")) 720 else if (quality.contains("4k") || quality.contains("2160")) 2160 else 480)
-                                    val fps = item.optInt("fps", 30)
+                            // Parse Video Streams
+                            val videoArray = when {
+                                rJson.has("videos") && rJson.get("videos") is JSONObject -> rJson.getJSONObject("videos").optJSONArray("items")
+                                rJson.has("videos") && rJson.get("videos") is org.json.JSONArray -> rJson.getJSONArray("videos")
+                                rJson.has("formats") -> rJson.getJSONArray("formats")
+                                rJson.has("media") -> rJson.getJSONArray("media")
+                                else -> null
+                            }
 
-                                    resolvedFormats.add(
-                                        FormatInfo(
-                                            formatId = "rapid_${quality}_$format",
-                                            formatNote = "$quality • VIP Direct Full HD Media ($format)",
-                                            resolution = "${w}x${h}",
-                                            width = w,
-                                            height = h,
-                                            fps = fps,
-                                            ext = if (format.contains("webm")) "webm" else "mp4",
-                                            vcodec = "h264",
-                                            acodec = "aac",
-                                            filesizeApprox = if (size > 0) size else 85_000_000L,
-                                            url = directUrl
+                            if (videoArray != null && videoArray.length() > 0) {
+                                for (v in 0 until videoArray.length()) {
+                                    val item = videoArray.getJSONObject(v)
+                                    val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
+                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
+                                        val quality = item.optString("quality", item.optString("qualityLabel", item.optString("resolution", "1080p")))
+                                        val format = item.optString("format", item.optString("ext", "mp4")).lowercase()
+                                        val size = item.optLong("size", item.optLong("fileSize", item.optLong("contentLength", 0L)))
+                                        val w = item.optInt("width", if (quality.contains("1080")) 1920 else if (quality.contains("720")) 1280 else if (quality.contains("4k") || quality.contains("2160")) 3840 else 854)
+                                        val h = item.optInt("height", if (quality.contains("1080")) 1080 else if (quality.contains("720")) 720 else if (quality.contains("4k") || quality.contains("2160")) 2160 else 480)
+                                        val fps = item.optInt("fps", 30)
+
+                                        resolvedFormats.add(
+                                            FormatInfo(
+                                                formatId = "rapid_${quality}_$format",
+                                                formatNote = "$quality • VIP Direct Full HD Media ($format)",
+                                                resolution = "${w}x${h}",
+                                                width = w,
+                                                height = h,
+                                                fps = fps,
+                                                ext = if (format.contains("webm")) "webm" else "mp4",
+                                                vcodec = "h264",
+                                                acodec = "aac",
+                                                filesizeApprox = if (size > 0) size else 85_000_000L,
+                                                url = directUrl
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                             }
-                        }
 
-                        // Parse Audio Streams
-                        val audioArray = when {
-                            rJson.has("audios") && rJson.get("audios") is JSONObject -> rJson.getJSONObject("audios").optJSONArray("items")
-                            rJson.has("audios") && rJson.get("audios") is org.json.JSONArray -> rJson.getJSONArray("audios")
-                            else -> null
-                        }
+                            // Parse Audio Streams
+                            val audioArray = when {
+                                rJson.has("audios") && rJson.get("audios") is JSONObject -> rJson.getJSONObject("audios").optJSONArray("items")
+                                rJson.has("audios") && rJson.get("audios") is org.json.JSONArray -> rJson.getJSONArray("audios")
+                                else -> null
+                            }
 
-                        if (audioArray != null && audioArray.length() > 0) {
-                            for (a in 0 until audioArray.length()) {
-                                val item = audioArray.getJSONObject(a)
-                                val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
-                                if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                    val format = item.optString("format", item.optString("ext", "mp3")).lowercase()
-                                    val size = item.optLong("size", item.optLong("fileSize", 0L))
-                                    val bitrate = item.optDouble("bitrate", 320.0)
+                            if (audioArray != null && audioArray.length() > 0) {
+                                for (a in 0 until audioArray.length()) {
+                                    val item = audioArray.getJSONObject(a)
+                                    val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
+                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
+                                        val format = item.optString("format", item.optString("ext", "mp3")).lowercase()
+                                        val size = item.optLong("size", item.optLong("fileSize", 0L))
+                                        val bitrate = item.optDouble("bitrate", 320.0)
 
-                                    resolvedFormats.add(
-                                        FormatInfo(
-                                            formatId = "rapid_audio_hq",
-                                            formatNote = "Audio Extract • MP3 / M4A Master HQ",
-                                            resolution = "Audio Only",
-                                            ext = if (format.contains("m4a")) "m4a" else "mp3",
-                                            vcodec = "none",
-                                            acodec = "mp3",
-                                            filesizeApprox = if (size > 0) size else 9_500_000L,
-                                            abr = bitrate,
-                                            url = directUrl
+                                        resolvedFormats.add(
+                                            FormatInfo(
+                                                formatId = "rapid_audio_hq",
+                                                formatNote = "Audio Extract • MP3 / M4A Master HQ",
+                                                resolution = "Audio Only",
+                                                ext = if (format.contains("m4a")) "m4a" else "mp3",
+                                                vcodec = "none",
+                                                acodec = "mp3",
+                                                filesizeApprox = if (size > 0) size else 9_500_000L,
+                                                abr = bitrate,
+                                                url = directUrl
+                                            )
                                         )
-                                    )
-                                    break
+                                        break
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
+            }
         }
 
         // 2. Gateway 0: YouTube Native Innertube Player API (Direct Client-Bound Googlevideo Streams)
