@@ -13,18 +13,30 @@ import org.junit.Test
 class QualityMatrixTest {
 
     @Test
-    fun `detect TeraBox URLs correctly`() {
-        val teraboxUrl1 = "https://terabox.com/s/1xyz123"
-        val teraboxUrl2 = "https://1024tera.com/s/2abc789"
-        val teraboxUrl3 = "https://terasharelink.com/s/3def456"
+    fun `detect 21 official platforms correctly`() {
+        val ytUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        val tiktokUrl = "https://www.tiktok.com/@creator/video/1234567890"
+        val fbUrl = "https://www.facebook.com/watch/?v=1234567890"
+        val instaUrl = "https://www.instagram.com/reel/Cx123456789/"
+        val twitterUrl = "https://twitter.com/user/status/1234567890"
+        val redditUrl = "https://www.reddit.com/r/videos/comments/sample123/"
+        val soundcloudUrl = "https://soundcloud.com/artist/sample-track"
 
-        val p1 = PlatformDetector.detect(teraboxUrl1)
-        val p2 = PlatformDetector.detect(teraboxUrl2)
-        val p3 = PlatformDetector.detect(teraboxUrl3)
+        val p1 = PlatformDetector.detect(ytUrl)
+        val p2 = PlatformDetector.detect(tiktokUrl)
+        val p3 = PlatformDetector.detect(fbUrl)
+        val p4 = PlatformDetector.detect(instaUrl)
+        val p5 = PlatformDetector.detect(twitterUrl)
+        val p6 = PlatformDetector.detect(redditUrl)
+        val p7 = PlatformDetector.detect(soundcloudUrl)
 
-        assertEquals("TeraBox Cloud", p1.name)
-        assertEquals("TeraBox Cloud", p2.name)
-        assertEquals("TeraBox Cloud", p3.name)
+        assertEquals("YouTube", p1.name)
+        assertEquals("TikTok", p2.name)
+        assertEquals("Facebook", p3.name)
+        assertEquals("Instagram", p4.name)
+        assertEquals("Twitter / X", p5.name)
+        assertEquals("Reddit", p6.name)
+        assertEquals("SoundCloud", p7.name)
     }
 
     @Test

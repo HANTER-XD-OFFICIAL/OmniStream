@@ -93,14 +93,14 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "API & Engine Controller",
+                text = "Master API & Engine Hub",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
             )
             Text(
-                text = "Configure custom yt-dlp API server endpoints, quality defaults & pro flags",
+                text = "Single Master API powering all 21 platforms (YouTube, TikTok, Facebook, Instagram, Twitter/X, Pinterest, SoundCloud, etc.)",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
@@ -124,7 +124,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Custom yt-dlp Server URL",
+                                text = "Official Master API Endpoint",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = TextPrimary
                             )
@@ -135,8 +135,8 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         value = apiUrl,
                         onValueChange = { apiUrl = it },
                         modifier = Modifier.fillMaxWidth().testTag("api_url_input"),
-                        label = { Text("API Base URL (HTTP/HTTPS)") },
-                        placeholder = { Text("http://192.168.1.100:5000 or https://...", color = TextMuted) },
+                        label = { Text("Master Cobalt API URL") },
+                        placeholder = { Text("https://cobalt-latest-a04h.onrender.com", color = TextMuted) },
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -152,7 +152,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         onValueChange = { authToken = it },
                         modifier = Modifier.fillMaxWidth().testTag("api_token_input"),
                         label = { Text("Bearer / Auth Token (Optional)") },
-                        placeholder = { Text("Leave blank if no authorization needed", color = TextMuted) },
+                        placeholder = { Text("Leave blank for direct access", color = TextMuted) },
                         leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, tint = TextMuted) },
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
@@ -165,17 +165,15 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                     )
 
                     // Presets
-                    Text("Quick Presets:", fontSize = 11.sp, color = TextMuted)
+                    Text("Official API Engine:", fontSize = 11.sp, color = TextMuted)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        PresetChip("Render VIP Server (Active)") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
+                        PresetChip("Master Render API (Active)") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
                         PresetChip("Cobalt Official") { apiUrl = "https://api.cobalt.tools" }
-                        PresetChip("TeraBox Gateway") { apiUrl = "https://terabox-gateway.local/api" }
-                        PresetChip("Self-Hosted (:5000)") { apiUrl = "http://192.168.1.100:5000" }
                     }
 
                     // Ping / Test API Status
