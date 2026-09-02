@@ -258,62 +258,85 @@ fun HomeScreen(
     ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
-            // Futuristic Command Unit Header
+            // Ultra-Sleek Futuristic Command Unit Header
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_command_header"),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CyanBright.copy(alpha = 0.7f), NeonPurple.copy(alpha = 0.5f))))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f, fill = false)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(CyanBright)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "OMNISTREAM",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.5.sp,
-                                    color = TextPrimary
-                                )
+                    // Left Brand Unit
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Brush.linearGradient(listOf(CyanBright.copy(alpha = 0.25f), NeonPurple.copy(alpha = 0.25f))))
+                                .border(1.dp, CyanBright.copy(alpha = 0.8f), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = "OmniStream Logo",
+                                tint = CyanBright,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Text(
-                            text = "Any Video Downloader • TeraBox & 8K Core",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = CyanAccent,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column {
+                            Text(
+                                text = "OMNISTREAM",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 1.2.sp,
+                                    fontSize = 16.sp
+                                ),
+                                color = TextPrimary,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text(
+                                text = "Universal 8K & MP3 Downloader",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = CyanAccent,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    // Header Badges: Privacy Shield & Live Engine Status Chip
+                    // Right Status Badges: Privacy & Live Engine
                     val isOnline = apiHealth?.status == "connected"
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 100% Privacy Badge
+                        // 100% Privacy Shield Badge
                         Surface(
                             onClick = { showPrivacyDialog = true },
-                            shape = RoundedCornerShape(10.dp),
-                            color = EmeraldSuccess.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.8f)),
+                            shape = RoundedCornerShape(8.dp),
+                            color = EmeraldSuccess.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.65f)),
                             modifier = Modifier.testTag("privacy_status_indicator")
                         ) {
                             Row(
@@ -324,14 +347,14 @@ fun HomeScreen(
                                     imageVector = Icons.Default.Shield,
                                     contentDescription = "Privacy Shield",
                                     tint = EmeraldSuccess,
-                                    modifier = Modifier.size(12.dp)
+                                    modifier = Modifier.size(11.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "PRIVACY",
                                     color = EmeraldSuccess,
                                     fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.Black,
                                     fontFamily = FontFamily.Monospace,
                                     maxLines = 1,
                                     softWrap = false
@@ -339,12 +362,12 @@ fun HomeScreen(
                             }
                         }
 
-                        // Engine Status Chip
+                        // Engine Status Badge
                         Surface(
                             onClick = onNavigateToSettings,
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isOnline) EmeraldSuccess.copy(alpha = 0.15f) else CyanBright.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, if (isOnline) EmeraldSuccess else CyanBright),
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isOnline) EmeraldSuccess.copy(alpha = 0.12f) else CyanBright.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, if (isOnline) EmeraldSuccess.copy(alpha = 0.7f) else CyanBright.copy(alpha = 0.7f)),
                             modifier = Modifier.testTag("api_status_indicator")
                         ) {
                             Row(
@@ -361,8 +384,8 @@ fun HomeScreen(
                                 Text(
                                     text = if (isOnline) "LIVE" else "CORE",
                                     color = if (isOnline) EmeraldSuccess else CyanBright,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
                                     fontFamily = FontFamily.Monospace,
                                     maxLines = 1,
                                     softWrap = false
@@ -374,50 +397,76 @@ fun HomeScreen(
             }
         }
 
-        // Link Input Box
+        // High-Quality Link Input Studio Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_url_input_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.2.dp, Brush.verticalGradient(listOf(CyberBorder, CyanBright.copy(alpha = 0.35f))))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // Header Bar of Input Box
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "MEDIA STREAM URL",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 1.sp
-                            ),
-                            color = TextSecondary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldSuccess)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "MEDIA STREAM URL",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 1.sp,
+                                    fontSize = 11.sp
+                                ),
+                                color = TextPrimary
+                            )
+                        }
 
-                        // Platform chip
+                        // Live Platform Detection Badge
                         if (urlInput.isNotBlank()) {
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = detectedPlatform.brandColor.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, detectedPlatform.brandColor.copy(alpha = 0.7f))
+                                shape = RoundedCornerShape(8.dp),
+                                color = detectedPlatform.brandColor.copy(alpha = 0.18f),
+                                border = BorderStroke(1.dp, detectedPlatform.brandColor.copy(alpha = 0.8f))
                             ) {
-                                Text(
-                                    text = detectedPlatform.badgeText,
-                                    color = detectedPlatform.brandColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(detectedPlatform.brandColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = detectedPlatform.badgeText,
+                                        color = detectedPlatform.brandColor,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // Next-Gen High-Tech Input Box
                     OutlinedTextField(
                         value = urlInput,
                         onValueChange = { viewModel.setUrlInput(it) },
@@ -426,35 +475,83 @@ fun HomeScreen(
                             .testTag("url_input_field"),
                         placeholder = {
                             Text(
-                                "Paste TeraBox, YouTube, TikTok, FB, Instagram, X, or any website link...",
+                                "Paste video or audio link here...",
                                 color = TextMuted,
-                                fontSize = 12.sp
+                                fontSize = 12.5.sp
                             )
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Link, contentDescription = null, tint = CyanAccent)
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(CyanBright.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Link,
+                                    contentDescription = "Link Icon",
+                                    tint = CyanBright,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         },
                         trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.padding(end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
                                 if (urlInput.isNotEmpty()) {
                                     IconButton(
                                         onClick = { viewModel.setUrlInput("") },
-                                        modifier = Modifier.size(32.dp).testTag("clear_url_button")
+                                        modifier = Modifier.size(30.dp).testTag("clear_url_button")
                                     ) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = TextMuted)
+                                        Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = "Clear",
+                                            tint = TextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
                                 }
-                                IconButton(
+
+                                // Quick High-Tech PASTE Button
+                                Surface(
                                     onClick = { viewModel.pasteFromClipboard() },
-                                    modifier = Modifier.size(32.dp).testTag("paste_clipboard_button")
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = CyanBright.copy(alpha = 0.18f),
+                                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.7f)),
+                                    modifier = Modifier.testTag("paste_clipboard_button")
                                 ) {
-                                    Icon(Icons.Default.ContentPaste, contentDescription = "Paste", tint = CyanBright)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ContentPaste,
+                                            contentDescription = "Paste",
+                                            tint = CyanBright,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "PASTE",
+                                            color = CyanBright,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
                                 }
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = CyberBlack.copy(alpha = 0.7f),
+                            unfocusedContainerColor = CyberBlack.copy(alpha = 0.5f),
                             focusedBorderColor = CyanBright,
                             unfocusedBorderColor = CyberBorder,
                             focusedTextColor = TextPrimary,
@@ -468,49 +565,41 @@ fun HomeScreen(
                         })
                     )
 
-                    // TeraBox Accelerator Banner (shows when TeraBox link is pasted/detected)
-                    AnimatedVisibility(visible = isTeraBoxUrl) {
+                    // Platform Detection Info Card
+                    AnimatedVisibility(visible = urlInput.isNotBlank()) {
                         Column {
                             Spacer(modifier = Modifier.height(10.dp))
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0284C7).copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, Color(0xFF0284C7).copy(alpha = 0.6f)),
+                                color = detectedPlatform.brandColor.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, detectedPlatform.brandColor.copy(alpha = 0.5f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(10.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CloudDone,
-                                        contentDescription = null,
-                                        tint = Color(0xFF38BDF8),
-                                        modifier = Modifier.size(20.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(detectedPlatform.brandColor)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "TERABOX CLOUD DETECTED",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            color = Color(0xFF38BDF8),
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                        Text(
-                                            text = "Direct share bypass enabled for fast Full HD cloud streaming",
-                                            fontSize = 11.sp,
-                                            color = TextSecondary
-                                        )
-                                    }
+                                    Text(
+                                        text = "${detectedPlatform.name} Stream Detected • Ready for lossless download",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextPrimary
+                                    )
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Fetch Button
+                    // High-Impact Gradient Analyze Button
                     Button(
                         onClick = {
                             focusManager.clearFocus()
@@ -518,72 +607,112 @@ fun HomeScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(50.dp)
                             .testTag("fetch_formats_button"),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = CyanBright,
+                            containerColor = Color.Transparent,
                             contentColor = Color.Black
                         ),
+                        contentPadding = PaddingValues(),
                         enabled = !isFetching
                     ) {
-                        if (isFetching) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.Black,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Analyzing Available Streams...", fontWeight = FontWeight.Bold)
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Analyze & Verify Source Qualities", fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        listOf(CyanBright, Color(0xFF06B6D4), NeonPurple)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isFetching) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = Color.Black,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Analyzing Media Streams...",
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 12.5.sp,
+                                        color = Color.Black
+                                    )
+                                }
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "ANALYZE & EXTRACT QUALITIES",
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 12.5.sp,
+                                        letterSpacing = 0.5.sp,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    // Quick Platform Triggers Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Quick Platform Triggers:",
-                            fontSize = 11.sp,
-                            color = TextMuted,
-                            fontWeight = FontWeight.Medium
+                            text = "QUICK PLATFORMS (21 SERVICES)",
+                            fontSize = 10.5.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
                         )
 
                         Surface(
                             onClick = { showSupportedPlatformsDialog = true },
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyanBright.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.6f))
+                            shape = RoundedCornerShape(6.dp),
+                            color = CyanBright.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Text(
+                                    text = "21 PORTALS",
+                                    color = CyanBright,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                     contentDescription = null,
                                     tint = CyanBright,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "1000+ Sites Directory",
-                                    color = CyanBright,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    modifier = Modifier.size(10.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Horizontal Quick Platform Triggers
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -591,43 +720,40 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         DemoChip("🎬 YouTube") {
-                            viewModel.loadSampleUrl("https://www.youtube.com/watch?v=LXb3EKWsInQ")
+                            viewModel.loadSampleUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                         }
                         DemoChip("📱 TikTok") {
-                            viewModel.loadSampleUrl("https://www.tiktok.com/@creator/video/72891234")
+                            viewModel.loadSampleUrl("https://www.tiktok.com/@creator/video/1234567890")
                         }
                         DemoChip("📸 Instagram") {
-                            viewModel.loadSampleUrl("https://www.instagram.com/reel/C8qW1234567/")
+                            viewModel.loadSampleUrl("https://www.instagram.com/reel/Cx123456789/")
                         }
                         DemoChip("🌐 Facebook") {
-                            viewModel.loadSampleUrl("https://www.facebook.com/watch/?v=10928374")
+                            viewModel.loadSampleUrl("https://www.facebook.com/watch/?v=1234567890")
                         }
                         DemoChip("🐦 Twitter / X") {
-                            viewModel.loadSampleUrl("https://x.com/space/status/1789123456789")
+                            viewModel.loadSampleUrl("https://twitter.com/user/status/1234567890")
                         }
                         DemoChip("📌 Pinterest") {
                             viewModel.loadSampleUrl("https://www.pinterest.com/pin/123456789012345678/")
                         }
                         DemoChip("🤖 Reddit") {
-                            viewModel.loadSampleUrl("https://www.reddit.com/r/videos/comments/xyz123/")
-                        }
-                        DemoChip("📺 Bilibili") {
-                            viewModel.loadSampleUrl("https://www.bilibili.com/video/BV1xx411c7mD")
-                        }
-                        DemoChip("🎥 Dailymotion") {
-                            viewModel.loadSampleUrl("https://www.dailymotion.com/video/x8abcdef")
-                        }
-                        DemoChip("👻 Snapchat") {
-                            viewModel.loadSampleUrl("https://www.snapchat.com/spotlight/W7_ED1nYR9")
+                            viewModel.loadSampleUrl("https://www.reddit.com/r/videos/comments/sample123/")
                         }
                         DemoChip("🎧 SoundCloud") {
                             viewModel.loadSampleUrl("https://soundcloud.com/artist/sample-track")
                         }
+                        DemoChip("📺 Bilibili") {
+                            viewModel.loadSampleUrl("https://www.bilibili.com/video/BV1xx411c7mD")
+                        }
+                        DemoChip("👻 Snapchat") {
+                            viewModel.loadSampleUrl("https://www.snapchat.com/spotlight/W7_ED1nYR9")
+                        }
+                        DemoChip("🎥 Dailymotion") {
+                            viewModel.loadSampleUrl("https://www.dailymotion.com/video/x8abcdef")
+                        }
                         DemoChip("🎬 Vimeo") {
                             viewModel.loadSampleUrl("https://vimeo.com/76979871")
-                        }
-                        DemoChip("💙 VK") {
-                            viewModel.loadSampleUrl("https://vk.com/video-123456_789012")
                         }
                         DemoChip("🦋 Bluesky") {
                             viewModel.loadSampleUrl("https://bsky.app/profile/user.bsky.social/post/123456")
@@ -638,23 +764,23 @@ fun HomeScreen(
                         DemoChip("🟠 OK.ru") {
                             viewModel.loadSampleUrl("https://ok.ru/video/1234567890")
                         }
-                        DemoChip("⚡ Streamable") {
-                            viewModel.loadSampleUrl("https://streamable.com/moo7b")
-                        }
-                        DemoChip("🎮 Twitch Clips") {
-                            viewModel.loadSampleUrl("https://clips.twitch.tv/GloriousSampleClip")
-                        }
-                        DemoChip("👾 Newgrounds") {
-                            viewModel.loadSampleUrl("https://www.newgrounds.com/portal/view/123456")
-                        }
                         DemoChip("🇷🇺 Rutube") {
                             viewModel.loadSampleUrl("https://rutube.ru/video/1234567890abcdef/")
+                        }
+                        DemoChip("⚡ Streamable") {
+                            viewModel.loadSampleUrl("https://streamable.com/moo7b")
                         }
                         DemoChip("📝 Tumblr") {
                             viewModel.loadSampleUrl("https://creator.tumblr.com/post/1234567890")
                         }
-                        DemoChip("📦 TeraBox") {
-                            viewModel.loadSampleUrl("https://terabox.com/s/1aB2c3d4e5fG6h7i8j")
+                        DemoChip("🎮 Twitch Clips") {
+                            viewModel.loadSampleUrl("https://clips.twitch.tv/GloriousSampleClip")
+                        }
+                        DemoChip("💙 VK") {
+                            viewModel.loadSampleUrl("https://vk.com/video-123456_789012")
+                        }
+                        DemoChip("👾 Newgrounds") {
+                            viewModel.loadSampleUrl("https://www.newgrounds.com/portal/view/123456")
                         }
                     }
                 }
@@ -1353,7 +1479,7 @@ private fun HomePlatformsShowcaseCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
-                            text = "SUPPORTED PLATFORMS",
+                            text = "SUPPORTED SERVICES",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Black,
                                 fontFamily = FontFamily.Monospace,
@@ -1362,7 +1488,7 @@ private fun HomePlatformsShowcaseCard(
                             color = TextPrimary
                         )
                         Text(
-                            text = "1000+ Video Portals • Direct 1-Tap Load",
+                            text = "21 Official Portals • 1-Tap Instant Load",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp),
                             color = TextSecondary
                         )
@@ -1380,7 +1506,7 @@ private fun HomePlatformsShowcaseCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "ALL (1000+)",
+                            text = "ALL (21)",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -1401,12 +1527,18 @@ private fun HomePlatformsShowcaseCard(
 
             // Platform Buttons Grid
             val platforms = listOf(
-                PlatformQuickItem("TeraBox VIP", "https://terabox.com/s/1aB2c3d4e5fG6h7i8j", Color(0xFF0284C7), "Cloud Bypass"),
-                PlatformQuickItem("YouTube 8K", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", Color(0xFFEF4444), "8K / 4K / MP3"),
-                PlatformQuickItem("TikTok HD", "https://www.tiktok.com/@creator/video/1234567890", Color(0xFF06B6D4), "No Watermark"),
-                PlatformQuickItem("Instagram", "https://www.instagram.com/reel/Cx123456789/", Color(0xFFEC4899), "Reels & Stories"),
-                PlatformQuickItem("Facebook", "https://www.facebook.com/watch/?v=1234567890", Color(0xFF3B82F6), "Public HD Clips"),
-                PlatformQuickItem("Twitter / X", "https://twitter.com/user/status/1234567890", Color(0xFF64748B), "High-Speed Video")
+                PlatformQuickItem("YouTube", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", Color(0xFFFF0000), "8K / 4K / MP3"),
+                PlatformQuickItem("TikTok", "https://www.tiktok.com/@creator/video/1234567890", Color(0xFF00F2FE), "No Watermark"),
+                PlatformQuickItem("Facebook", "https://www.facebook.com/watch/?v=1234567890", Color(0xFF1877F2), "Public HD & Reels"),
+                PlatformQuickItem("Instagram", "https://www.instagram.com/reel/Cx123456789/", Color(0xFFE1306C), "Reels & Stories"),
+                PlatformQuickItem("Twitter / X", "https://twitter.com/user/status/1234567890", Color(0xFF1DA1F2), "High-Speed Media"),
+                PlatformQuickItem("Pinterest", "https://www.pinterest.com/pin/123456789012345678/", Color(0xFFE60023), "1080p MP4 Pins"),
+                PlatformQuickItem("Reddit", "https://www.reddit.com/r/videos/comments/sample123/", Color(0xFFFF4500), "Audio+Video Mux"),
+                PlatformQuickItem("SoundCloud", "https://soundcloud.com/artist/sample-track", Color(0xFFFF7700), "320kbps MP3 Master"),
+                PlatformQuickItem("Bilibili", "https://www.bilibili.com/video/BV1xx411c7mD", Color(0xFF00A1D6), "HD / 4K 60FPS"),
+                PlatformQuickItem("Snapchat", "https://www.snapchat.com/spotlight/W7_ED1nYR9", Color(0xFFFFFC00), "Spotlight Video"),
+                PlatformQuickItem("Dailymotion", "https://www.dailymotion.com/video/x8abcdef", Color(0xFF0066DC), "Full HD Streams"),
+                PlatformQuickItem("Vimeo", "https://vimeo.com/76979871", Color(0xFF1AB7EA), "4K Master Video")
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -127,7 +127,7 @@ fun SupportedPlatformsDialog(
                             )
                         }
                         Text(
-                            text = "1000+ Websites • 100% Download Engine Guarantee",
+                            text = "21 Priority Services • 100% Download Engine Guarantee",
                             color = CyanAccent,
                             fontSize = 11.sp
                         )
@@ -153,7 +153,7 @@ fun SupportedPlatformsDialog(
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = {
-                        Text("Search YouTube, TikTok, TeraBox, Google Drive, BBC...", color = TextMuted, fontSize = 12.sp)
+                        Text("Search YouTube, TikTok, Facebook, Instagram, X, Pinterest...", color = TextMuted, fontSize = 12.sp)
                     },
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = null, tint = CyanAccent)
