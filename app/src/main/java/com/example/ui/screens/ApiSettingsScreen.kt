@@ -419,10 +419,8 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
             }
         }
 
-        // Dedicated Developer Support Section
         item {
-            com.example.ui.components.DeveloperSupportCard()
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(30.dp))
         }
     }
 }

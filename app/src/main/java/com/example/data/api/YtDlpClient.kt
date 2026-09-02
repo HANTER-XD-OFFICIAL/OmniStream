@@ -1400,7 +1400,7 @@ class YtDlpClient(
                         }
                         val streamingData = pJson.optJSONObject("streamingData")
                         if (streamingData != null) {
-                            // 1. Progressive streams (Video + Audio Combined in single MP4)
+                            // 1. Progressive streams (Video + Audio Combined in single MP4 with verified audio track)
                             val formats = streamingData.optJSONArray("formats")
                             if (formats != null && formats.length() > 0) {
                                 for (i in 0 until formats.length()) {
@@ -1435,7 +1435,7 @@ class YtDlpClient(
                                 }
                             }
 
-                            // 2. Adaptive formats (1080p Full HD & HQ Audio tracks)
+                            // 2. Audio tracks from adaptive formats (Do NOT add video-only adaptive streams without audio)
                             val adaptive = streamingData.optJSONArray("adaptiveFormats")
                             if (adaptive != null && adaptive.length() > 0) {
                                 for (i in 0 until adaptive.length()) {
@@ -1443,32 +1443,11 @@ class YtDlpClient(
                                     val directUrl = fObj.optString("url", "")
                                     val itag = fObj.optInt("itag", 0)
                                     val mimeType = fObj.optString("mimeType", "")
-                                    val qualityLabel = fObj.optString("qualityLabel", "")
-                                    val width = fObj.optInt("width", 0)
-                                    val height = fObj.optInt("height", 0)
-                                    val fps = fObj.optInt("fps", 30)
                                     val contentLength = fObj.optLong("contentLength", 0L)
                                     val bitrate = fObj.optDouble("bitrate", 128000.0) / 1000.0
 
                                     if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                        if (mimeType.contains("video/mp4") && height >= 720) {
-                                            resolvedFormats.add(
-                                                FormatInfo(
-                                                    formatId = "yt_innertube_${qualityLabel}_${itag}",
-                                                    formatNote = "$qualityLabel • Direct YouTube High Speed MP4",
-                                                    resolution = "${width}x${height}",
-                                                    width = width,
-                                                    height = height,
-                                                    fps = fps,
-                                                    ext = "mp4",
-                                                    vcodec = "h264",
-                                                    acodec = "aac",
-                                                    filesizeApprox = if (contentLength > 0) contentLength else (bitrate * ytDuration / 8).toLong().coerceAtLeast(30_000_000L),
-                                                    tbr = bitrate,
-                                                    url = directUrl
-                                                )
-                                            )
-                                        } else if (mimeType.contains("audio/mp4") || mimeType.contains("audio/webm")) {
+                                        if (mimeType.contains("audio/mp4") || mimeType.contains("audio/webm")) {
                                             if (resolvedFormats.none { it.resolution == "Audio Only" }) {
                                                 resolvedFormats.add(
                                                     FormatInfo(
@@ -1632,6 +1611,9 @@ class YtDlpClient(
                             if (vStreams != null && vStreams.length() > 0) {
                                 for (i in 0 until vStreams.length()) {
                                     val vs = vStreams.getJSONObject(i)
+                                    val isVideoOnly = vs.optBoolean("videoOnly", false)
+                                    if (isVideoOnly) continue // Skip video-only streams without sound
+
                                     val vUrl = vs.optString("url", "")
                                     val quality = vs.optString("quality", "720p")
                                     val format = vs.optString("format", "mp4").lowercase()
@@ -1644,7 +1626,7 @@ class YtDlpClient(
                                         resolvedFormats.add(
                                             FormatInfo(
                                                 formatId = "piped_${quality}_$format",
-                                                formatNote = "$quality • Fast Direct Stream ($format)",
+                                                formatNote = "$quality • Fast Direct Stream with Audio ($format)",
                                                 resolution = quality,
                                                 width = w,
                                                 height = h,

@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -43,13 +45,17 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.DownloadStatus
 import com.example.ui.DownloadViewModel
+import com.example.ui.components.DeveloperSupportHubDialog
 import com.example.ui.components.MediaPreviewDialog
+import com.example.ui.components.WelcomeOnboardingDialog
 import com.example.ui.screens.ApiSettingsScreen
+import com.example.ui.screens.DeveloperScreen
 import com.example.ui.screens.DownloadsScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.theme.CyberBlack
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyanBright
+import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -87,12 +93,41 @@ fun MainApp(viewModel: DownloadViewModel) {
         mutableStateOf(!StoragePermissionHelper.hasStoragePermission(context))
     }
 
+    var showWelcomeDialog by remember { mutableStateOf(false) }
+    var showSupportHubModal by remember { mutableStateOf(false) }
+
+    // Check once if welcome dialog should be shown
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("omnistream_prefs", android.content.Context.MODE_PRIVATE)
+        val hasSeenWelcome = prefs.getBoolean("has_seen_welcome_v2", false)
+        if (!hasSeenWelcome) {
+            showWelcomeDialog = true
+            prefs.edit().putBoolean("has_seen_welcome_v2", true).apply()
+        }
+    }
+
     if (showPermissionDialog) {
         StoragePermissionDialog(
             onDismiss = { showPermissionDialog = false },
             onPermissionGranted = {
                 showPermissionDialog = false
             }
+        )
+    }
+
+    if (showWelcomeDialog) {
+        WelcomeOnboardingDialog(
+            onDismiss = { showWelcomeDialog = false },
+            onOpenSupportHub = {
+                showWelcomeDialog = false
+                currentTab = 3
+            }
+        )
+    }
+
+    if (showSupportHubModal) {
+        DeveloperSupportHubDialog(
+            onDismiss = { showSupportHubModal = false }
         )
     }
 
@@ -142,7 +177,7 @@ fun MainApp(viewModel: DownloadViewModel) {
                     label = {
                         Text(
                             "Downloader",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = if (currentTab == 0) FontWeight.Bold else FontWeight.Normal
                         )
                     },
@@ -180,7 +215,7 @@ fun MainApp(viewModel: DownloadViewModel) {
                     label = {
                         Text(
                             "Downloads",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = if (currentTab == 1) FontWeight.Bold else FontWeight.Normal
                         )
                     },
@@ -208,7 +243,7 @@ fun MainApp(viewModel: DownloadViewModel) {
                     label = {
                         Text(
                             "API & Engine",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = if (currentTab == 2) FontWeight.Bold else FontWeight.Normal
                         )
                     },
@@ -220,6 +255,34 @@ fun MainApp(viewModel: DownloadViewModel) {
                         unselectedTextColor = TextMuted
                     ),
                     modifier = Modifier.testTag("nav_tab_settings")
+                )
+
+                // Tab 3: Developer Hub (MD RASEL)
+                NavigationBarItem(
+                    selected = currentTab == 3,
+                    onClick = { currentTab = 3 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Code,
+                            contentDescription = "Developer",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            "Developer",
+                            fontSize = 10.5.sp,
+                            fontWeight = if (currentTab == 3) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.Black,
+                        selectedTextColor = NeonPurple,
+                        indicatorColor = NeonPurple,
+                        unselectedIconColor = TextMuted,
+                        unselectedTextColor = TextMuted
+                    ),
+                    modifier = Modifier.testTag("nav_tab_developer")
                 )
             }
         }
@@ -242,6 +305,9 @@ fun MainApp(viewModel: DownloadViewModel) {
                         onNavigateToHome = { currentTab = 0 }
                     )
                     2 -> ApiSettingsScreen(viewModel = viewModel)
+                    3 -> DeveloperScreen(
+                        onNavigateToHome = { currentTab = 0 }
+                    )
                 }
             }
         }
