@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
@@ -131,12 +132,19 @@ fun HomeScreen(
     var lockedTierInfo by remember { mutableStateOf<QualityTier?>(null) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var showSupportedPlatformsDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
     var pendingDownloadAudioOnly by remember { mutableStateOf<Boolean?>(null) }
 
     val detectedPlatform = remember(urlInput) { PlatformDetector.detect(urlInput) }
     val isTeraBoxUrl = remember(urlInput) {
         val lower = urlInput.lowercase()
         "terabox" in lower || "1024tera" in lower || "terasharelink" in lower
+    }
+
+    if (showPrivacyDialog) {
+        com.example.ui.components.UserPrivacyHubDialog(
+            onDismiss = { showPrivacyDialog = false }
+        )
     }
 
     if (showSupportedPlatformsDialog) {
@@ -269,35 +277,70 @@ fun HomeScreen(
                         )
                     }
 
-                    // Live Engine Status Chip
+                    // Header Badges: Privacy Shield & Live Engine Status Chip
                     val isOnline = apiHealth?.status == "connected"
-                    Surface(
-                        onClick = onNavigateToSettings,
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isOnline) EmeraldSuccess.copy(alpha = 0.15f) else CyanBright.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, if (isOnline) EmeraldSuccess else CyanBright),
-                        modifier = Modifier.testTag("api_status_indicator")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        // 100% Privacy Badge
+                        Surface(
+                            onClick = { showPrivacyDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            color = EmeraldSuccess.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.8f)),
+                            modifier = Modifier.testTag("privacy_status_indicator")
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isOnline) EmeraldSuccess else CyanBright)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = if (isOnline) "ENGINE LIVE" else "CORE ACTIVE",
-                                color = if (isOnline) EmeraldSuccess else CyanBright,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = "Privacy Shield",
+                                    tint = EmeraldSuccess,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "PRIVACY",
+                                    color = EmeraldSuccess,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+
+                        // Engine Status Chip
+                        Surface(
+                            onClick = onNavigateToSettings,
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isOnline) EmeraldSuccess.copy(alpha = 0.15f) else CyanBright.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, if (isOnline) EmeraldSuccess else CyanBright),
+                            modifier = Modifier.testTag("api_status_indicator")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isOnline) EmeraldSuccess else CyanBright)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isOnline) "LIVE" else "CORE",
+                                    color = if (isOnline) EmeraldSuccess else CyanBright,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
                 }

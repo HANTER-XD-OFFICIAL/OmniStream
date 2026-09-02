@@ -1283,6 +1283,14 @@ class YtDlpClient(
                             if (videoArray != null && videoArray.length() > 0) {
                                 for (v in 0 until videoArray.length()) {
                                     val item = videoArray.getJSONObject(v)
+                                    val isVideoOnly = item.optBoolean("videoOnly", false) ||
+                                            item.optBoolean("isAdaptive", false) ||
+                                            (item.has("hasAudio") && !item.optBoolean("hasAudio", true)) ||
+                                            item.optString("hasAudio").equals("false", true) ||
+                                            item.optString("audioQuality").equals("none", true)
+                                    // Strictly skip video-only streams without sound
+                                    if (isVideoOnly && !item.optBoolean("hasAudio", false)) continue
+
                                     val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
                                     if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
                                         val quality = item.optString("quality", item.optString("qualityLabel", item.optString("resolution", "1080p")))
@@ -1295,7 +1303,7 @@ class YtDlpClient(
                                         resolvedFormats.add(
                                             FormatInfo(
                                                 formatId = "rapid_${quality}_$format",
-                                                formatNote = "$quality • VIP Direct Full HD Media ($format)",
+                                                formatNote = "$quality • Full HD Video + Sound ($format)",
                                                 resolution = "${w}x${h}",
                                                 width = w,
                                                 height = h,
@@ -3312,6 +3320,11 @@ class YtDlpClient(
                     val ext = fObj.optString("ext", fObj.optString("format", "mp4"))
                     val vcodec = fObj.optString("vcodec", "")
                     val acodec = fObj.optString("acodec", "")
+
+                    // Skip video-only adaptive streams with no audio codec
+                    if (vcodec.isNotBlank() && vcodec != "none" && (acodec == "none" || (acodec.isBlank() && fObj.optBoolean("video_only", false)))) {
+                        continue
+                    }
                     val filesize = if (fObj.has("filesize")) fObj.optLong("filesize") else null
                     val filesizeApprox = if (fObj.has("filesize_approx")) fObj.optLong("filesize_approx") else null
                     val tbr = if (fObj.has("tbr")) fObj.optDouble("tbr") else null

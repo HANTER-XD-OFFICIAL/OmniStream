@@ -5,7 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,7 +22,6 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -34,10 +36,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,8 +49,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.DownloadStatus
 import com.example.ui.DownloadViewModel
+import com.example.ui.components.AppLoadingScreen
 import com.example.ui.components.DeveloperSupportHubDialog
 import com.example.ui.components.MediaPreviewDialog
+import com.example.ui.components.StoragePermissionDialog
+import com.example.ui.components.StoragePermissionHelper
+import com.example.ui.components.UserPrivacyHubDialog
 import com.example.ui.components.WelcomeOnboardingDialog
 import com.example.ui.screens.ApiSettingsScreen
 import com.example.ui.screens.DeveloperScreen
@@ -55,15 +63,10 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.theme.CyberBlack
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyanBright
-import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
-
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.LocalContext
-import com.example.ui.components.StoragePermissionDialog
-import com.example.ui.components.StoragePermissionHelper
 
 class MainActivity : ComponentActivity() {
 
@@ -83,6 +86,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainApp(viewModel: DownloadViewModel) {
     val context = LocalContext.current
+    var isAppLoading by remember { mutableStateOf(true) }
     var currentTab by remember { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
@@ -90,20 +94,32 @@ fun MainApp(viewModel: DownloadViewModel) {
     val allDownloads by viewModel.filteredDownloads.collectAsStateWithLifecycle()
 
     var showPermissionDialog by remember {
-        mutableStateOf(!StoragePermissionHelper.hasStoragePermission(context))
+        mutableStateOf(false)
     }
 
     var showWelcomeDialog by remember { mutableStateOf(false) }
     var showSupportHubModal by remember { mutableStateOf(false) }
 
-    // Check once if welcome dialog should be shown
-    LaunchedEffect(Unit) {
+    // When loading screen completes, check permissions & welcome state
+    fun onBootFinished() {
+        isAppLoading = false
+        if (!StoragePermissionHelper.hasStoragePermission(context)) {
+            showPermissionDialog = true
+        }
+
         val prefs = context.getSharedPreferences("omnistream_prefs", android.content.Context.MODE_PRIVATE)
         val hasSeenWelcome = prefs.getBoolean("has_seen_welcome_v2", false)
         if (!hasSeenWelcome) {
             showWelcomeDialog = true
             prefs.edit().putBoolean("has_seen_welcome_v2", true).apply()
         }
+    }
+
+    if (isAppLoading) {
+        AppLoadingScreen(
+            onLoadingComplete = { onBootFinished() }
+        )
+        return
     }
 
     if (showPermissionDialog) {

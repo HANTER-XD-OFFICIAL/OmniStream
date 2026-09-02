@@ -39,8 +39,8 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.DeveloperSupportHubDialog
+import com.example.ui.components.UserPrivacyHubDialog
 import com.example.ui.components.WelcomeOnboardingDialog
 import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberDarkSurface
@@ -83,6 +84,7 @@ import com.example.ui.theme.TextSecondary
  * Features Developer Details for MD RASEL:
  * - 100% Privacy Protection: All sensitive contact strings/numbers are completely hidden from UI
  * - 1-Click Action Access: Direct WhatsApp, Telegram, Facebook, Gmail buttons
+ * - User Privacy & Data Safety Hub Modal Trigger
  * - High Polish Cyber UI Aesthetics
  */
 @Composable
@@ -92,6 +94,7 @@ fun DeveloperScreen(
     val context = LocalContext.current
     var showSupportHubModal by remember { mutableStateOf(false) }
     var showWelcomeModal by remember { mutableStateOf(false) }
+    var showPrivacyHubModal by remember { mutableStateOf(false) }
 
     val devName = "MD RASEL"
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
@@ -164,6 +167,12 @@ fun DeveloperScreen(
                 showWelcomeModal = false
                 showSupportHubModal = true
             }
+        )
+    }
+
+    if (showPrivacyHubModal) {
+        UserPrivacyHubDialog(
+            onDismiss = { showPrivacyHubModal = false }
         )
     }
 
@@ -491,6 +500,61 @@ fun DeveloperScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Privacy & Data Safety Hub Card Trigger
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showPrivacyHubModal = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF042F2E).copy(alpha = 0.5f)),
+                border = BorderStroke(1.2.dp, EmeraldSuccess.copy(alpha = 0.6f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(EmeraldSuccess.copy(alpha = 0.2f))
+                                .border(1.dp, EmeraldSuccess, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(22.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = "User Privacy & Security Hub",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF6EE7B7)
+                                )
+                            )
+                            Text(
+                                text = "100% Offline Storage • Zero Logging • Clear Cache",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(18.dp))
                 }
             }
         }
