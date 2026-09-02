@@ -146,13 +146,6 @@ class DownloadRepository(
                         builder.addHeader("User-Agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 14; US) gzip")
                     } else {
                         builder.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                        val lowerStream = streamUrl.lowercase()
-                        when {
-                            lowerStream.contains("pinimg.com") -> builder.addHeader("Referer", "https://www.pinterest.com/")
-                            lowerStream.contains("terabox") || lowerStream.contains("1024tera") -> builder.addHeader("Referer", "https://www.terabox.app/")
-                            lowerStream.contains("tikwm") || lowerStream.contains("tiktok") -> builder.addHeader("Referer", "https://www.tiktok.com/")
-                            lowerStream.contains("cdninstagram") || lowerStream.contains("fbcdn") -> builder.addHeader("Referer", "https://www.instagram.com/")
-                        }
                     }
                     return builder.build()
                 }
@@ -167,25 +160,32 @@ class DownloadRepository(
                     candidateUrls.add(primaryUrl)
                 }
 
-                // If primaryUrl was the page URL itself or format list needed, resolve fresh format URLs
+                // If candidate URLs are empty or format list needed, resolve fresh format URLs dynamically
                 val targetQuery = if (item.sourceUrl.isNotBlank() && item.sourceUrl.startsWith("http")) item.sourceUrl else primaryUrl
                 if (targetQuery.startsWith("http")) {
-                    val freshInfo = try { ytDlpClient.fetchVideoInfo(targetQuery) } catch (_: Exception) { null }
-                    freshInfo?.formats?.forEach { f ->
-                        val u = f.url
-                        if (!u.isNullOrBlank() && u.startsWith("http") && !candidateUrls.contains(u)) {
-                            candidateUrls.add(u)
+                    try {
+                        val freshInfo = ytDlpClient.fetchVideoInfo(targetQuery)
+                        freshInfo.formats.forEach { f ->
+                            val u = f.url
+                            if (!u.isNullOrBlank() && u.startsWith("http") && !candidateUrls.contains(u)) {
+                                candidateUrls.add(u)
+                            }
                         }
-                    }
+                    } catch (_: Exception) {}
                 }
 
-                // High reliability backup CDN streams based on format type
-                val backupStream = if (item.formatNote.contains("Audio", ignoreCase = true) || item.ext.equals("mp3", true)) {
-                    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-                } else {
-                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+                fun isValidMediaContentType(cType: String): Boolean {
+                    val lower = cType.lowercase()
+                    if (lower.contains("text/html") ||
+                        lower.contains("text/plain") ||
+                        lower.contains("application/json") ||
+                        lower.contains("application/xhtml") ||
+                        lower.contains("application/xml")
+                    ) {
+                        return false
+                    }
+                    return true
                 }
-                candidateUrls.add(backupStream)
 
                 for (urlToTry in candidateUrls) {
                     if (activeResponse != null && streamBody != null) break
@@ -196,8 +196,8 @@ class DownloadRepository(
                     // Attempt 1: Targeted request
                     try {
                         val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, isYouTubeStream = isYt)).execute()
-                        val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
-                        if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
+                        val cType = resp.header("Content-Type", "") ?: ""
+                        if (resp.isSuccessful && resp.body != null && isValidMediaContentType(cType)) {
                             activeResponse = resp
                             streamBody = resp.body
                             break
@@ -206,16 +206,17 @@ class DownloadRepository(
                         }
                     } catch (_: Exception) {}
 
-                    // Attempt 2: Clean header retry if attempt 1 was forbidden or blocked
+                    // Attempt 2: Clean standard request
                     if (activeResponse == null) {
                         try {
                             val cleanReq = Request.Builder()
                                 .url(urlToTry)
                                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                                .addHeader("Accept", "*/*")
                                 .build()
                             val resp = okHttpClient.newCall(cleanReq).execute()
-                            val cType = resp.header("Content-Type", "")?.lowercase() ?: ""
-                            if (resp.isSuccessful && resp.body != null && !cType.contains("text/html") && !cType.contains("application/xhtml")) {
+                            val cType = resp.header("Content-Type", "") ?: ""
+                            if (resp.isSuccessful && resp.body != null && isValidMediaContentType(cType)) {
                                 activeResponse = resp
                                 streamBody = resp.body
                                 break
@@ -224,21 +225,6 @@ class DownloadRepository(
                             }
                         } catch (_: Exception) {}
                     }
-                }
-
-                // If all dynamic endpoints failed due to network / rate-limits, use guaranteed CDN media stream
-                if (activeResponse == null || streamBody == null) {
-                    try {
-                        val fallbackReq = Request.Builder()
-                            .url(backupStream)
-                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                            .build()
-                        val fallbackResp = okHttpClient.newCall(fallbackReq).execute()
-                        if (fallbackResp.isSuccessful && fallbackResp.body != null) {
-                            activeResponse = fallbackResp
-                            streamBody = fallbackResp.body
-                        }
-                    } catch (_: Exception) {}
                 }
 
                 if (activeResponse == null || streamBody == null) {
@@ -266,8 +252,30 @@ class DownloadRepository(
                     var totalDownloaded = 0L
                     var lastUpdateTime = System.currentTimeMillis()
                     var bytesSinceLastUpdate = 0L
+                    var firstChunkChecked = false
 
                     while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        if (!firstChunkChecked && bytesRead > 0) {
+                            firstChunkChecked = true
+                            // Check if the beginning is an error HTML or JSON payload
+                            val headerPrefix = String(buffer, 0, minOf(bytesRead, 128))
+                            if (headerPrefix.startsWith("<!DOCTYPE", ignoreCase = true) ||
+                                headerPrefix.startsWith("<html", ignoreCase = true) ||
+                                headerPrefix.startsWith("{\"error\"", ignoreCase = true) ||
+                                headerPrefix.startsWith("{\"status\":\"error\"", ignoreCase = true)
+                            ) {
+                                // Error payload detected
+                                outputStream.close()
+                                workingFile.delete()
+                                downloadDao.updateStatus(
+                                    downloadId,
+                                    DownloadStatus.FAILED,
+                                    error = "Remote media stream returned an error page. Please try another quality format."
+                                )
+                                return@launch
+                            }
+                        }
+
                         outputStream.write(buffer, 0, bytesRead)
                         totalDownloaded += bytesRead
                         bytesSinceLastUpdate += bytesRead

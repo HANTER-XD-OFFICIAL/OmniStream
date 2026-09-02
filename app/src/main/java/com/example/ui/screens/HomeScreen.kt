@@ -839,6 +839,8 @@ fun HomeScreen(
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(info.thumbnail)
+                                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                                        .addHeader("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = info.title,
