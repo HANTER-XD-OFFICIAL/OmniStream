@@ -365,13 +365,13 @@ fun WelcomeOnboardingDialog(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Action Buttons Section (Clean, well-spaced, no clipping)
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // 1. START APP (Primary Action)
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp)
+                            .height(48.dp)
                             .testTag("welcome_start_app_button"),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -382,12 +382,13 @@ fun WelcomeOnboardingDialog(
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "START APP & EXPLORE DOWNLOADER",
+                            text = "Start App & Explore",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Black,
-                                fontSize = 12.sp,
+                                fontSize = 13.sp,
                                 letterSpacing = 0.5.sp
-                            )
+                            ),
+                            maxLines = 1
                         )
                     }
 
@@ -401,7 +402,7 @@ fun WelcomeOnboardingDialog(
                             onClick = { openUrl(devFacebookUrl) },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp),
+                                .height(40.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF1877F2),
@@ -414,7 +415,7 @@ fun WelcomeOnboardingDialog(
                                 text = "Facebook",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                    fontSize = 11.5.sp
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -429,7 +430,7 @@ fun WelcomeOnboardingDialog(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp),
+                                .height(40.dp),
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, NeonPurple),
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -443,7 +444,7 @@ fun WelcomeOnboardingDialog(
                                 text = "Support Hub",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                    fontSize = 11.5.sp
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

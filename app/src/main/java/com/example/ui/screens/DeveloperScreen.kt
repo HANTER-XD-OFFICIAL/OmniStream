@@ -191,7 +191,7 @@ fun DeveloperScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "DEVELOPER HUB",
                         style = MaterialTheme.typography.titleLarge.copy(
@@ -210,6 +210,8 @@ fun DeveloperScreen(
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Surface(
                     onClick = { showWelcomeModal = true },
                     shape = RoundedCornerShape(10.dp),
@@ -217,16 +219,17 @@ fun DeveloperScreen(
                     border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.6f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = NeonPurple, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = NeonPurple, modifier = Modifier.size(13.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Welcome UI",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = NeonPurple
+                            color = NeonPurple,
+                            maxLines = 1
                         )
                     }
                 }
@@ -393,7 +396,7 @@ fun DeveloperScreen(
                             iconColor = Color(0xFF34D399),
                             channelTitle = "WhatsApp Support",
                             channelSubtitle = "Direct 1-click encrypted chat with developer",
-                            buttonLabel = "Chat on WhatsApp",
+                            buttonLabel = "Chat",
                             buttonBg = Color(0xFF064E3B).copy(alpha = 0.8f),
                             buttonBorder = Color(0xFF10B981),
                             onOpen = { openWhatsApp(devWhatsAppNumber) }
@@ -406,7 +409,7 @@ fun DeveloperScreen(
                             iconColor = Color(0xFF38BDF8),
                             channelTitle = "Telegram Support",
                             channelSubtitle = "Official updates, channel & community access",
-                            buttonLabel = "Join Telegram",
+                            buttonLabel = "Join",
                             buttonBg = Color(0xFF0C4A6E).copy(alpha = 0.8f),
                             buttonBorder = Color(0xFF0284C7),
                             onOpen = { openUrl(devTelegramUrl) }
@@ -419,7 +422,7 @@ fun DeveloperScreen(
                             iconColor = Color(0xFF60A5FA),
                             channelTitle = "Facebook Profile",
                             channelSubtitle = "Visit the developer's official Facebook page",
-                            buttonLabel = "Visit Profile",
+                            buttonLabel = "Profile",
                             buttonBg = Color(0xFF1E3A8A).copy(alpha = 0.8f),
                             buttonBorder = Color(0xFF3B82F6),
                             onOpen = { openUrl(devFacebookUrl) }
@@ -432,7 +435,7 @@ fun DeveloperScreen(
                             iconColor = Color(0xFFF87171),
                             channelTitle = "Support Email (Gmail)",
                             channelSubtitle = "Send inquiry directly to official developer inbox",
-                            buttonLabel = "Send Email",
+                            buttonLabel = "Email",
                             buttonBg = Color(0xFF7F1D1D).copy(alpha = 0.8f),
                             buttonBorder = Color(0xFFEF4444),
                             onOpen = { openEmail(devEmail) }

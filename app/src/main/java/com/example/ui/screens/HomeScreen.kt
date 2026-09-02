@@ -31,22 +31,37 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -133,12 +148,19 @@ fun HomeScreen(
     var showPermissionDialog by remember { mutableStateOf(false) }
     var showSupportedPlatformsDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showSupportHubModal by remember { mutableStateOf(false) }
     var pendingDownloadAudioOnly by remember { mutableStateOf<Boolean?>(null) }
 
     val detectedPlatform = remember(urlInput) { PlatformDetector.detect(urlInput) }
     val isTeraBoxUrl = remember(urlInput) {
         val lower = urlInput.lowercase()
         "terabox" in lower || "1024tera" in lower || "terasharelink" in lower
+    }
+
+    if (showSupportHubModal) {
+        com.example.ui.components.DeveloperSupportHubDialog(
+            onDismiss = { showSupportHubModal = false }
+        )
     }
 
     if (showPrivacyDialog) {
@@ -250,7 +272,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
@@ -273,9 +295,12 @@ fun HomeScreen(
                             text = "Any Video Downloader • TeraBox & 8K Core",
                             style = MaterialTheme.typography.bodySmall,
                             color = CyanAccent,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     // Header Badges: Privacy Shield & Live Engine Status Chip
                     val isOnline = apiHealth?.status == "connected"
@@ -286,7 +311,7 @@ fun HomeScreen(
                         // 100% Privacy Badge
                         Surface(
                             onClick = { showPrivacyDialog = true },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = EmeraldSuccess.copy(alpha = 0.15f),
                             border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.8f)),
                             modifier = Modifier.testTag("privacy_status_indicator")
@@ -301,13 +326,15 @@ fun HomeScreen(
                                     tint = EmeraldSuccess,
                                     modifier = Modifier.size(12.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "PRIVACY",
                                     color = EmeraldSuccess,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -315,7 +342,7 @@ fun HomeScreen(
                         // Engine Status Chip
                         Surface(
                             onClick = onNavigateToSettings,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = if (isOnline) EmeraldSuccess.copy(alpha = 0.15f) else CyanBright.copy(alpha = 0.15f),
                             border = BorderStroke(1.dp, if (isOnline) EmeraldSuccess else CyanBright),
                             modifier = Modifier.testTag("api_status_indicator")
@@ -1137,6 +1164,38 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(36.dp))
             }
+        } else if (!isFetching && fetchError == null) {
+            // High-Tech Cyber Hub Dashboard (Displayed on app launch when no URL is analyzed yet)
+            item {
+                HomePlatformsShowcaseCard(
+                    onSelectPlatformSample = { sampleUrl ->
+                        viewModel.loadSampleUrl(sampleUrl)
+                    },
+                    onViewAllPlatforms = {
+                        showSupportedPlatformsDialog = true
+                    }
+                )
+            }
+
+            item {
+                HomeEngineCapabilitiesCard(
+                    onOpenPrivacy = { showPrivacyDialog = true }
+                )
+            }
+
+            item {
+                HomeHowItWorksCard()
+            }
+
+            item {
+                HomeDeveloperSupportBanner(
+                    onOpenSupportHub = { showSupportHubModal = true }
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
 }
@@ -1255,5 +1314,589 @@ fun DemoChip(label: String, onClick: () -> Unit) {
             color = CyanAccent,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
+    }
+}
+
+/**
+ * 1. Interactive Supported Platforms Showcase Hub Card
+ */
+@Composable
+private fun HomePlatformsShowcaseCard(
+    onSelectPlatformSample: (String) -> Unit,
+    onViewAllPlatforms: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("home_platforms_showcase_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(CyanBright.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Public, contentDescription = null, tint = CyanBright, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "SUPPORTED PLATFORMS",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp
+                            ),
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "1000+ Video Portals • Direct 1-Tap Load",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp),
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = onViewAllPlatforms,
+                    shape = RoundedCornerShape(8.dp),
+                    color = CyanBright.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.6f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "ALL (1000+)",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = CyanBright
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = CyanBright,
+                            modifier = Modifier.size(11.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Platform Buttons Grid
+            val platforms = listOf(
+                PlatformQuickItem("TeraBox VIP", "https://terabox.com/s/1aB2c3d4e5fG6h7i8j", Color(0xFF0284C7), "Cloud Bypass"),
+                PlatformQuickItem("YouTube 8K", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", Color(0xFFEF4444), "8K / 4K / MP3"),
+                PlatformQuickItem("TikTok HD", "https://www.tiktok.com/@creator/video/1234567890", Color(0xFF06B6D4), "No Watermark"),
+                PlatformQuickItem("Instagram", "https://www.instagram.com/reel/Cx123456789/", Color(0xFFEC4899), "Reels & Stories"),
+                PlatformQuickItem("Facebook", "https://www.facebook.com/watch/?v=1234567890", Color(0xFF3B82F6), "Public HD Clips"),
+                PlatformQuickItem("Twitter / X", "https://twitter.com/user/status/1234567890", Color(0xFF64748B), "High-Speed Video")
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (row in platforms.chunked(2)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (item in row) {
+                            Surface(
+                                onClick = { onSelectPlatformSample(item.sampleUrl) },
+                                shape = RoundedCornerShape(10.dp),
+                                color = item.color.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, item.color.copy(alpha = 0.45f)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(item.color)
+                                    )
+                                    Spacer(modifier = Modifier.width(7.dp))
+                                    Column {
+                                        Text(
+                                            text = item.name,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.5.sp
+                                            ),
+                                            color = TextPrimary,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = item.desc,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 9.5.sp
+                                            ),
+                                            color = item.color,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class PlatformQuickItem(
+    val name: String,
+    val sampleUrl: String,
+    val color: Color,
+    val desc: String
+)
+
+/**
+ * 2. Next-Gen OmniStream Core Capabilities Grid
+ */
+@Composable
+private fun HomeEngineCapabilitiesCard(
+    onOpenPrivacy: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("home_engine_capabilities_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(NeonPurple.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Bolt, contentDescription = null, tint = NeonPurple, modifier = Modifier.size(16.dp))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "HARDWARE ENGINE SPECS",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        ),
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Native Lossless Pipeline • Android Gallery Integration",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp),
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 4 Spec Rows
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                EngineSpecRow(
+                    icon = Icons.Default.HighQuality,
+                    iconTint = CyanBright,
+                    title = "Lossless 8K / 4K 60FPS Video",
+                    desc = "Preserves native source bitstreams without recompression or downsampling."
+                )
+                EngineSpecRow(
+                    icon = Icons.Default.Audiotrack,
+                    iconTint = NeonPurple,
+                    title = "Studio Master 320k Audio Extractor",
+                    desc = "1-click direct MP3 (320 kbps) & FLAC ripping with embedded ID3 artwork."
+                )
+                EngineSpecRow(
+                    icon = Icons.Default.Speed,
+                    iconTint = Color(0xFF38BDF8),
+                    title = "TeraBox Cloud Stream Bypass",
+                    desc = "Resolves private & shared TeraBox links directly into fast download streams."
+                )
+                EngineSpecRow(
+                    icon = Icons.Default.Shield,
+                    iconTint = EmeraldSuccess,
+                    title = "100% Zero-Log Privacy Storage",
+                    desc = "All processing occurs on-device with zero tracking or remote telemetry logging.",
+                    isClickable = true,
+                    onClick = onOpenPrivacy
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EngineSpecRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    desc: String,
+    isClickable: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
+    Surface(
+        onClick = { onClick?.invoke() },
+        enabled = isClickable,
+        shape = RoundedCornerShape(10.dp),
+        color = CyberCardSurface,
+        border = BorderStroke(0.8.dp, CyberBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                .background(iconTint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    ),
+                    color = TextPrimary,
+                    maxLines = 1
+                )
+                Text(
+                    text = desc,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 10.sp
+                    ),
+                    color = TextSecondary,
+                    maxLines = 2
+                )
+            }
+
+            if (isClickable) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 3. Simple 3-Step Guide
+ */
+@Composable
+private fun HomeHowItWorksCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("home_how_it_works_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.dp, CyberBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "HOW TO DOWNLOAD",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.sp
+                ),
+                color = TextPrimary
+            )
+            Text(
+                text = "Three simple steps to save any media to your phone",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.5.sp),
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GuideStepTile(
+                    stepNum = "1",
+                    title = "Copy Link",
+                    desc = "From YouTube, TikTok, TeraBox, FB, etc.",
+                    accentColor = CyanBright,
+                    modifier = Modifier.weight(1f)
+                )
+                GuideStepTile(
+                    stepNum = "2",
+                    title = "Analyze",
+                    desc = "Select 8K, 4K, 1080p, or 320k MP3 audio.",
+                    accentColor = NeonPurple,
+                    modifier = Modifier.weight(1f)
+                )
+                GuideStepTile(
+                    stepNum = "3",
+                    title = "Save",
+                    desc = "1-Tap Download into Android Gallery.",
+                    accentColor = EmeraldSuccess,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideStepTile(
+    stepNum: String,
+    title: String,
+    desc: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = CyberCardSurface,
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stepNum,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace,
+                    color = accentColor
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.5.sp
+                ),
+                color = TextPrimary,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = desc,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 9.5.sp
+                ),
+                color = TextSecondary,
+                maxLines = 3
+            )
+        }
+    }
+}
+
+/**
+ * 4. Lead Developer & Support Banner
+ */
+@Composable
+private fun HomeDeveloperSupportBanner(
+    onOpenSupportHub: () -> Unit
+) {
+    val context = LocalContext.current
+    val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
+    val devWhatsAppNumber = "+8801882278234"
+    val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
+
+    fun openUrl(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {}
+    }
+
+    fun openWhatsApp(phone: String) {
+        try {
+            val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode("Hello MD RASEL, I need support with OmniStream Downloader.")}")
+            ).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            openUrl("https://wa.me/8801882278234")
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("home_developer_support_banner"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+        border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CyanBright.copy(alpha = 0.8f), NeonPurple.copy(alpha = 0.6f))))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(CyanBright.copy(alpha = 0.15f))
+                            .border(1.2.dp, CyanBright, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Verified, contentDescription = null, tint = CyanBright, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "MD RASEL",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 15.sp,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.Verified, contentDescription = null, tint = CyanBright, modifier = Modifier.size(14.dp))
+                        }
+                        Text(
+                            text = "Lead Developer & System Architect",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = CyanAccent,
+                                fontSize = 10.5.sp
+                            )
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = onOpenSupportHub,
+                    shape = RoundedCornerShape(8.dp),
+                    color = NeonPurple.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.6f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.HeadsetMic, contentDescription = null, tint = NeonPurple, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "SUPPORT HUB",
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = NeonPurple
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 1-Click Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // WhatsApp
+                Button(
+                    onClick = { openWhatsApp(devWhatsAppNumber) },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF064E3B), contentColor = Color(0xFF34D399)),
+                    border = BorderStroke(0.8.dp, Color(0xFF10B981))
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("WhatsApp", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+
+                // Telegram
+                Button(
+                    onClick = { openUrl(devTelegramUrl) },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C4A6E), contentColor = Color(0xFF38BDF8)),
+                    border = BorderStroke(0.8.dp, Color(0xFF0284C7))
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Telegram", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+
+                // Facebook
+                Button(
+                    onClick = { openUrl(devFacebookUrl) },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E3A8A), contentColor = Color(0xFF60A5FA)),
+                    border = BorderStroke(0.8.dp, Color(0xFF3B82F6))
+                ) {
+                    Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Facebook", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+        }
     }
 }
