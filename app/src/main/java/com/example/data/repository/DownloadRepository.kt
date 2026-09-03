@@ -142,7 +142,10 @@ class DownloadRepository(
                         .addHeader("Accept-Encoding", "identity")
                         .addHeader("Connection", "keep-alive")
 
-                    if (isYouTubeStream || streamUrl.contains("googlevideo.com")) {
+                    if (streamUrl.contains("savenow.to") || streamUrl.contains("loader.to") || streamUrl.contains("affadaffa.com")) {
+                        builder.addHeader("Referer", "https://loader.to/")
+                        builder.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                    } else if (isYouTubeStream || streamUrl.contains("googlevideo.com")) {
                         builder.addHeader("User-Agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 14; US) gzip")
                     } else {
                         builder.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")

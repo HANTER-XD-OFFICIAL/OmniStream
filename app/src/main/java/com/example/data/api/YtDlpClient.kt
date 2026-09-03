@@ -132,6 +132,15 @@ class YtDlpClient(
         authToken: String? = null,
         extraArgs: String? = null
     ): VideoInfoResponse = withContext(Dispatchers.IO) {
+        val trimmed = url.trim()
+
+        // 0. Dedicated YouTube Extractor (Direct oEmbed, HQ Thumbnail, Multi-Resolution)
+        val ytVideoId = extractYouTubeId(trimmed)
+        if (ytVideoId != null) {
+            val ytResult = extractYouTubeVideo(trimmed, ytVideoId)
+            if (ytResult != null) return@withContext ytResult
+        }
+
         val cleanBaseUrl = baseUrl.trim().trimEnd('/')
         var parsedResult: VideoInfoResponse? = null
 
@@ -848,10 +857,9 @@ class YtDlpClient(
         }
 
         // --- D. YouTube Dedicated Extractor (oEmbed + Multi-Gateway Streams) ---
-        val ytMatch = Regex("""(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})""").find(trimmed)
-        if (ytMatch != null) {
-            val videoId = ytMatch.groupValues[1]
-            val ytResult = extractYouTubeVideo(trimmed, videoId)
+        val ytVideoId = extractYouTubeId(trimmed)
+        if (ytVideoId != null) {
+            val ytResult = extractYouTubeVideo(trimmed, ytVideoId)
             if (ytResult != null) return ytResult
         }
 
@@ -1158,17 +1166,17 @@ class YtDlpClient(
      * and multi-gateway Invidious / Piped / VKR / Direct proxy streaming engines.
      */
     private fun extractYouTubeVideo(ytUrl: String, videoId: String): VideoInfoResponse? {
-        val maxResThumb = "https://i.ytimg.com/vi//maxresdefault.jpg"
-        val hqThumb = "https://i.ytimg.com/vi//hqdefault.jpg"
+        val maxResThumb = "https://i.ytimg.com/vi/$videoId/maxresdefault.jpg"
+        val hqThumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
 
-        var ytTitle = "YouTube Video ()"
+        var ytTitle = "YouTube Video ($videoId)"
         var ytAuthor = "YouTube Creator"
         var ytDuration = 240L
         var ytDurationStr = "04:00"
 
         // 1. YouTube Official oEmbed for clean title and author
         try {
-            val oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=&format=json"
+            val oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=$videoId&format=json"
             val request = Request.Builder()
                 .url(oembedUrl)
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -1192,12 +1200,13 @@ class YtDlpClient(
         for (host in LOADER_TO_HOSTS) {
             if (direct720Url != null) break
             try {
-                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=", "UTF-8")
-                val startUrl = "/ajax/download.php?button=1&start=1&end=1&format=720&url="
+                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
+                val startUrl = "$host/ajax/download.php?button=1&start=1&end=1&format=720&url=$encYtUrl"
                 val req = Request.Builder()
                     .url(startUrl)
                     .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                     .addHeader("Accept", "application/json")
+                    .addHeader("Referer", "$host/")
                     .build()
                 val resp = okHttpClient.newCall(req).execute()
                 if (resp.isSuccessful) {
@@ -1220,7 +1229,7 @@ class YtDlpClient(
         // 3. Fallback metadata check from Piped
         try {
             val pipedReq = Request.Builder()
-                .url("https://api.piped.private.coffee/streams/")
+                .url("https://api.piped.private.coffee/streams/$videoId")
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                 .addHeader("Accept", "application/json")
                 .build()
@@ -1249,7 +1258,7 @@ class YtDlpClient(
         return VideoInfoResponse(
             id = videoId,
             title = ytTitle,
-            thumbnail = maxResThumb,
+            thumbnail = hqThumb,
             duration = ytDuration,
             durationString = ytDurationStr,
             uploader = ytAuthor,
@@ -1286,7 +1295,7 @@ class YtDlpClient(
                     acodec = "aac",
                     filesizeApprox = 75_000_000L,
                     tbr = 3800.0,
-                    url = "yt_loader::1080"
+                    url = "yt_loader:$videoId:1080"
                 )
             )
         }
@@ -1306,7 +1315,7 @@ class YtDlpClient(
                     acodec = "aac",
                     filesizeApprox = 42_000_000L,
                     tbr = 2400.0,
-                    url = direct720Url ?: "yt_loader::720"
+                    url = direct720Url ?: "yt_loader:$videoId:720"
                 )
             )
         }
@@ -1326,7 +1335,7 @@ class YtDlpClient(
                     acodec = "aac",
                     filesizeApprox = 24_000_000L,
                     tbr = 1500.0,
-                    url = "yt_loader::480"
+                    url = "yt_loader:$videoId:480"
                 )
             )
         }
@@ -1345,7 +1354,7 @@ class YtDlpClient(
                 acodec = "aac",
                 filesizeApprox = 14_000_000L,
                 tbr = 1100.0,
-                url = "yt_loader::360"
+                url = "yt_loader:$videoId:360"
             )
         )
 
@@ -1360,7 +1369,7 @@ class YtDlpClient(
                 acodec = "mp3",
                 filesizeApprox = 9_500_000L,
                 abr = 320.0,
-                url = "yt_loader::mp3"
+                url = "yt_loader:$videoId:mp3"
             )
         )
 
@@ -1392,12 +1401,13 @@ class YtDlpClient(
         // 1. Primary Resolver: Loader.to API
         for (host in LOADER_TO_HOSTS) {
             try {
-                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=", "UTF-8")
-                val startUrl = "/ajax/download.php?button=1&start=1&end=1&format=&url="
+                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
+                val startUrl = "$host/ajax/download.php?button=1&start=1&end=1&format=$fmt&url=$encYtUrl"
                 val req = Request.Builder()
                     .url(startUrl)
                     .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                     .addHeader("Accept", "application/json")
+                    .addHeader("Referer", "$host/")
                     .build()
                 val resp = okHttpClient.newCall(req).execute()
                 if (resp.isSuccessful) {
@@ -1410,12 +1420,13 @@ class YtDlpClient(
                         }
                         val progressUrl = json.optString("progress_url", "")
                         if (progressUrl.isNotBlank() && progressUrl.startsWith("http")) {
-                            for (p in 0 until 10) {
-                                kotlinx.coroutines.delay(1200)
+                            for (p in 0 until 12) {
+                                kotlinx.coroutines.delay(1000)
                                 val pReq = Request.Builder()
                                     .url(progressUrl)
                                     .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                                     .addHeader("Accept", "application/json")
+                                    .addHeader("Referer", "$host/")
                                     .build()
                                 val pResp = okHttpClient.newCall(pReq).execute()
                                 if (pResp.isSuccessful) {
@@ -1438,7 +1449,7 @@ class YtDlpClient(
         // 2. Fallback: Piped private coffee
         try {
             val pipedReq = Request.Builder()
-                .url("https://api.piped.private.coffee/streams/")
+                .url("https://api.piped.private.coffee/streams/$videoId")
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                 .addHeader("Accept", "application/json")
                 .build()
