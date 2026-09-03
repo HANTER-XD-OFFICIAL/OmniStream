@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.api.FormatInfo
+import com.example.data.api.VideoInfoResponse
 import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyanBright
@@ -55,36 +57,49 @@ data class QualityTier(
     val technicalSpec: String,
     val isAudio: Boolean,
     val matchingFormat: FormatInfo?,
-    val badgeColor: Color
+    val badgeColor: Color,
+    val isRecommended: Boolean = false,
+    val isDataSaver: Boolean = false,
+    val unavailableReason: String? = null
 ) {
     val isAvailable: Boolean
         get() = matchingFormat != null
 }
 
 object QualityTierResolver {
-    fun resolveTiers(formats: List<FormatInfo>): List<QualityTier> {
+    fun resolveTiers(
+        formats: List<FormatInfo>,
+        platformName: String = "Web",
+        maxUploadedQualityLabel: String = "1080p Full HD"
+    ): List<QualityTier> {
         val videoFormats = formats.filter { !it.isAudioOnly }
         val audioFormats = formats.filter { it.isAudioOnly }
 
-        // 8K Ultra HD (4320p)
-        val format8K = videoFormats.firstOrNull { (it.height ?: 0) >= 4000 }
-        // 4K Ultra HD (2160p)
-        val format4K = videoFormats.firstOrNull { (it.height ?: 0) in 2000..3999 }
-        // 2K Quad HD (1440p)
-        val format2K = videoFormats.firstOrNull { (it.height ?: 0) in 1400..1999 }
-        // 1080p 120 FPS High Refresh
-        val format1080p120 = videoFormats.firstOrNull { (it.height ?: 0) in 1000..1399 && (it.fps ?: 0) >= 100 }
-        // 1080p 60 FPS
-        val format1080p60 = videoFormats.firstOrNull { (it.height ?: 0) in 1000..1399 && (it.fps ?: 0) in 50..99 }
-        // 1080p 30 FPS Standard
-        val format1080p30 = videoFormats.firstOrNull { (it.height ?: 0) in 1000..1399 && (it.fps ?: 0) < 50 }
-            ?: (if (format1080p60 == null && format1080p120 == null) videoFormats.firstOrNull { (it.height ?: 0) in 1000..1399 } else null)
-        // 720p HD
-        val format720p = videoFormats.firstOrNull { (it.height ?: 0) in 700..999 }
-        // 480p SD
-        val format480p = videoFormats.firstOrNull { (it.height ?: 0) in 400..699 }
-        // 360p Low
-        val format360p = videoFormats.firstOrNull { (it.height ?: 0) in 300..399 }
+        // Find matches based on true effective resolution height (works for both 16:9 horizontal & 9:16 vertical TikTok/Reels)
+        val format8K = videoFormats.firstOrNull { it.effectiveResolutionHeight >= 4000 }
+        val format4K = videoFormats.firstOrNull { it.effectiveResolutionHeight in 2000..3999 }
+        val format2K = videoFormats.firstOrNull { it.effectiveResolutionHeight in 1400..1999 }
+        val format1080p120 = videoFormats.firstOrNull { it.effectiveResolutionHeight in 1000..1399 && (it.fps ?: 0) >= 100 }
+        val format1080p60 = videoFormats.firstOrNull { it.effectiveResolutionHeight in 1000..1399 && (it.fps ?: 0) in 50..99 }
+        val format1080p30 = videoFormats.firstOrNull { it.effectiveResolutionHeight in 1000..1399 && (it.fps ?: 0) < 50 }
+            ?: (if (format1080p60 == null && format1080p120 == null) videoFormats.firstOrNull { it.effectiveResolutionHeight in 1000..1399 } else null)
+        val format720p = videoFormats.firstOrNull { it.effectiveResolutionHeight in 700..999 }
+        val format480p = videoFormats.firstOrNull { it.effectiveResolutionHeight in 400..699 }
+        val format360p = videoFormats.firstOrNull { it.effectiveResolutionHeight in 300..399 }
+
+        // Identify the highest genuine available video format to recommend
+        val highestAvailableTierId = when {
+            format8K != null -> "tier_8k"
+            format4K != null -> "tier_4k"
+            format2K != null -> "tier_2k"
+            format1080p120 != null -> "tier_1080p_120fps"
+            format1080p60 != null -> "tier_1080p_60fps"
+            format1080p30 != null -> "tier_1080p_std"
+            format720p != null -> "tier_720p"
+            format480p != null -> "tier_480p"
+            format360p != null -> "tier_360p"
+            else -> null
+        }
 
         // Media fallback format for universal audio extraction
         val anyMedia = videoFormats.firstOrNull() ?: formats.firstOrNull()
@@ -130,6 +145,17 @@ object QualityTierResolver {
                 abr = 192.0
             )
 
+        fun lockedReason(label: String, reqMinHeight: Int): String {
+            return when {
+                platformName in listOf("TikTok", "Instagram", "Facebook", "Twitter / X", "Pinterest") && reqMinHeight > 1080 ->
+                    "$platformName does not encode media in $label. The creator uploaded up to $maxUploadedQualityLabel."
+                reqMinHeight > 1080 ->
+                    "This video was not recorded or uploaded in $label by the creator. Source quality is $maxUploadedQualityLabel."
+                else ->
+                    "The creator uploaded this video in $maxUploadedQualityLabel. Higher resolutions do not exist on the source server."
+            }
+        }
+
         return listOf(
             QualityTier(
                 id = "tier_8k",
@@ -137,7 +163,9 @@ object QualityTierResolver {
                 technicalSpec = "4320p • 60 FPS • AV1 / VP9 HDR",
                 isAudio = false,
                 matchingFormat = format8K,
-                badgeColor = Color(0xFFF59E0B) // Radiant Gold
+                badgeColor = Color(0xFFF59E0B), // Radiant Gold
+                isRecommended = highestAvailableTierId == "tier_8k",
+                unavailableReason = lockedReason("8K Ultra HD", 4320)
             ),
             QualityTier(
                 id = "tier_4k",
@@ -145,7 +173,9 @@ object QualityTierResolver {
                 technicalSpec = "2160p • 60 FPS • High Dynamic Range",
                 isAudio = false,
                 matchingFormat = format4K,
-                badgeColor = CyanBright
+                badgeColor = CyanBright,
+                isRecommended = highestAvailableTierId == "tier_4k",
+                unavailableReason = lockedReason("4K Ultra HD", 2160)
             ),
             QualityTier(
                 id = "tier_2k",
@@ -153,7 +183,9 @@ object QualityTierResolver {
                 technicalSpec = "1440p • 60 FPS • Pro Stream",
                 isAudio = false,
                 matchingFormat = format2K,
-                badgeColor = Color(0xFF38BDF8)
+                badgeColor = Color(0xFF38BDF8),
+                isRecommended = highestAvailableTierId == "tier_2k",
+                unavailableReason = lockedReason("2K Quad HD", 1440)
             ),
             QualityTier(
                 id = "tier_1080p_120fps",
@@ -161,7 +193,9 @@ object QualityTierResolver {
                 technicalSpec = "Full HD • 120 FPS High Refresh",
                 isAudio = false,
                 matchingFormat = format1080p120,
-                badgeColor = NeonPurple
+                badgeColor = NeonPurple,
+                isRecommended = highestAvailableTierId == "tier_1080p_120fps",
+                unavailableReason = lockedReason("1080p 120 FPS", 1080)
             ),
             QualityTier(
                 id = "tier_1080p_60fps",
@@ -169,7 +203,9 @@ object QualityTierResolver {
                 technicalSpec = "Full HD • 60 FPS Smooth",
                 isAudio = false,
                 matchingFormat = format1080p60,
-                badgeColor = Color(0xFF38BDF8)
+                badgeColor = Color(0xFF38BDF8),
+                isRecommended = highestAvailableTierId == "tier_1080p_60fps",
+                unavailableReason = lockedReason("1080p 60 FPS", 1080)
             ),
             QualityTier(
                 id = "tier_1080p_std",
@@ -177,7 +213,9 @@ object QualityTierResolver {
                 technicalSpec = "Full HD • 30 FPS Universal",
                 isAudio = false,
                 matchingFormat = format1080p30,
-                badgeColor = Color(0xFF60A5FA)
+                badgeColor = Color(0xFF60A5FA),
+                isRecommended = highestAvailableTierId == "tier_1080p_std",
+                unavailableReason = lockedReason("1080p Standard", 1080)
             ),
             QualityTier(
                 id = "tier_720p",
@@ -185,7 +223,9 @@ object QualityTierResolver {
                 technicalSpec = "HD 720p • Fast Download",
                 isAudio = false,
                 matchingFormat = format720p,
-                badgeColor = Color(0xFF34D399)
+                badgeColor = Color(0xFF34D399),
+                isRecommended = highestAvailableTierId == "tier_720p",
+                unavailableReason = lockedReason("720p HD", 720)
             ),
             QualityTier(
                 id = "tier_480p",
@@ -193,7 +233,10 @@ object QualityTierResolver {
                 technicalSpec = "Standard Definition • Mobile",
                 isAudio = false,
                 matchingFormat = format480p,
-                badgeColor = Color(0xFF94A3B8)
+                badgeColor = Color(0xFF94A3B8),
+                isRecommended = highestAvailableTierId == "tier_480p",
+                isDataSaver = true,
+                unavailableReason = lockedReason("480p SD", 480)
             ),
             QualityTier(
                 id = "tier_360p",
@@ -201,7 +244,10 @@ object QualityTierResolver {
                 technicalSpec = "Low Res • Super Lightweight",
                 isAudio = false,
                 matchingFormat = format360p,
-                badgeColor = Color(0xFF64748B)
+                badgeColor = Color(0xFF64748B),
+                isRecommended = highestAvailableTierId == "tier_360p",
+                isDataSaver = true,
+                unavailableReason = lockedReason("360p Low", 360)
             ),
             QualityTier(
                 id = "tier_audio_flac",
@@ -209,7 +255,8 @@ object QualityTierResolver {
                 technicalSpec = "24-bit Studio Lossless Audio",
                 isAudio = true,
                 matchingFormat = formatFlac,
-                badgeColor = Color(0xFFA855F7)
+                badgeColor = Color(0xFFA855F7),
+                isRecommended = false
             ),
             QualityTier(
                 id = "tier_audio_mp3",
@@ -217,7 +264,8 @@ object QualityTierResolver {
                 technicalSpec = "High Bitrate Studio Audio",
                 isAudio = true,
                 matchingFormat = formatMp3_320,
-                badgeColor = Color(0xFFEC4899)
+                badgeColor = Color(0xFFEC4899),
+                isRecommended = false
             ),
             QualityTier(
                 id = "tier_audio_aac",
@@ -225,7 +273,8 @@ object QualityTierResolver {
                 technicalSpec = "Clean Standard Audio Stream",
                 isAudio = true,
                 matchingFormat = formatAac_192,
-                badgeColor = Color(0xFF818CF8)
+                badgeColor = Color(0xFF818CF8),
+                isRecommended = false
             )
         )
     }
@@ -233,12 +282,15 @@ object QualityTierResolver {
 
 @Composable
 fun QualityMatrixView(
-    allFormats: List<FormatInfo>,
+    videoInfo: VideoInfoResponse? = null,
+    allFormats: List<FormatInfo> = videoInfo?.formats ?: emptyList(),
     selectedFormat: FormatInfo?,
     onSelectFormat: (FormatInfo) -> Unit,
     onLockedTierTapped: (QualityTier) -> Unit
 ) {
-    val tiers = QualityTierResolver.resolveTiers(allFormats)
+    val platformName = videoInfo?.platformName ?: "Web"
+    val maxUploadedQuality = videoInfo?.maxUploadedQualityLabel ?: "1080p Full HD"
+    val tiers = QualityTierResolver.resolveTiers(allFormats, platformName, maxUploadedQuality)
     val videoTiers = tiers.filter { !it.isAudio }
     val audioTiers = tiers.filter { it.isAudio }
     val availableCount = tiers.count { it.isAvailable }
@@ -261,7 +313,7 @@ fun QualityMatrixView(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "QUALITY AVAILABILITY MATRIX",
+                        text = "DYNAMIC QUALITY MATRIX",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -270,7 +322,7 @@ fun QualityMatrixView(
                         color = CyanBright
                     )
                     Text(
-                        text = "Source verification: Only native uploaded streams enabled",
+                        text = "Platform-aware: Only authentic creator uploads unlocked",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         fontSize = 10.5.sp
@@ -299,28 +351,112 @@ fun QualityMatrixView(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Explanation chip
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF0F172A))
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = CyanBright,
-                    modifier = Modifier.size(15.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Enabled tiers are verified in the video source. Locked tiers were not uploaded by the creator.",
-                    fontSize = 10.5.sp,
-                    color = TextSecondary,
-                    lineHeight = 14.sp
-                )
+            // Platform & Upload Quality Intelligence Insights
+            if (videoInfo != null) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF0F172A),
+                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = CyanBright.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = videoInfo.platformName.uppercase(),
+                                        color = CyanBright,
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Source Stream Analysis",
+                                    color = TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.6f))
+                            ) {
+                                Text(
+                                    text = "ORIGINAL: ${videoInfo.maxUploadedQualityLabel}",
+                                    color = EmeraldSuccess,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = EmeraldSuccess,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Suggested: ${videoInfo.maxUploadedQualityLabel} (100% native clarity from ${videoInfo.platformName})",
+                                color = TextSecondary,
+                                fontSize = 10.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+            } else {
+                // Explanation chip
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0F172A))
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = CyanBright,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Enabled tiers are verified in the video source. Locked tiers were not uploaded by the creator.",
+                        fontSize = 10.5.sp,
+                        color = TextSecondary,
+                        lineHeight = 14.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -411,17 +547,23 @@ fun QualityTierCard(
 
     val containerColor = when {
         isSelected -> CyanBright.copy(alpha = 0.14f)
+        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.08f)
         isAvailable -> Color(0xFF0B132B)
         else -> Color(0xFF060911)
     }
 
     val borderColor = when {
         isSelected -> CyanBright
+        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.6f)
         isAvailable -> tier.badgeColor.copy(alpha = 0.4f)
         else -> CyberBorder.copy(alpha = 0.3f)
     }
 
-    val borderStrokeWidth = if (isSelected) 1.5.dp else 1.dp
+    val borderStrokeWidth = when {
+        isSelected -> 1.5.dp
+        tier.isRecommended -> 1.2.dp
+        else -> 1.dp
+    }
 
     Surface(
         onClick = onSelect,
@@ -450,8 +592,16 @@ fun QualityTierCard(
                         modifier = Modifier
                             .size(26.dp)
                             .clip(CircleShape)
-                            .background(tier.badgeColor.copy(alpha = 0.15f))
-                            .border(1.dp, tier.badgeColor.copy(alpha = 0.6f), CircleShape),
+                            .background(
+                                if (tier.isRecommended) EmeraldSuccess.copy(alpha = 0.18f)
+                                else tier.badgeColor.copy(alpha = 0.15f)
+                            )
+                            .border(
+                                1.dp,
+                                if (tier.isRecommended) EmeraldSuccess
+                                else tier.badgeColor.copy(alpha = 0.6f),
+                                CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isSelected) {
@@ -460,6 +610,13 @@ fun QualityTierCard(
                                 contentDescription = "Selected",
                                 tint = CyanBright,
                                 modifier = Modifier.size(17.dp)
+                            )
+                        } else if (tier.isRecommended) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Recommended",
+                                tint = EmeraldSuccess,
+                                modifier = Modifier.size(15.dp)
                             )
                         } else {
                             Icon(
@@ -504,7 +661,23 @@ fun QualityTierCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (tier.isAudio) {
+                        if (tier.isRecommended) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.2f),
+                                border = BorderStroke(0.5.dp, EmeraldSuccess.copy(alpha = 0.6f))
+                            ) {
+                                Text(
+                                    text = "RECOMMENDED",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSuccess,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
+                                )
+                            }
+                        } else if (tier.isAudio) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -528,10 +701,10 @@ fun QualityTierCard(
                         text = if (isAvailable && fmt != null) {
                             "${fmt.ext.uppercase()} • ${fmt.readableSize} • ${tier.technicalSpec}"
                         } else {
-                            "Locked • Original stream not in this tier"
+                            tier.unavailableReason ?: "Locked • Not uploaded in this quality"
                         },
                         fontSize = 10.5.sp,
-                        color = if (isAvailable) TextSecondary else Color(0xFF475569),
+                        color = if (isAvailable) TextSecondary else Color(0xFF64748B),
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Ellipsis
@@ -545,13 +718,33 @@ fun QualityTierCard(
             if (isAvailable && fmt != null) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = tier.badgeColor.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, tier.badgeColor.copy(alpha = 0.6f))
+                    color = when {
+                        isSelected -> CyanBright.copy(alpha = 0.2f)
+                        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.18f)
+                        else -> tier.badgeColor.copy(alpha = 0.15f)
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        when {
+                            isSelected -> CyanBright
+                            tier.isRecommended -> EmeraldSuccess
+                            else -> tier.badgeColor.copy(alpha = 0.6f)
+                        }
+                    )
                 ) {
                     Text(
-                        text = if (isSelected) "SELECTED" else "AVAILABLE",
-                        color = tier.badgeColor,
-                        fontSize = 9.5.sp,
+                        text = when {
+                            isSelected -> "SELECTED"
+                            tier.isRecommended -> "NATIVE"
+                            tier.isDataSaver -> "SAVER"
+                            else -> "READY"
+                        },
+                        color = when {
+                            isSelected -> CyanBright
+                            tier.isRecommended -> EmeraldSuccess
+                            else -> tier.badgeColor
+                        },
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         maxLines = 1,
@@ -566,7 +759,7 @@ fun QualityTierCard(
                     border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.5f))
                 ) {
                     Text(
-                        text = "UNAVAILABLE",
+                        text = "LOCKED",
                         color = Color(0xFF64748B),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,

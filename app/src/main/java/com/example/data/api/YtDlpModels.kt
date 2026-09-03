@@ -17,6 +17,53 @@ data class VideoInfoResponse(
     val author: String
         get() = uploader ?: channel ?: "Unknown Creator"
 
+    val platformName: String
+        get() = when {
+            webpageUrl?.contains("youtube.com", true) == true || webpageUrl?.contains("youtu.be", true) == true -> "YouTube"
+            webpageUrl?.contains("tiktok.com", true) == true -> "TikTok"
+            webpageUrl?.contains("facebook.com", true) == true || webpageUrl?.contains("fb.watch", true) == true -> "Facebook"
+            webpageUrl?.contains("instagram.com", true) == true -> "Instagram"
+            webpageUrl?.contains("twitter.com", true) == true || webpageUrl?.contains("x.com", true) == true -> "Twitter / X"
+            webpageUrl?.contains("pinterest.com", true) == true || webpageUrl?.contains("pin.it", true) == true -> "Pinterest"
+            webpageUrl?.contains("terabox.com", true) == true || webpageUrl?.contains("1024tera", true) == true -> "TeraBox"
+            webpageUrl?.contains("reddit.com", true) == true -> "Reddit"
+            !extractor.isNullOrBlank() -> extractor
+            else -> "Web Platform"
+        }
+
+    val maxUploadedHeight: Int
+        get() {
+            val videoHeights = formats.filter { !it.isAudioOnly }.map { it.effectiveResolutionHeight }
+            return videoHeights.maxOrNull() ?: 720
+        }
+
+    val maxUploadedQualityLabel: String
+        get() = when {
+            maxUploadedHeight >= 4000 -> "8K Ultra HD (4320p)"
+            maxUploadedHeight >= 2000 -> "4K Ultra HD (2160p)"
+            maxUploadedHeight >= 1400 -> "2K Quad HD (1440p)"
+            maxUploadedHeight >= 1000 -> "1080p Full HD"
+            maxUploadedHeight >= 700 -> "720p HD"
+            maxUploadedHeight >= 400 -> "480p SD"
+            else -> "360p Standard"
+        }
+
+    val platformMaxSupportedLabel: String
+        get() = when (platformName) {
+            "TikTok" -> "1080p Full HD (No Watermark)"
+            "Instagram" -> "1080p Full HD"
+            "Facebook" -> "1080p HD"
+            "Twitter / X" -> "1080p HD"
+            "Pinterest" -> "1080p HD"
+            "YouTube" -> "4K / 8K Ultra HD"
+            "TeraBox" -> "Source Quality"
+            "Reddit" -> "1080p HD"
+            else -> "Source Quality"
+        }
+
+    val suggestedQualityLabel: String
+        get() = "$maxUploadedQualityLabel (Native Creator Stream)"
+
     val displayDuration: String
         get() {
             if (!durationString.isNullOrEmpty()) return durationString
@@ -49,6 +96,12 @@ data class FormatInfo(
     val abr: Double? = null,
     val url: String? = null
 ) {
+    val effectiveResolutionHeight: Int
+        get() {
+            val w = width ?: 0
+            val h = height ?: 0
+            return if (w > 0 && h > 0) minOf(w, h) else (h.takeIf { it > 0 } ?: w)
+        }
     val isAudioOnly: Boolean
         get() = ((vcodec == "none" || vcodec == null) && (acodec != null && acodec != "none")) ||
                 resolution.equals("Audio Only", ignoreCase = true) ||

@@ -196,6 +196,10 @@ fun HomeScreen(
 
     // Locked tier alert dialog explaining why a quality cannot be downloaded for this video
     lockedTierInfo?.let { tier ->
+        val currentInfo = videoInfo
+        val platform = currentInfo?.platformName ?: "Source Platform"
+        val maxQuality = currentInfo?.maxUploadedQualityLabel ?: "Available Quality"
+
         AlertDialog(
             onDismissRequest = { lockedTierInfo = null },
             containerColor = CyberDarkSurface,
@@ -217,24 +221,39 @@ fun HomeScreen(
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "This media was not uploaded or encoded in ${tier.label} (${tier.technicalSpec}) by the content creator.",
+                        text = tier.unavailableReason
+                            ?: "This video was not uploaded or encoded in ${tier.label} (${tier.technicalSpec}) on $platform.",
                         color = TextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF0F172A))
-                            .padding(10.dp)
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF0F172A),
+                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "OmniStream only enables genuine, authentic streams available directly from the source to guarantee native quality without artificial upscaling.",
-                            color = CyanAccent,
-                            fontSize = 11.sp
-                        )
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "ORIGINAL SOURCE ANALYSIS",
+                                color = CyanBright,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "• Platform: $platform\n• Maximum Uploaded Quality: $maxQuality\n• Guarantee: OmniStream provides 100% native bitstream without artificial upscaling.",
+                                color = TextPrimary,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
                     }
                 }
             },
@@ -243,7 +262,7 @@ fun HomeScreen(
                     onClick = { lockedTierInfo = null },
                     colors = ButtonDefaults.buttonColors(containerColor = CyanBright, contentColor = Color.Black)
                 ) {
-                    Text("Understood", fontWeight = FontWeight.Bold)
+                    Text("Got It", fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -1015,6 +1034,7 @@ fun HomeScreen(
             if (selectedTab == 0) {
                 item {
                     QualityMatrixView(
+                        videoInfo = info,
                         allFormats = info.formats,
                         selectedFormat = selectedFormat,
                         onSelectFormat = { fmt -> viewModel.selectFormat(fmt) },
