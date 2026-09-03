@@ -17,8 +17,8 @@
 
 ### 📲 Download & Web Access
 
-[![Direct APK Download](https://img.shields.io/badge/⬇️_DOWNLOAD_LATEST_APK-Direct_Build_(v1.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](.build-outputs/app-debug.apk)
-[![Live Web Preview](https://img.shields.io/badge/🌐_OPEN_LIVE_APPLET-Streaming_Emulator-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://ais-pre-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app)
+[![Direct APK Download](https://img.shields.io/badge/⬇️_DOWNLOAD_LATEST_APK-Direct_Build_(v1.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
+[![Live Web Preview](https://img.shields.io/badge/🌐_OPEN_LIVE_APPLET-Streaming_Emulator-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
 
 [📥 Download Debug APK (.build-outputs/app-debug.apk)](.build-outputs/app-debug.apk) • [🚀 Live Dev App](https://ais-dev-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app) • [📱 Live Emulator Preview](https://ais-pre-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app)
 
