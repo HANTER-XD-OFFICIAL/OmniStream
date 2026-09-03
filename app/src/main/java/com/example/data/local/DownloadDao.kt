@@ -15,6 +15,9 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE status = :status ORDER BY createdAt DESC")
     fun getDownloadsByStatus(status: DownloadStatus): Flow<List<DownloadEntity>>
 
+    @Query("SELECT * FROM downloads WHERE status = 'DOWNLOADING' OR status = 'QUEUED' ORDER BY createdAt ASC")
+    fun getActiveDownloads(): Flow<List<DownloadEntity>>
+
     @Query("SELECT * FROM downloads WHERE mediaType = :type ORDER BY createdAt DESC")
     fun getDownloadsByType(type: MediaType): Flow<List<DownloadEntity>>
 

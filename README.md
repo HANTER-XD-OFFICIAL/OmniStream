@@ -124,10 +124,12 @@ GET /?url={MEDIA_URL}&format={FORMAT}&token={AUTH}
 * Employs YouTube Official oEmbed protocol to fetch genuine video titles, channel authors, and high-resolution thumbnail graphics.
 * Asynchronously communicates with backend CDN nodes (`savenow.to` & `loader.to`) to extract pristine MP4 direct streams and 320kbps MP3 audio files without requiring local Python or heavy binaries on the user's phone.
 
-### 4. Background Download Engine & MediaStore Integration
-* **Resilient File Transfers**: Native OkHttp chunked byte streams are written directly to public storage using Android `ContentResolver` and `MediaStore.Downloads`.
-* **Notification Controls**: System notification displays real-time percentage, downloaded bytes / total bytes, current download speed, and interactive Cancel/Pause buttons.
-* **Instant Media Indexing**: Once completed, the file is automatically published to the Android Media Scanner so it appears instantly in Google Photos, VLC, or Samsung Gallery.
+### 4. Background Download Engine & Screen-Off Persistence
+* **Android 14+ Foreground Service**: Utilizes `DownloadForegroundService` registered with `FOREGROUND_SERVICE_DATA_SYNC` type, ensuring Android OS never kills or freezes download processes when switching apps or locking the device.
+* **Partial WakeLock & High-Performance WifiLock**: Holds power management locks (`PowerManager.PARTIAL_WAKE_LOCK` and `WifiManager.WIFI_MODE_FULL_HIGH_PERF`) during active transfers, preventing device CPU from entering deep sleep and keeping radio interfaces active with screen off.
+* **HTTP 206 Resumable Streaming**: Implements RFC 7233 Range headers (`Range: bytes=X-`). If the network fluctuates or user resumes a paused task, downloads resume from the exact byte offset without restarting from scratch.
+* **Notification Controls**: Ongoing notification displays real-time percentage, downloaded bytes / total bytes, current download speed, and interactive Cancel/Pause buttons.
+* **Instant Media Indexing**: Once completed, the file is automatically registered with `MediaScannerConnection` so it appears instantly in Google Photos, VLC, MX Player, or Samsung Gallery.
 
 ---
 

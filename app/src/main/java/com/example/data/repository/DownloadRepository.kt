@@ -3,11 +3,14 @@ package com.example.data.repository
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.Environment
+import android.os.PowerManager
 import com.example.data.api.YtDlpClient
+import com.example.data.local.AppDatabase
 import com.example.data.local.DownloadDao
 import com.example.data.local.DownloadEntity
 import com.example.data.local.DownloadStatus
 import com.example.data.local.MediaType
+import com.example.service.DownloadForegroundService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,6 +33,8 @@ class DownloadRepository(
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
@@ -41,6 +46,17 @@ class DownloadRepository(
 
     companion object {
         const val APP_FOLDER_NAME = "OmniStream"
+
+        @Volatile
+        private var INSTANCE: DownloadRepository? = null
+
+        fun getInstance(context: Context, downloadDao: DownloadDao? = null): DownloadRepository {
+            return INSTANCE ?: synchronized(this) {
+                val appContext = context.applicationContext
+                val dao = downloadDao ?: AppDatabase.getInstance(appContext).downloadDao()
+                INSTANCE ?: DownloadRepository(appContext, dao).also { INSTANCE = it }
+            }
+        }
 
         fun getAppStorageDirectory(context: Context): File {
             // 1. Primary: Direct internal public storage -> /storage/emulated/0/Download/OmniStream
@@ -104,12 +120,25 @@ class DownloadRepository(
     }
 
     fun startDownloadJob(downloadId: Long) {
+        // Ensure background service is running to keep process alive in background & screen off
+        DownloadForegroundService.start(context)
+
         // Cancel existing job if any
         activeJobs[downloadId]?.cancel()
 
         val job = scope.launch {
             val item = downloadDao.getDownloadById(downloadId) ?: return@launch
             downloadDao.updateStatus(downloadId, DownloadStatus.DOWNLOADING)
+
+            // Hold WakeLock specifically for this active download job to prevent CPU sleep when screen is turned off
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            val jobWakeLock = pm?.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "OmniStream:DownloadJob_$downloadId"
+            )?.apply {
+                setReferenceCounted(false)
+                try { acquire(60 * 60 * 1000L) } catch (_: Exception) {}
+            }
 
             var targetFile: File? = null
             try {
@@ -135,12 +164,18 @@ class DownloadRepository(
                 val workingFile = File(workingDir, fileName)
                 targetFile = workingFile
 
-                fun buildDownloadRequest(streamUrl: String, isYouTubeStream: Boolean = false): Request {
+                val existingBytes = if (workingFile.exists()) workingFile.length() else 0L
+
+                fun buildDownloadRequest(streamUrl: String, isYouTubeStream: Boolean = false, rangeStart: Long = 0L): Request {
                     val builder = Request.Builder()
                         .url(streamUrl)
                         .addHeader("Accept", "*/*")
                         .addHeader("Accept-Encoding", "identity")
                         .addHeader("Connection", "keep-alive")
+
+                    if (rangeStart > 0L) {
+                        builder.addHeader("Range", "bytes=$rangeStart-")
+                    }
 
                     if (streamUrl.contains("savenow.to") || streamUrl.contains("loader.to") || streamUrl.contains("affadaffa.com")) {
                         builder.addHeader("Referer", "https://loader.to/")
@@ -220,9 +255,9 @@ class DownloadRepository(
 
                     val isYt = urlToTry.contains("googlevideo.com") || urlToTry.contains("youtube.com") || urlToTry.contains("youtu.be")
 
-                    // Attempt 1: Targeted request
+                    // Attempt 1: Targeted request (with Range if existing partial bytes exist)
                     try {
-                        val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, isYouTubeStream = isYt)).execute()
+                        val resp = okHttpClient.newCall(buildDownloadRequest(urlToTry, isYouTubeStream = isYt, rangeStart = existingBytes)).execute()
                         val cType = resp.header("Content-Type", "") ?: ""
                         if (resp.isSuccessful && resp.body != null && isValidMediaContentType(cType)) {
                             activeResponse = resp
@@ -233,14 +268,10 @@ class DownloadRepository(
                         }
                     } catch (_: Exception) {}
 
-                    // Attempt 2: Clean standard request
+                    // Attempt 2: Clean standard request (reset to 0 if Range was rejected or unsupported)
                     if (activeResponse == null) {
                         try {
-                            val cleanReq = Request.Builder()
-                                .url(urlToTry)
-                                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                                .addHeader("Accept", "*/*")
-                                .build()
+                            val cleanReq = buildDownloadRequest(urlToTry, isYouTubeStream = isYt, rangeStart = 0L)
                             val resp = okHttpClient.newCall(cleanReq).execute()
                             val cType = resp.header("Content-Type", "") ?: ""
                             if (resp.isSuccessful && resp.body != null && isValidMediaContentType(cType)) {
@@ -263,23 +294,34 @@ class DownloadRepository(
                     return@launch
                 }
 
+                val is206 = activeResponse.code == 206
+                val appendMode = is206 && existingBytes > 0L
                 val body = streamBody
 
-                val totalBytes = if (body.contentLength() > 0) body.contentLength() else item.totalBytes
+                val remoteLength = body.contentLength()
+                val totalBytes = if (appendMode && remoteLength > 0L) {
+                    existingBytes + remoteLength
+                } else if (remoteLength > 0L) {
+                    remoteLength
+                } else if (item.totalBytes > 0L) {
+                    item.totalBytes
+                } else {
+                    0L
+                }
 
                 var inputStream: InputStream? = null
                 var outputStream: FileOutputStream? = null
 
                 try {
                     inputStream = body.byteStream()
-                    outputStream = FileOutputStream(workingFile)
+                    outputStream = FileOutputStream(workingFile, appendMode)
 
                     val buffer = ByteArray(64 * 1024)
                     var bytesRead: Int
-                    var totalDownloaded = 0L
+                    var totalDownloaded = if (appendMode) existingBytes else 0L
                     var lastUpdateTime = System.currentTimeMillis()
                     var bytesSinceLastUpdate = 0L
-                    var firstChunkChecked = false
+                    var firstChunkChecked = appendMode
 
                     while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                         if (!firstChunkChecked && bytesRead > 0) {
@@ -402,6 +444,11 @@ class DownloadRepository(
                     error = e.localizedMessage ?: "Unknown download error"
                 )
             } finally {
+                try {
+                    if (jobWakeLock?.isHeld == true) {
+                        jobWakeLock.release()
+                    }
+                } catch (_: Exception) {}
                 activeJobs.remove(downloadId)
             }
         }
@@ -416,6 +463,7 @@ class DownloadRepository(
     }
 
     suspend fun resumeDownload(id: Long) {
+        DownloadForegroundService.start(context)
         startDownloadJob(id)
     }
 

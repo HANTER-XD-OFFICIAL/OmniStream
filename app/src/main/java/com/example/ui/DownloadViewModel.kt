@@ -28,7 +28,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     private val db = AppDatabase.getInstance(application)
     private val downloadDao = db.downloadDao()
-    private val downloadRepo = DownloadRepository(application, downloadDao)
+    private val downloadRepo = DownloadRepository.getInstance(application, downloadDao)
     private val settingsRepo = SettingsRepository(application)
     private val ytDlpClient = YtDlpClient()
 
