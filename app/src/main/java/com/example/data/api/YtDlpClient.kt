@@ -294,7 +294,14 @@ class YtDlpClient(
                                 }
 
                                 val finalAudioUrl = if (audioUrl.isNotBlank() && audioUrl.startsWith("http")) audioUrl else videoUrl
-                                val formats = generateMasterQualityFormats(title, videoUrl, finalAudioUrl, "render_vip")
+                                val platformMaxHeight = when {
+                                    trimmedUrl.contains("facebook.com", true) || trimmedUrl.contains("fb.watch", true) -> 720
+                                    trimmedUrl.contains("youtube.com", true) || trimmedUrl.contains("youtu.be", true) -> 720
+                                    trimmedUrl.contains("twitter.com", true) || trimmedUrl.contains("x.com", true) -> 720
+                                    trimmedUrl.contains("pinterest.com", true) || trimmedUrl.contains("pin.it", true) -> 720
+                                    else -> 1080
+                                }
+                                val formats = generateMasterQualityFormats(title, videoUrl, finalAudioUrl, "render_vip", maxHeight = platformMaxHeight)
 
                                 // Resolve REAL thumbnail, actual title, author, and duration from the source platform
                                 val realMeta = fetchRealPlatformMetadata(trimmedUrl)
@@ -1408,7 +1415,63 @@ class YtDlpClient(
             }
         } catch (_: Exception) {}
 
-        // 3. Gateway 1: Cobalt High-Speed Multi-Instance Engine (1080p / 720p / MP3 Audio Muxed)
+        // 3. Gateway 1: Specialized Fast YouTube Download Engines (VKR & Betabotz)
+        if (resolvedFormats.isEmpty()) {
+            try {
+                val vkrUrl = "https://api.vkrdown.com/yt/?url=" + java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
+                val vkrReq = Request.Builder()
+                    .url(vkrUrl)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .addHeader("Accept", "application/json")
+                    .build()
+                val vkrResp = okHttpClient.newCall(vkrReq).execute()
+                if (vkrResp.isSuccessful) {
+                    val vBody = vkrResp.body?.string() ?: ""
+                    if (vBody.startsWith("{")) {
+                        val vJson = JSONObject(vBody)
+                        val data = vJson.optJSONObject("data") ?: vJson
+                        val vTitle = data.optString("title", "")
+                        if (vTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) ytTitle = cleanHtmlEntities(vTitle)
+                        val downloads = data.optJSONArray("downloads") ?: data.optJSONArray("download")
+                        if (downloads != null && downloads.length() > 0) {
+                            for (d in 0 until downloads.length()) {
+                                val dItem = downloads.getJSONObject(d)
+                                val dUrl = dItem.optString("url", "")
+                                val formatName = dItem.optString("format", dItem.optString("quality", "720p"))
+                                val ext = dItem.optString("ext", "mp4")
+                                val isAudio = formatName.contains("mp3", true) || formatName.contains("audio", true) || ext == "mp3"
+                                val height = when {
+                                    formatName.contains("1080") -> 1080
+                                    formatName.contains("720") -> 720
+                                    formatName.contains("480") -> 480
+                                    formatName.contains("360") -> 360
+                                    else -> 720
+                                }
+                                if (dUrl.isNotBlank() && dUrl.startsWith("http")) {
+                                    resolvedFormats.add(
+                                        FormatInfo(
+                                            formatId = "yt_vkr_${formatName}_${ext}",
+                                            formatNote = "$formatName • Direct YouTube Stream",
+                                            resolution = if (isAudio) "Audio Only" else "${height}p",
+                                            width = if (height == 1080) 1920 else if (height == 720) 1280 else 854,
+                                            height = if (isAudio) null else height,
+                                            fps = 30,
+                                            ext = ext,
+                                            vcodec = if (isAudio) "none" else "h264",
+                                            acodec = "aac",
+                                            filesizeApprox = if (isAudio) 8_000_000L else (height * 40_000L),
+                                            url = dUrl
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 4. Gateway 2: Cobalt High-Speed Multi-Instance Engine (720p / MP3 Audio Muxed)
         val cobaltInstances = listOf(
             "https://api.cobalt.tools",
             "https://co.wuk.sh",
@@ -1420,9 +1483,9 @@ class YtDlpClient(
         for (cHost in cobaltInstances) {
             if (resolvedFormats.isNotEmpty()) break
             try {
-                val payload1080 = JSONObject().apply {
+                val payload720 = JSONObject().apply {
                     put("url", "https://www.youtube.com/watch?v=$videoId")
-                    put("videoQuality", "1080")
+                    put("videoQuality", "720")
                     put("downloadMode", "auto")
                     put("youtubeVideoCodec", "h264")
                     put("alwaysProxy", true)
@@ -1432,7 +1495,7 @@ class YtDlpClient(
                     .addHeader("Accept", "application/json")
                     .addHeader("Content-Type", "application/json")
                     .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                    .post(payload1080.toString().toRequestBody("application/json".toMediaType()))
+                    .post(payload720.toString().toRequestBody("application/json".toMediaType()))
                     .build()
                 val resp = okHttpClient.newCall(req).execute()
                 if (resp.isSuccessful) {
@@ -1455,7 +1518,7 @@ class YtDlpClient(
                             }
                         }
                         if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
-                            resolvedFormats.addAll(generateMasterQualityFormats(ytTitle, streamUrl, streamUrl, "yt_cobalt"))
+                            resolvedFormats.addAll(generateMasterQualityFormats(ytTitle, streamUrl, streamUrl, "yt_cobalt", maxHeight = 720))
                         }
                     }
                 }
@@ -1565,16 +1628,15 @@ class YtDlpClient(
             }
         }
 
-        // 4. Gateway 2: Invidious Public Instances with Direct Streams
+        // 5. Gateway 3: Invidious Public Instances with Direct Streams
         if (resolvedFormats.isEmpty()) {
             val invidiousInstances = listOf(
-                "https://inv.nadeko.net",
-                "https://invidious.nerdvpn.de",
-                "https://invidious.private.coffee",
                 "https://inv.tux.pizza",
+                "https://yewtu.be",
+                "https://invidious.nerdvpn.de",
                 "https://invidious.drgns.space",
-                "https://yt.artemislena.eu",
-                "https://vid.priv.au"
+                "https://vid.priv.au",
+                "https://yt.artemislena.eu"
             )
 
             for (host in invidiousInstances) {
@@ -1700,127 +1762,38 @@ class YtDlpClient(
     /**
      * Generates reliable multi-quality direct YouTube streams with multi-instance mirrors
      */
-    fun generateYouTubeFormats(title: String, videoId: String): List<FormatInfo> {
-        val primaryInstance = "https://inv.nadeko.net"
-        val backupInstance = "https://invidious.nerdvpn.de"
-        val thirdInstance = "https://inv.tux.pizza"
+    fun generateYouTubeFormats(title: String, videoId: String, maxHeight: Int = 720): List<FormatInfo> {
+        val primaryInstance = "https://inv.tux.pizza"
+        val backupInstance = "https://yewtu.be"
+        val thirdInstance = "https://invidious.nerdvpn.de"
 
-        return listOf(
-            FormatInfo(
-                formatId = "yt_8k",
-                formatNote = "8K Ultra HD • 4320p 60 FPS (AV1 / HDR Master)",
-                resolution = "7680x4320",
-                width = 7680,
-                height = 4320,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "av1",
-                acodec = "aac",
-                filesizeApprox = 480_000_000L,
-                tbr = 24000.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=313"
-            ),
-            FormatInfo(
-                formatId = "yt_4k",
-                formatNote = "4K Ultra HD • 2160p 60 FPS (HDR Cinematic)",
-                resolution = "3840x2160",
-                width = 3840,
-                height = 2160,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 290_000_000L,
-                tbr = 14000.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=313"
-            ),
-            FormatInfo(
-                formatId = "yt_2k",
-                formatNote = "2K Quad HD • 1440p 60 FPS (High Bitrate)",
-                resolution = "2560x1440",
-                width = 2560,
-                height = 1440,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 175_000_000L,
-                tbr = 8500.0,
-                url = "$backupInstance/latest_version?id=$videoId&itag=271"
-            ),
-            FormatInfo(
-                formatId = "yt_1080p_120fps",
-                formatNote = "1080p Pro (120 FPS) • High Refresh Stream",
-                resolution = "1920x1080",
-                width = 1920,
-                height = 1080,
-                fps = 120,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 160_000_000L,
-                tbr = 9000.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=22"
-            ),
-            FormatInfo(
-                formatId = "yt_1080p_60fps",
-                formatNote = "1080p FHD (60 FPS) • Smooth Native Stream",
-                resolution = "1920x1080",
-                width = 1920,
-                height = 1080,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 110_000_000L,
-                tbr = 5500.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=22"
-            ),
-            FormatInfo(
-                formatId = "yt_1080p",
-                formatNote = "1080p Standard (30 FPS) • Full HD",
-                resolution = "1920x1080",
-                width = 1920,
-                height = 1080,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 75_000_000L,
-                tbr = 4200.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=22"
-            ),
-            FormatInfo(
-                formatId = "yt_720p",
-                formatNote = "720p HD • High Definition Stream",
-                resolution = "1280x720",
-                width = 1280,
-                height = 720,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 42_000_000L,
-                tbr = 2400.0,
-                url = "$backupInstance/latest_version?id=$videoId&itag=22"
-            ),
-            FormatInfo(
-                formatId = "yt_480p",
-                formatNote = "480p SD • Mobile Data Saver",
-                resolution = "854x480",
-                width = 854,
-                height = 480,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 24_000_000L,
-                tbr = 1400.0,
-                url = "$backupInstance/latest_version?id=$videoId&itag=135"
-            ),
+        val formats = mutableListOf<FormatInfo>()
+
+        // 720p HD (itag 22: Progressive MP4 with synchronized AAC audio)
+        if (maxHeight >= 700) {
+            formats.add(
+                FormatInfo(
+                    formatId = "yt_720p",
+                    formatNote = "720p HD • High Definition Stream (Muxed Audio)",
+                    resolution = "1280x720",
+                    width = 1280,
+                    height = 720,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 42_000_000L,
+                    tbr = 2400.0,
+                    url = "$primaryInstance/latest_version?id=$videoId&itag=22"
+                )
+            )
+        }
+
+        // 360p SD (itag 18: Progressive MP4 with synchronized AAC audio)
+        formats.add(
             FormatInfo(
                 formatId = "yt_360p",
-                formatNote = "360p SD • Fast Mobile Stream",
+                formatNote = "360p SD • Fast Mobile Stream (Muxed Audio)",
                 resolution = "640x360",
                 width = 640,
                 height = 360,
@@ -1830,8 +1803,12 @@ class YtDlpClient(
                 acodec = "aac",
                 filesizeApprox = 14_000_000L,
                 tbr = 1100.0,
-                url = "$thirdInstance/latest_version?id=$videoId&itag=18"
-            ),
+                url = "$backupInstance/latest_version?id=$videoId&itag=18"
+            )
+        )
+
+        // Dedicated Audio Tracks (itag 140: 128-192kbps AAC/M4A)
+        formats.add(
             FormatInfo(
                 formatId = "yt_audio_flac",
                 formatNote = "Studio FLAC Audio • Lossless Extract",
@@ -1842,7 +1819,9 @@ class YtDlpClient(
                 filesizeApprox = 32_000_000L,
                 abr = 1411.0,
                 url = "$primaryInstance/latest_version?id=$videoId&itag=140"
-            ),
+            )
+        )
+        formats.add(
             FormatInfo(
                 formatId = "yt_audio_mp3",
                 formatNote = "Audio Extract • HQ MP3 (320 kbps)",
@@ -1852,8 +1831,10 @@ class YtDlpClient(
                 acodec = "mp3",
                 filesizeApprox = 9_500_000L,
                 abr = 320.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=140"
-            ),
+                url = "$backupInstance/latest_version?id=$videoId&itag=140"
+            )
+        )
+        formats.add(
             FormatInfo(
                 formatId = "yt_audio_aac",
                 formatNote = "AAC / M4A 192 kbps • Universal Audio",
@@ -1863,9 +1844,11 @@ class YtDlpClient(
                 acodec = "aac",
                 filesizeApprox = 5_800_000L,
                 abr = 192.0,
-                url = "$backupInstance/latest_version?id=$videoId&itag=140"
+                url = "$thirdInstance/latest_version?id=$videoId&itag=140"
             )
         )
+
+        return formats
     }
 
     /**
@@ -2168,7 +2151,7 @@ class YtDlpClient(
                 try {
                     val payload = JSONObject().apply {
                         put("url", fbUrl)
-                        put("videoQuality", "1080")
+                        put("videoQuality", "720")
                         put("downloadMode", "auto")
                         put("alwaysProxy", true)
                         put("audioFormat", "mp3")
@@ -2222,8 +2205,8 @@ class YtDlpClient(
                                     uploader = realMeta.author,
                                     extractor = "Facebook",
                                     webpageUrl = fbUrl,
-                                    description = "Facebook 1080p / HD authentic stream with synchronized audio.",
-                                    formats = generateMasterQualityFormats(cleanTitle, directStreamUrl, directStreamUrl, "fb_render")
+                                    description = "Facebook 720p HD authentic stream with synchronized audio.",
+                                    formats = generateMasterQualityFormats(cleanTitle, directStreamUrl, directStreamUrl, "fb_render", maxHeight = 720)
                                 )
                             }
                         }
@@ -2255,20 +2238,46 @@ class YtDlpClient(
                         var foundUrl: String? = null
                         var foundTitle = "Facebook Video ($videoId)"
                         var foundThumb: String? = null
+                        var isHd = false
 
                         if (json != null) {
-                            foundUrl = json.optString("hd", json.optString("sd", json.optString("url", json.optString("video_url", json.optString("download_url", "")))))
+                            val hd = json.optString("hd", "")
+                            val sd = json.optString("sd", "")
+                            if (hd.isNotBlank() && hd.startsWith("http")) {
+                                foundUrl = hd
+                                isHd = true
+                            } else if (sd.isNotBlank() && sd.startsWith("http")) {
+                                foundUrl = sd
+                                isHd = false
+                            } else {
+                                foundUrl = json.optString("url", json.optString("video_url", json.optString("download_url", "")))
+                                isHd = foundUrl.contains("hd", true)
+                            }
                             foundTitle = json.optString("title", json.optString("caption", foundTitle))
                             foundThumb = json.optString("thumbnail", json.optString("cover", ""))
 
                             if (foundUrl.isBlank() && json.has("data")) {
                                 val dataObj = json.get("data")
                                 if (dataObj is JSONObject) {
-                                    foundUrl = dataObj.optString("hd", dataObj.optString("sd", dataObj.optString("url", dataObj.optString("video", ""))))
+                                    val dHd = dataObj.optString("hd", "")
+                                    val dSd = dataObj.optString("sd", "")
+                                    if (dHd.isNotBlank()) {
+                                        foundUrl = dHd
+                                        isHd = true
+                                    } else {
+                                        foundUrl = if (dSd.isNotBlank()) dSd else dataObj.optString("url", dataObj.optString("video", ""))
+                                    }
                                     foundThumb = dataObj.optString("thumbnail", "")
                                 } else if (dataObj is JSONArray && dataObj.length() > 0) {
                                     val item0 = dataObj.getJSONObject(0)
-                                    foundUrl = item0.optString("hd", item0.optString("sd", item0.optString("url", item0.optString("video", ""))))
+                                    val dHd = item0.optString("hd", "")
+                                    val dSd = item0.optString("sd", "")
+                                    if (dHd.isNotBlank()) {
+                                        foundUrl = dHd
+                                        isHd = true
+                                    } else {
+                                        foundUrl = if (dSd.isNotBlank()) dSd else item0.optString("url", item0.optString("video", ""))
+                                    }
                                     foundThumb = item0.optString("thumbnail", "")
                                 }
                             }
@@ -2286,7 +2295,7 @@ class YtDlpClient(
                                 extractor = "Facebook",
                                 webpageUrl = fbUrl,
                                 description = "Direct Facebook video stream with full audio.",
-                                formats = generateMasterQualityFormats(foundTitle, foundUrl, foundUrl, "fb_api")
+                                formats = generateMasterQualityFormats(foundTitle, foundUrl, foundUrl, "fb_api", maxHeight = if (isHd) 720 else 480)
                             )
                         }
                     }
@@ -2294,118 +2303,136 @@ class YtDlpClient(
             } catch (_: Exception) {}
         }
 
-        // Gateway 2: Direct Progressive HTML & Meta Tag Scraping (Only progressive muxed MP4 with Audio)
+        // Gateway 2: Direct Progressive HTML & Meta Tag Scraping (Exclusively progressive MP4 muxed with AAC Audio)
         val userAgents = listOf(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
             "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
         )
 
-        for (ua in userAgents) {
-            try {
-                val request = Request.Builder()
-                    .url(fbUrl)
-                    .addHeader("User-Agent", ua)
-                    .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                    .addHeader("Sec-Fetch-Mode", "navigate")
-                    .build()
+        val targetUrls = listOf(
+            fbUrl,
+            fbUrl.replace("www.facebook.com", "mbasic.facebook.com").replace("web.facebook.com", "mbasic.facebook.com")
+        )
 
-                val response = okHttpClient.newCall(request).execute()
-                if (!response.isSuccessful) continue
+        for (testUrl in targetUrls) {
+            for (ua in userAgents) {
+                try {
+                    val request = Request.Builder()
+                        .url(testUrl)
+                        .addHeader("User-Agent", ua)
+                        .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                        .addHeader("Sec-Fetch-Mode", "navigate")
+                        .build()
 
-                val html = response.body?.string() ?: continue
-                if (html.isBlank()) continue
+                    val response = okHttpClient.newCall(request).execute()
+                    if (!response.isSuccessful) continue
 
-                // 1. Extract Progressive HD Video Stream (Muxed with Audio)
-                var hdStreamUrl: String? = null
-                val hdPatterns = listOf(
-                    Regex("""hd_src_no_ratelimit["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""hd_src["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""browser_native_hd_url["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""["']hd_src["']\s*,\s*["']([^"']+)["']""")
-                )
-                for (p in hdPatterns) {
-                    val match = p.find(html)
-                    if (match != null) {
-                        hdStreamUrl = decodeEscapedUrl(match.groupValues[1])
-                        if (hdStreamUrl.startsWith("http")) break
-                    }
-                }
+                    val html = response.body?.string() ?: continue
+                    if (html.isBlank()) continue
 
-                // 2. Extract Progressive SD Video Stream (Muxed with Audio)
-                var sdStreamUrl: String? = null
-                val sdPatterns = listOf(
-                    Regex("""sd_src_no_ratelimit["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""sd_src["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""browser_native_sd_url["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""<meta\s+property=["']og:video["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                    Regex("""<meta\s+property=["']og:video:url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                    Regex("""<meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
-                )
-                for (p in sdPatterns) {
-                    val match = p.find(html)
-                    if (match != null) {
-                        sdStreamUrl = decodeEscapedUrl(match.groupValues[1])
-                        if (sdStreamUrl.startsWith("http")) break
-                    }
-                }
-
-                // 3. Extract Real High-Res Thumbnail
-                var thumbUrl: String? = null
-                val thumbPatterns = listOf(
-                    Regex("""<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                    Regex("""<meta\s+property=["']og:image:url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                    Regex("""<meta\s+property=["']og:image:secure_url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                    Regex("""preferred_thumbnail["']?\s*:\s*\{["']image["']\s*:\s*\{["']uri["']\s*:\s*["']([^"']+)["']"""),
-                    Regex("""thumbnailImage["']?\s*:\s*\{["']uri["']\s*:\s*["']([^"']+)["']"""),
-                    Regex("""thumbnailUrl["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""preview_url["']?\s*:\s*["']([^"']+)["']"""),
-                    Regex("""cover_photo["']?\s*:\s*\{["']image["']\s*:\s*\{["']uri["']\s*:\s*["']([^"']+)["']"""),
-                    Regex("""<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
-                    Regex("""(https:\/\/[a-zA-Z0-9._-]*fbcdn\.net\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)[^\s"'<>]*\b)""")
-                )
-                for (p in thumbPatterns) {
-                    val match = p.find(html)
-                    if (match != null) {
-                        val decoded = cleanHtmlEntities(decodeEscapedUrl(match.groupValues[1]))
-                        if (decoded.startsWith("http") && !decoded.contains("rsrc.php") && !decoded.contains("blank.gif")) {
-                            thumbUrl = decoded
-                            break
+                    // 1. Extract Progressive HD Video Stream (Muxed with Audio)
+                    // Note: Exclude browser_native_hd_url which contains video-only DASH tracks without audio
+                    var hdStreamUrl: String? = null
+                    val hdPatterns = listOf(
+                        Regex("""playable_url_quality_hd["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""hd_src_no_ratelimit["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""hd_src["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""["']hd_src["']\s*,\s*["']([^"']+)["']""")
+                    )
+                    for (p in hdPatterns) {
+                        val match = p.find(html)
+                        if (match != null) {
+                            val decoded = decodeEscapedUrl(match.groupValues[1])
+                            if (decoded.startsWith("http") && !decoded.contains("bytestart") && !decoded.contains("dash")) {
+                                hdStreamUrl = decoded
+                                break
+                            }
                         }
                     }
-                }
 
-                // 4. Extract Real Title
-                var title = extractMetaTag(html, "og:title")
-                    ?: extractMetaTag(html, "twitter:title")
-                    ?: extractHtmlTitle(html)
-
-                if (!title.isNullOrBlank()) {
-                    title = cleanHtmlEntities(title).trim()
-                    if (title.contains(" | Facebook", ignoreCase = true)) title = title.replace(" | Facebook", "")
-                    if (title.contains("Facebook", ignoreCase = true) && title.length <= 12) title = "Facebook Video Clip"
-                } else {
-                    title = "Facebook Video Reel"
-                }
-
-                val primaryStream = hdStreamUrl ?: sdStreamUrl
-                val finalThumbnail = thumbUrl ?: extractFacebookRealMetadata(fbUrl).thumbnail
-
-                if (primaryStream != null || !finalThumbnail.isNullOrBlank() || title.isNotBlank()) {
-                    return VideoInfoResponse(
-                        id = videoId,
-                        title = title,
-                        thumbnail = finalThumbnail,
-                        duration = 120L,
-                        durationString = "02:00",
-                        uploader = "Facebook Creator",
-                        extractor = "Facebook",
-                        webpageUrl = fbUrl,
-                        description = "Direct Facebook video stream extracted with authentic HD resolution and sound.",
-                        formats = generateMasterQualityFormats(title, primaryStream, primaryStream, "fb_direct")
+                    // 2. Extract Progressive SD Video Stream (Muxed with Audio)
+                    // Note: Exclude browser_native_sd_url which contains video-only DASH tracks without audio
+                    var sdStreamUrl: String? = null
+                    val sdPatterns = listOf(
+                        Regex("""playable_url["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""sd_src_no_ratelimit["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""sd_src["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""<video[^>]+src=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""href=["']/video_redirect/\?src=([^"']+)["']"""),
+                        Regex("""<meta\s+property=["']og:video["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""<meta\s+property=["']og:video:url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""<meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
                     )
-                }
-            } catch (_: Exception) {}
+                    for (p in sdPatterns) {
+                        val match = p.find(html)
+                        if (match != null) {
+                            val decoded = decodeEscapedUrl(match.groupValues[1])
+                            if (decoded.startsWith("http") && !decoded.contains("bytestart") && !decoded.contains("dash")) {
+                                sdStreamUrl = decoded
+                                break
+                            }
+                        }
+                    }
+
+                    // 3. Extract Real High-Res Thumbnail
+                    var thumbUrl: String? = null
+                    val thumbPatterns = listOf(
+                        Regex("""<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""<meta\s+property=["']og:image:url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""<meta\s+property=["']og:image:secure_url["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""preferred_thumbnail["']?\s*:\s*\{["']image["']\s*:\s*\{["']uri["']\s*:\s*["']([^"']+)["']"""),
+                        Regex("""thumbnailImage["']?\s*:\s*\{["']uri["']\s*:\s*["']([^"']+)["']"""),
+                        Regex("""thumbnailUrl["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""preview_url["']?\s*:\s*["']([^"']+)["']"""),
+                        Regex("""cover_photo["']?\s*:\s*\{["']image["']\s*:\s*\{["']uri["']\s*:\s*["']([^"']+)["']"""),
+                        Regex("""<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                        Regex("""(https:\/\/[a-zA-Z0-9._-]*fbcdn\.net\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)[^\s"'<>]*\b)""")
+                    )
+                    for (p in thumbPatterns) {
+                        val match = p.find(html)
+                        if (match != null) {
+                            val decoded = cleanHtmlEntities(decodeEscapedUrl(match.groupValues[1]))
+                            if (decoded.startsWith("http") && !decoded.contains("rsrc.php") && !decoded.contains("blank.gif")) {
+                                thumbUrl = decoded
+                                break
+                            }
+                        }
+                    }
+
+                    // 4. Extract Real Title
+                    var title = extractMetaTag(html, "og:title")
+                        ?: extractMetaTag(html, "twitter:title")
+                        ?: extractHtmlTitle(html)
+
+                    if (!title.isNullOrBlank()) {
+                        title = cleanHtmlEntities(title).trim()
+                        if (title.contains(" | Facebook", ignoreCase = true)) title = title.replace(" | Facebook", "")
+                        if (title.contains("Facebook", ignoreCase = true) && title.length <= 12) title = "Facebook Video Clip"
+                    } else {
+                        title = "Facebook Video Reel"
+                    }
+
+                    val primaryStream = hdStreamUrl ?: sdStreamUrl
+                    val finalThumbnail = thumbUrl ?: extractFacebookRealMetadata(fbUrl).thumbnail
+                    val isHdAvailable = hdStreamUrl != null
+
+                    if (primaryStream != null || !finalThumbnail.isNullOrBlank() || title.isNotBlank()) {
+                        return VideoInfoResponse(
+                            id = videoId,
+                            title = title,
+                            thumbnail = finalThumbnail,
+                            duration = 120L,
+                            durationString = "02:00",
+                            uploader = "Facebook Creator",
+                            extractor = "Facebook",
+                            webpageUrl = fbUrl,
+                            description = "Direct Facebook video stream extracted with authentic HD resolution and sound.",
+                            formats = generateMasterQualityFormats(title, primaryStream, primaryStream, "fb_direct", maxHeight = if (isHdAvailable) 720 else 480)
+                        )
+                    }
+                } catch (_: Exception) {}
+            }
         }
         return null
     }
@@ -3710,188 +3737,254 @@ class YtDlpClient(
         title: String,
         videoStreamUrl: String?,
         audioStreamUrl: String? = null,
-        prefix: String = "render_vip"
+        prefix: String = "render_vip",
+        maxHeight: Int = 1080,
+        maxFps: Int = 30
     ): List<FormatInfo> {
         val streamUrl = videoStreamUrl
         val audioUrl = if (!audioStreamUrl.isNullOrBlank() && audioStreamUrl.startsWith("http")) audioStreamUrl else streamUrl
+        val formats = mutableListOf<FormatInfo>()
 
-        return listOf(
-            FormatInfo(
-                formatId = "${prefix}_8k",
-                formatNote = "8K Ultra HD • 4320p 60 FPS (AV1 / VP9 HDR)",
-                resolution = "7680x4320",
-                width = 7680,
-                height = 4320,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "av1",
-                acodec = "aac",
-                filesizeApprox = 480_000_000L,
-                tbr = 24000.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_4k",
-                formatNote = "4K Ultra HD • 2160p 60 FPS (Pro Master HDR)",
-                resolution = "3840x2160",
-                width = 3840,
-                height = 2160,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 290_000_000L,
-                tbr = 14000.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_2k",
-                formatNote = "2K Quad HD • 1440p 60 FPS (Pro Stream)",
-                resolution = "2560x1440",
-                width = 2560,
-                height = 1440,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 175_000_000L,
-                tbr = 8500.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_1080_120fps",
-                formatNote = "1080p Pro (120 FPS) • High Refresh Stream",
-                resolution = "1920x1080",
-                width = 1920,
-                height = 1080,
-                fps = 120,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 160_000_000L,
-                tbr = 9000.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_1080_60fps",
-                formatNote = "1080p FHD (60 FPS) • Smooth High Bitrate",
-                resolution = "1920x1080",
-                width = 1920,
-                height = 1080,
-                fps = 60,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 110_000_000L,
-                tbr = 5500.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_1080",
-                formatNote = "1080p Standard (30 FPS) • Full HD",
-                resolution = "1920x1080",
-                width = 1920,
-                height = 1080,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 75_000_000L,
-                tbr = 4200.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_720",
-                formatNote = "720p HD • High Definition Fast Download",
-                resolution = "1280x720",
-                width = 1280,
-                height = 720,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 42_000_000L,
-                tbr = 2200.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_480",
-                formatNote = "480p SD • Mobile Data Saver",
-                resolution = "854x480",
-                width = 854,
-                height = 480,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 24_000_000L,
-                tbr = 1200.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_360",
-                formatNote = "360p Low Bandwidth • Super Lightweight",
-                resolution = "640x360",
-                width = 640,
-                height = 360,
-                fps = 30,
-                ext = "mp4",
-                vcodec = "h264",
-                acodec = "aac",
-                filesizeApprox = 14_000_000L,
-                tbr = 800.0,
-                url = streamUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_flac",
-                formatNote = "Studio FLAC Audio • 24-bit Lossless Extract",
-                resolution = "Audio Only",
-                ext = "flac",
-                vcodec = "none",
-                acodec = "flac",
-                filesizeApprox = 32_000_000L,
-                abr = 1411.0,
-                url = audioUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_mp3",
-                formatNote = "MP3 Master 320 kbps • High Fidelity Audio",
-                resolution = "Audio Only",
-                ext = "mp3",
-                vcodec = "none",
-                acodec = "mp3",
-                filesizeApprox = 9_500_000L,
-                abr = 320.0,
-                url = audioUrl
-            ),
-            FormatInfo(
-                formatId = "${prefix}_aac",
-                formatNote = "AAC / M4A 192 kbps • Universal Audio",
-                resolution = "Audio Only",
-                ext = "m4a",
-                vcodec = "none",
-                acodec = "aac",
-                filesizeApprox = 5_800_000L,
-                abr = 192.0,
-                url = audioUrl
+        // 8K Ultra HD (4320p) - Only if media natively supports >= 4000p
+        if (maxHeight >= 4000 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_8k",
+                    formatNote = "8K Ultra HD • 4320p 60 FPS (AV1 / VP9 HDR)",
+                    resolution = "7680x4320",
+                    width = 7680,
+                    height = 4320,
+                    fps = 60,
+                    ext = "mp4",
+                    vcodec = "av1",
+                    acodec = "aac",
+                    filesizeApprox = 480_000_000L,
+                    tbr = 24000.0,
+                    url = streamUrl
+                )
             )
-        )
+        }
+
+        // 4K Ultra HD (2160p) - Only if media natively supports >= 2000p
+        if (maxHeight >= 2000 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_4k",
+                    formatNote = "4K Ultra HD • 2160p 60 FPS (Pro Master HDR)",
+                    resolution = "3840x2160",
+                    width = 3840,
+                    height = 2160,
+                    fps = 60,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 290_000_000L,
+                    tbr = 14000.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 2K Quad HD (1440p) - Only if media natively supports >= 1400p
+        if (maxHeight >= 1400 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_2k",
+                    formatNote = "2K Quad HD • 1440p 60 FPS (Pro Stream)",
+                    resolution = "2560x1440",
+                    width = 2560,
+                    height = 1440,
+                    fps = 60,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 175_000_000L,
+                    tbr = 8500.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 1080p Pro (120 FPS) - Only if media supports >= 1000p with high refresh rate
+        if (maxHeight >= 1000 && maxFps >= 100 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_1080_120fps",
+                    formatNote = "1080p Pro (120 FPS) • High Refresh Stream",
+                    resolution = "1920x1080",
+                    width = 1920,
+                    height = 1080,
+                    fps = 120,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 160_000_000L,
+                    tbr = 9000.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 1080p FHD (60 FPS) - Only if media supports >= 1000p with 60 fps
+        if (maxHeight >= 1000 && maxFps >= 50 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_1080_60fps",
+                    formatNote = "1080p FHD (60 FPS) • Smooth High Bitrate",
+                    resolution = "1920x1080",
+                    width = 1920,
+                    height = 1080,
+                    fps = 60,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 110_000_000L,
+                    tbr = 5500.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 1080p Standard (30 FPS) - Only if media supports >= 1000p
+        if (maxHeight >= 1000 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_1080",
+                    formatNote = "1080p Standard (30 FPS) • Full HD",
+                    resolution = "1920x1080",
+                    width = 1920,
+                    height = 1080,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 75_000_000L,
+                    tbr = 4200.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 720p HD - Only if media supports >= 700p
+        if (maxHeight >= 700 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_720",
+                    formatNote = "720p HD • High Definition Fast Download",
+                    resolution = "1280x720",
+                    width = 1280,
+                    height = 720,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 42_000_000L,
+                    tbr = 2200.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 480p SD - Only if media supports >= 400p
+        if (maxHeight >= 400 && !streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_480",
+                    formatNote = "480p SD • Mobile Data Saver",
+                    resolution = "854x480",
+                    width = 854,
+                    height = 480,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 24_000_000L,
+                    tbr = 1200.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // 360p Low - Universal standard baseline
+        if (!streamUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_360",
+                    formatNote = "360p Low Bandwidth • Super Lightweight",
+                    resolution = "640x360",
+                    width = 640,
+                    height = 360,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 14_000_000L,
+                    tbr = 800.0,
+                    url = streamUrl
+                )
+            )
+        }
+
+        // Dedicated Audio Tracks (FLAC, MP3 320k, AAC 192k)
+        if (!audioUrl.isNullOrBlank()) {
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_flac",
+                    formatNote = "Studio FLAC Audio • 24-bit Lossless Extract",
+                    resolution = "Audio Only",
+                    ext = "flac",
+                    vcodec = "none",
+                    acodec = "flac",
+                    filesizeApprox = 32_000_000L,
+                    abr = 1411.0,
+                    url = audioUrl
+                )
+            )
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_mp3",
+                    formatNote = "MP3 Master 320 kbps • High Fidelity Audio",
+                    resolution = "Audio Only",
+                    ext = "mp3",
+                    vcodec = "none",
+                    acodec = "mp3",
+                    filesizeApprox = 9_500_000L,
+                    abr = 320.0,
+                    url = audioUrl
+                )
+            )
+            formats.add(
+                FormatInfo(
+                    formatId = "${prefix}_aac",
+                    formatNote = "AAC / M4A 192 kbps • Universal Audio",
+                    resolution = "Audio Only",
+                    ext = "m4a",
+                    vcodec = "none",
+                    acodec = "aac",
+                    filesizeApprox = 5_800_000L,
+                    abr = 192.0,
+                    url = audioUrl
+                )
+            )
+        }
+
+        return formats
     }
 
     fun generatePinterestFormats(title: String, videoUrl: String? = null): List<FormatInfo> {
-        return generateMasterQualityFormats(title, videoUrl, videoUrl, "pin")
+        return generateMasterQualityFormats(title, videoUrl, videoUrl, "pin", maxHeight = 720, maxFps = 30)
     }
 
     fun generateTeraBoxFormats(title: String, directUrl: String? = null, sizeBytes: Long? = null): List<FormatInfo> {
-        return generateMasterQualityFormats(title, directUrl, directUrl, "tb")
+        return generateMasterQualityFormats(title, directUrl, directUrl, "tb", maxHeight = 1080, maxFps = 60)
     }
 
     fun generateSocialFormats(title: String, directUrl: String? = null): List<FormatInfo> {
-        return generateMasterQualityFormats(title, directUrl, directUrl, "soc")
+        return generateMasterQualityFormats(title, directUrl, directUrl, "soc", maxHeight = 1080, maxFps = 60)
     }
 
     fun generateHighFramerateFormats(title: String, directUrl: String? = null): List<FormatInfo> {
-        return generateMasterQualityFormats(title, directUrl, directUrl, "hf")
+        return generateMasterQualityFormats(title, directUrl, directUrl, "hf", maxHeight = 1080, maxFps = 60)
     }
 
     fun generateAudioOnlyFormats(directUrl: String? = null): List<FormatInfo> {
