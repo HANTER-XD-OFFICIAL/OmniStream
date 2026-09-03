@@ -30,6 +30,9 @@ interface DownloadDao {
     @Update
     suspend fun update(download: DownloadEntity)
 
+    @Query("UPDATE downloads SET downloadUrl = :url WHERE id = :id")
+    suspend fun updateDownloadUrl(id: Long, url: String)
+
     @Query("UPDATE downloads SET progressPercent = :percent, downloadedBytes = :downloaded, totalBytes = :total, downloadSpeedText = :speed, etaText = :eta WHERE id = :id")
     suspend fun updateProgress(
         id: Long,

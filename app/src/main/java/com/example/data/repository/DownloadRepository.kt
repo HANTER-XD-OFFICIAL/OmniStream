@@ -156,18 +156,42 @@ class DownloadRepository(
 
                 // Multi-gateway stream retrieval: Try primary URL, then candidate URLs, then fresh dynamic streams
                 val candidateUrls = mutableListOf<String>()
-                if (primaryUrl.isNotBlank() && primaryUrl.startsWith("http")) {
+
+                // Check if this is a YouTube stream (or unresolved / Invidious stream), resolve the direct download URL
+                val isYouTubeStream = primaryUrl.startsWith("yt_loader:") ||
+                        primaryUrl.contains("loader.to") ||
+                        primaryUrl.contains("inv.tux.pizza") ||
+                        primaryUrl.contains("latest_version") ||
+                        primaryUrl.contains("yewtu.be") ||
+                        primaryUrl.contains("invidious") ||
+                        primaryUrl.contains("googlevideo.com") ||
+                        ((item.sourceUrl.contains("youtube.com") || item.sourceUrl.contains("youtu.be")) && !primaryUrl.contains("savenow.to") && !primaryUrl.contains("piped"))
+
+                if (isYouTubeStream) {
+                    val directResolved = ytDlpClient.resolveYouTubeDirectStream(
+                        targetQueryOrUrl = primaryUrl,
+                        sourceUrl = item.sourceUrl,
+                        formatPreference = item.resolution ?: "720"
+                    )
+                    if (!directResolved.isNullOrBlank() && directResolved.startsWith("http")) {
+                        primaryUrl = directResolved
+                        try {
+                            downloadDao.updateDownloadUrl(downloadId, directResolved)
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                if (primaryUrl.isNotBlank() && primaryUrl.startsWith("http") && !primaryUrl.startsWith("yt_loader:")) {
                     candidateUrls.add(primaryUrl)
                 }
 
-                // If candidate URLs are empty or format list needed, resolve fresh format URLs dynamically
                 val targetQuery = if (item.sourceUrl.isNotBlank() && item.sourceUrl.startsWith("http")) item.sourceUrl else primaryUrl
-                if (targetQuery.startsWith("http")) {
+                if (candidateUrls.isEmpty() && targetQuery.startsWith("http")) {
                     try {
                         val freshInfo = ytDlpClient.fetchVideoInfo(targetQuery)
                         freshInfo.formats.forEach { f ->
                             val u = f.url
-                            if (!u.isNullOrBlank() && u.startsWith("http") && !candidateUrls.contains(u)) {
+                            if (!u.isNullOrBlank() && u.startsWith("http") && !u.startsWith("yt_loader:") && !candidateUrls.contains(u)) {
                                 candidateUrls.add(u)
                             }
                         }

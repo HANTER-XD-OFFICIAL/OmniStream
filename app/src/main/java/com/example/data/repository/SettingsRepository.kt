@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class AppSettings(
-    val customApiUrl: String = "https://cobalt-latest-a04h.onrender.com",
+    val customApiUrl: String = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev",
     val authToken: String = "",
     val defaultVideoQuality: String = "4K 60 FPS",
     val defaultAudioFormat: String = "MP3 320 kbps",
@@ -25,9 +25,9 @@ class SettingsRepository(context: Context) {
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     private fun loadSettings(): AppSettings {
-        val savedUrl = prefs.getString("custom_api_url", "https://cobalt-latest-a04h.onrender.com")
-        val effectiveUrl = if (savedUrl.isNullOrBlank() || savedUrl.contains(".local") || savedUrl.contains("192.168.")) {
-            "https://cobalt-latest-a04h.onrender.com"
+        val savedUrl = prefs.getString("custom_api_url", "https://muddy-scene-0ff7.alexraselchodhury.workers.dev")
+        val effectiveUrl = if (savedUrl.isNullOrBlank() || savedUrl.contains(".local") || savedUrl.contains("192.168.") || savedUrl == "https://cobalt-latest-a04h.onrender.com") {
+            "https://muddy-scene-0ff7.alexraselchodhury.workers.dev"
         } else {
             savedUrl
         }

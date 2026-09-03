@@ -136,7 +136,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         onValueChange = { apiUrl = it },
                         modifier = Modifier.fillMaxWidth().testTag("api_url_input"),
                         label = { Text("Master Cobalt API URL") },
-                        placeholder = { Text("https://cobalt-latest-a04h.onrender.com", color = TextMuted) },
+                        placeholder = { Text("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", color = TextMuted) },
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -172,7 +172,8 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        PresetChip("Master Render API (Active)") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
+                        PresetChip("Cloudflare Worker API (Active)") { apiUrl = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev" }
+                        PresetChip("Render VIP Mirror") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
                         PresetChip("Cobalt Official") { apiUrl = "https://api.cobalt.tools" }
                     }
 

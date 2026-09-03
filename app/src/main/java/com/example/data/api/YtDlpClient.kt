@@ -23,7 +23,9 @@ class YtDlpClient(
 ) {
 
     companion object {
-        const val PRIMARY_RENDER_COBALT_URL = "https://cobalt-latest-a04h.onrender.com"
+        const val PRIMARY_COBALT_API_URL = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev"
+        const val PRIMARY_RENDER_COBALT_URL = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev"
+        const val RENDER_MIRROR_COBALT_URL = "https://cobalt-latest-a04h.onrender.com"
 
         // Multi-Account RapidAPI Key Pool for YouTube VIP Resolvers (Rotates every 5 requests)
         private val RAPID_API_KEYS = listOf(
@@ -51,12 +53,27 @@ class YtDlpClient(
             }
             return keyList
         }
+
+        val LOADER_TO_HOSTS = listOf(
+            "https://loader.to",
+            "https://en.loader.to"
+        )
+
+        fun extractYouTubeId(url: String): String? {
+            try {
+                val decoded = java.net.URLDecoder.decode(url, "UTF-8")
+                val match = Regex("""(?:(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/|[?&]id=|yt_loader:))([a-zA-Z0-9_-]{11})""").find(decoded)
+                if (match != null) return match.groupValues[1]
+            } catch (_: Exception) {}
+            val rawMatch = Regex("""(?:(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/|[?&]id=|yt_loader:))([a-zA-Z0-9_-]{11})""").find(url)
+            return rawMatch?.groupValues?.getOrNull(1)
+        }
     }
 
     suspend fun testApiHealth(baseUrl: String, authToken: String? = null): ApiHealthResponse =
         withContext(Dispatchers.IO) {
             val effectiveUrl = if (baseUrl.isBlank() || baseUrl.contains(".local") || baseUrl.contains("192.168.")) {
-                PRIMARY_RENDER_COBALT_URL
+                PRIMARY_COBALT_API_URL
             } else {
                 baseUrl.trimEnd('/')
             }
@@ -83,15 +100,15 @@ class YtDlpClient(
                         val body = response.body?.string() ?: ""
                         val version = try {
                             val json = JSONObject(body)
-                            json.optString("ytdlp_version", json.optString("version", json.optJSONObject("cobalt")?.optString("version", "v10.0-render")))
+                            json.optString("ytdlp_version", json.optString("version", json.optJSONObject("cobalt")?.optString("version", "v11.7.1-edge")))
                         } catch (_: Exception) {
-                            "Render VIP Core"
+                            "Edge Worker API Core"
                         }
                         return@withContext ApiHealthResponse(
                             status = "connected",
                             ytdlpVersion = version,
                             latencyMs = latency,
-                            message = "Connected to Render VIP Server ($latency ms)"
+                            message = "Connected to Master Edge Engine ($latency ms)"
                         )
                     }
                 } catch (_: Exception) {
@@ -118,11 +135,11 @@ class YtDlpClient(
         val cleanBaseUrl = baseUrl.trim().trimEnd('/')
         var parsedResult: VideoInfoResponse? = null
 
-        // 1. PRIMARY UNIVERSAL ENGINE: Render Cobalt VIP Server (https://cobalt-latest-a04h.onrender.com)
+        // 1. PRIMARY UNIVERSAL ENGINE: Cloudflare Edge Worker API (https://muddy-scene-0ff7.alexraselchodhury.workers.dev)
         val targetEngineUrl = if (cleanBaseUrl.isNotBlank() && (cleanBaseUrl.startsWith("http://") || cleanBaseUrl.startsWith("https://")) && !cleanBaseUrl.contains(".local")) {
             cleanBaseUrl
         } else {
-            PRIMARY_RENDER_COBALT_URL
+            PRIMARY_COBALT_API_URL
         }
 
         parsedResult = extractFromMasterCobaltApi(url, targetEngineUrl)
@@ -189,11 +206,13 @@ class YtDlpClient(
         val effectiveBaseUrl = if (baseUrl.isNotBlank() && baseUrl.startsWith("http")) {
             baseUrl.trimEnd('/')
         } else {
-            PRIMARY_RENDER_COBALT_URL
+            PRIMARY_COBALT_API_URL
         }
 
         val allCobaltHosts = listOf(
             effectiveBaseUrl,
+            PRIMARY_COBALT_API_URL,
+            RENDER_MIRROR_COBALT_URL,
             "https://cobalt-latest-a04h.onrender.com",
             "https://api.cobalt.tools",
             "https://co.wuk.sh",
@@ -919,7 +938,8 @@ class YtDlpClient(
 
         // Gateway 0: Cobalt High-Speed Engine Multi-Instance Resolver (Fastest 1080p Muxed with Audio & Clean MP4)
         val cobaltInstances = listOf(
-            PRIMARY_RENDER_COBALT_URL,
+            PRIMARY_COBALT_API_URL,
+            RENDER_MIRROR_COBALT_URL,
             "https://cobalt-latest-a04h.onrender.com",
             "https://api.cobalt.tools",
             "https://co.wuk.sh",
@@ -1138,17 +1158,17 @@ class YtDlpClient(
      * and multi-gateway Invidious / Piped / VKR / Direct proxy streaming engines.
      */
     private fun extractYouTubeVideo(ytUrl: String, videoId: String): VideoInfoResponse? {
-        val maxResThumb = "https://i.ytimg.com/vi/$videoId/maxresdefault.jpg"
-        val hqThumb = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+        val maxResThumb = "https://i.ytimg.com/vi//maxresdefault.jpg"
+        val hqThumb = "https://i.ytimg.com/vi//hqdefault.jpg"
 
-        var ytTitle = "YouTube Video ($videoId)"
+        var ytTitle = "YouTube Video ()"
         var ytAuthor = "YouTube Creator"
         var ytDuration = 240L
         var ytDurationStr = "04:00"
 
         // 1. YouTube Official oEmbed for clean title and author
         try {
-            val oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=$videoId&format=json"
+            val oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=&format=json"
             val request = Request.Builder()
                 .url(oembedUrl)
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -1166,584 +1186,65 @@ class YtDlpClient(
             }
         } catch (_: Exception) {}
 
-        val resolvedFormats = mutableListOf<FormatInfo>()
+        var direct720Url: String? = null
 
-        // 2. Gateway 0: RapidAPI YouTube Media Downloader with 5-Request Rotation Key Pool
-        val rapidKeys = getOrderedRapidApiKeys()
-        for (activeKey in rapidKeys) {
-            if (resolvedFormats.isNotEmpty()) break
-            val rapidApiEndpoints = listOf(
-                Pair("https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=$videoId", "youtube-media-downloader.p.rapidapi.com"),
-                Pair("https://youtube-media-downloader.p.rapidapi.com/v2/video/media?videoId=$videoId", "youtube-media-downloader.p.rapidapi.com"),
-                Pair("https://youtube-media-downloader.p.rapidapi.com/v2/video/details?url=" + java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8"), "youtube-media-downloader.p.rapidapi.com"),
-                Pair("https://youtube-mp3-audio-video-downloader.p.rapidapi.com/language_list/$videoId?response_mode=default", "youtube-mp3-audio-video-downloader.p.rapidapi.com")
-            )
-
-            for ((rapidUrl, rapidHost) in rapidApiEndpoints) {
-                if (resolvedFormats.isNotEmpty()) break
-                try {
-                    val rapidReq = Request.Builder()
-                        .url(rapidUrl)
-                        .addHeader("Content-Type", "application/json")
-                        .addHeader("x-rapidapi-host", rapidHost)
-                        .addHeader("x-rapidapi-key", activeKey)
-                        .build()
-                    val rapidResp = okHttpClient.newCall(rapidReq).execute()
-                    if (rapidResp.isSuccessful) {
-                        val rBody = rapidResp.body?.string() ?: ""
-                        if (rBody.startsWith("{")) {
-                            val rJson = JSONObject(rBody)
-                            val rTitle = rJson.optString("title", rJson.optString("name", ""))
-                            if (rTitle.isNotBlank()) ytTitle = cleanHtmlEntities(rTitle)
-                            val rAuthor = rJson.optString("channelTitle", rJson.optString("author", rJson.optString("uploader", "")))
-                            if (rAuthor.isNotBlank()) ytAuthor = cleanHtmlEntities(rAuthor)
-                            val rDuration = rJson.optLong("lengthSeconds", rJson.optLong("duration", 0L))
-                            if (rDuration > 0) {
-                                ytDuration = rDuration
-                                val mins = rDuration / 60
-                                val secs = rDuration % 60
-                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                            }
-
-                            // Parse Video Streams
-                            val videoArray = when {
-                                rJson.has("videos") && rJson.get("videos") is JSONObject -> rJson.getJSONObject("videos").optJSONArray("items")
-                                rJson.has("videos") && rJson.get("videos") is org.json.JSONArray -> rJson.getJSONArray("videos")
-                                rJson.has("formats") -> rJson.getJSONArray("formats")
-                                rJson.has("media") -> rJson.getJSONArray("media")
-                                else -> null
-                            }
-
-                            if (videoArray != null && videoArray.length() > 0) {
-                                for (v in 0 until videoArray.length()) {
-                                    val item = videoArray.getJSONObject(v)
-                                    val isVideoOnly = item.optBoolean("videoOnly", false) ||
-                                            item.optBoolean("isAdaptive", false) ||
-                                            (item.has("hasAudio") && !item.optBoolean("hasAudio", true)) ||
-                                            item.optString("hasAudio").equals("false", true) ||
-                                            item.optString("audioQuality").equals("none", true)
-                                    // Strictly skip video-only streams without sound
-                                    if (isVideoOnly && !item.optBoolean("hasAudio", false)) continue
-
-                                    val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
-                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                        val quality = item.optString("quality", item.optString("qualityLabel", item.optString("resolution", "1080p")))
-                                        val format = item.optString("format", item.optString("ext", "mp4")).lowercase()
-                                        val size = item.optLong("size", item.optLong("fileSize", item.optLong("contentLength", 0L)))
-                                        val w = item.optInt("width", if (quality.contains("1080")) 1920 else if (quality.contains("720")) 1280 else if (quality.contains("4k") || quality.contains("2160")) 3840 else 854)
-                                        val h = item.optInt("height", if (quality.contains("1080")) 1080 else if (quality.contains("720")) 720 else if (quality.contains("4k") || quality.contains("2160")) 2160 else 480)
-                                        val fps = item.optInt("fps", 30)
-
-                                        resolvedFormats.add(
-                                            FormatInfo(
-                                                formatId = "rapid_${quality}_$format",
-                                                formatNote = "$quality • Full HD Video + Sound ($format)",
-                                                resolution = "${w}x${h}",
-                                                width = w,
-                                                height = h,
-                                                fps = fps,
-                                                ext = if (format.contains("webm")) "webm" else "mp4",
-                                                vcodec = "h264",
-                                                acodec = "aac",
-                                                filesizeApprox = if (size > 0) size else 85_000_000L,
-                                                url = directUrl
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Parse Audio Streams
-                            val audioArray = when {
-                                rJson.has("audios") && rJson.get("audios") is JSONObject -> rJson.getJSONObject("audios").optJSONArray("items")
-                                rJson.has("audios") && rJson.get("audios") is org.json.JSONArray -> rJson.getJSONArray("audios")
-                                else -> null
-                            }
-
-                            if (audioArray != null && audioArray.length() > 0) {
-                                for (a in 0 until audioArray.length()) {
-                                    val item = audioArray.getJSONObject(a)
-                                    val directUrl = item.optString("url", item.optString("link", item.optString("downloadUrl", "")))
-                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                        val format = item.optString("format", item.optString("ext", "mp3")).lowercase()
-                                        val size = item.optLong("size", item.optLong("fileSize", 0L))
-                                        val bitrate = item.optDouble("bitrate", 320.0)
-
-                                        resolvedFormats.add(
-                                            FormatInfo(
-                                                formatId = "rapid_audio_hq",
-                                                formatNote = "Audio Extract • MP3 / M4A Master HQ",
-                                                resolution = "Audio Only",
-                                                ext = if (format.contains("m4a")) "m4a" else "mp3",
-                                                vcodec = "none",
-                                                acodec = "mp3",
-                                                filesizeApprox = if (size > 0) size else 9_500_000L,
-                                                abr = bitrate,
-                                                url = directUrl
-                                            )
-                                        )
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-
-        // 2. Gateway 0: YouTube Native Innertube Player API (Direct Client-Bound Googlevideo Streams)
-        try {
-            val innertubeClients = listOf(
-                Pair("ANDROID", "19.09.37"),
-                Pair("TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0"),
-                Pair("IOS", "19.09.3")
-            )
-            for ((clientName, clientVer) in innertubeClients) {
-                if (resolvedFormats.isNotEmpty()) break
-                val payload = JSONObject().apply {
-                    put("videoId", videoId)
-                    put("context", JSONObject().apply {
-                        put("client", JSONObject().apply {
-                            put("clientName", clientName)
-                            put("clientVersion", clientVer)
-                            put("androidSdkVersion", 34)
-                            put("hl", "en")
-                            put("gl", "US")
-                        })
-                    })
-                }
+        // 2. High-speed resolution & title confirmation from loader.to mirrors
+        for (host in LOADER_TO_HOSTS) {
+            if (direct720Url != null) break
+            try {
+                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=", "UTF-8")
+                val startUrl = "/ajax/download.php?button=1&start=1&end=1&format=720&url="
                 val req = Request.Builder()
-                    .url("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("User-Agent", "com.google.android.youtube/$clientVer (Linux; U; Android 14; US) gzip")
-                    .addHeader("X-YouTube-Client-Name", if (clientName == "ANDROID") "3" else if (clientName == "IOS") "5" else "85")
-                    .addHeader("X-YouTube-Client-Version", clientVer)
-                    .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                    .url(startUrl)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                    .addHeader("Accept", "application/json")
                     .build()
                 val resp = okHttpClient.newCall(req).execute()
                 if (resp.isSuccessful) {
-                    val bodyStr = resp.body?.string() ?: ""
-                    if (bodyStr.startsWith("{")) {
-                        val pJson = JSONObject(bodyStr)
-                        val videoDetails = pJson.optJSONObject("videoDetails")
-                        if (videoDetails != null) {
-                            val pTitle = videoDetails.optString("title", "")
-                            if (pTitle.isNotBlank()) ytTitle = cleanHtmlEntities(pTitle)
-                            val pAuthor = videoDetails.optString("author", "")
-                            if (pAuthor.isNotBlank()) ytAuthor = cleanHtmlEntities(pAuthor)
-                            val lengthSec = videoDetails.optLong("lengthSeconds", 0L)
-                            if (lengthSec > 0) {
-                                ytDuration = lengthSec
-                                val mins = lengthSec / 60
-                                val secs = lengthSec % 60
-                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                            }
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val jTitle = json.optString("title", "")
+                        if (jTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) {
+                            ytTitle = cleanHtmlEntities(jTitle)
                         }
-                        val streamingData = pJson.optJSONObject("streamingData")
-                        if (streamingData != null) {
-                            // 1. Progressive streams (Video + Audio Combined in single MP4 with verified audio track)
-                            val formats = streamingData.optJSONArray("formats")
-                            if (formats != null && formats.length() > 0) {
-                                for (i in 0 until formats.length()) {
-                                    val fObj = formats.getJSONObject(i)
-                                    val directUrl = fObj.optString("url", "")
-                                    val itag = fObj.optInt("itag", 18)
-                                    val qualityLabel = fObj.optString("qualityLabel", if (itag == 22) "720p" else "360p")
-                                    val mimeType = fObj.optString("mimeType", "video/mp4")
-                                    val ext = if (mimeType.contains("webm")) "webm" else "mp4"
-                                    val width = fObj.optInt("width", if (itag == 22) 1280 else 640)
-                                    val height = fObj.optInt("height", if (itag == 22) 720 else 360)
-                                    val fps = fObj.optInt("fps", 30)
-                                    val contentLength = fObj.optLong("contentLength", 0L)
-
-                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                        resolvedFormats.add(
-                                            FormatInfo(
-                                                formatId = "yt_innertube_${itag}",
-                                                formatNote = "$qualityLabel • Direct Progressive MP4 (Full Audio)",
-                                                resolution = "${width}x${height}",
-                                                width = width,
-                                                height = height,
-                                                fps = fps,
-                                                ext = ext,
-                                                vcodec = "h264",
-                                                acodec = "aac",
-                                                filesizeApprox = if (contentLength > 0) contentLength else 28_000_000L,
-                                                url = directUrl
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            // 2. Audio tracks from adaptive formats (Do NOT add video-only adaptive streams without audio)
-                            val adaptive = streamingData.optJSONArray("adaptiveFormats")
-                            if (adaptive != null && adaptive.length() > 0) {
-                                for (i in 0 until adaptive.length()) {
-                                    val fObj = adaptive.getJSONObject(i)
-                                    val directUrl = fObj.optString("url", "")
-                                    val itag = fObj.optInt("itag", 0)
-                                    val mimeType = fObj.optString("mimeType", "")
-                                    val contentLength = fObj.optLong("contentLength", 0L)
-                                    val bitrate = fObj.optDouble("bitrate", 128000.0) / 1000.0
-
-                                    if (directUrl.isNotBlank() && directUrl.startsWith("http")) {
-                                        if (mimeType.contains("audio/mp4") || mimeType.contains("audio/webm")) {
-                                            if (resolvedFormats.none { it.resolution == "Audio Only" }) {
-                                                resolvedFormats.add(
-                                                    FormatInfo(
-                                                        formatId = "yt_innertube_audio_${itag}",
-                                                        formatNote = "Audio Extract • MP3 / M4A HQ Sound",
-                                                        resolution = "Audio Only",
-                                                        ext = if (mimeType.contains("mp4")) "m4a" else "mp3",
-                                                        vcodec = "none",
-                                                        acodec = "aac",
-                                                        filesizeApprox = if (contentLength > 0) contentLength else 8_000_000L,
-                                                        abr = bitrate,
-                                                        url = directUrl
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        val dUrl = json.optString("download_url", "")
+                        if (dUrl.isNotBlank() && dUrl.startsWith("http")) {
+                            direct720Url = dUrl
                         }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 3. Fallback metadata check from Piped
+        try {
+            val pipedReq = Request.Builder()
+                .url("https://api.piped.private.coffee/streams/")
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .addHeader("Accept", "application/json")
+                .build()
+            val pipedResp = okHttpClient.newCall(pipedReq).execute()
+            if (pipedResp.isSuccessful) {
+                val pBody = pipedResp.body?.string() ?: ""
+                if (pBody.startsWith("{")) {
+                    val pJson = JSONObject(pBody)
+                    val pTitle = pJson.optString("title", "")
+                    if (pTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) ytTitle = cleanHtmlEntities(pTitle)
+                    val pUploader = pJson.optString("uploader", "")
+                    if (pUploader.isNotBlank() && ytAuthor == "YouTube Creator") ytAuthor = cleanHtmlEntities(pUploader)
+                    val pDuration = pJson.optLong("duration", 0L)
+                    if (pDuration > 0) {
+                        ytDuration = pDuration
+                        val mins = pDuration / 60
+                        val secs = pDuration % 60
+                        ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
                     }
                 }
             }
         } catch (_: Exception) {}
 
-        // 3. Gateway 1: Specialized Fast YouTube Download Engines (VKR & Betabotz)
-        if (resolvedFormats.isEmpty()) {
-            try {
-                val vkrUrl = "https://api.vkrdown.com/yt/?url=" + java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
-                val vkrReq = Request.Builder()
-                    .url(vkrUrl)
-                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .addHeader("Accept", "application/json")
-                    .build()
-                val vkrResp = okHttpClient.newCall(vkrReq).execute()
-                if (vkrResp.isSuccessful) {
-                    val vBody = vkrResp.body?.string() ?: ""
-                    if (vBody.startsWith("{")) {
-                        val vJson = JSONObject(vBody)
-                        val data = vJson.optJSONObject("data") ?: vJson
-                        val vTitle = data.optString("title", "")
-                        if (vTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) ytTitle = cleanHtmlEntities(vTitle)
-                        val downloads = data.optJSONArray("downloads") ?: data.optJSONArray("download")
-                        if (downloads != null && downloads.length() > 0) {
-                            for (d in 0 until downloads.length()) {
-                                val dItem = downloads.getJSONObject(d)
-                                val dUrl = dItem.optString("url", "")
-                                val formatName = dItem.optString("format", dItem.optString("quality", "720p"))
-                                val ext = dItem.optString("ext", "mp4")
-                                val isAudio = formatName.contains("mp3", true) || formatName.contains("audio", true) || ext == "mp3"
-                                val height = when {
-                                    formatName.contains("1080") -> 1080
-                                    formatName.contains("720") -> 720
-                                    formatName.contains("480") -> 480
-                                    formatName.contains("360") -> 360
-                                    else -> 720
-                                }
-                                if (dUrl.isNotBlank() && dUrl.startsWith("http")) {
-                                    resolvedFormats.add(
-                                        FormatInfo(
-                                            formatId = "yt_vkr_${formatName}_${ext}",
-                                            formatNote = "$formatName • Direct YouTube Stream",
-                                            resolution = if (isAudio) "Audio Only" else "${height}p",
-                                            width = if (height == 1080) 1920 else if (height == 720) 1280 else 854,
-                                            height = if (isAudio) null else height,
-                                            fps = 30,
-                                            ext = ext,
-                                            vcodec = if (isAudio) "none" else "h264",
-                                            acodec = "aac",
-                                            filesizeApprox = if (isAudio) 8_000_000L else (height * 40_000L),
-                                            url = dUrl
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-
-        // 4. Gateway 2: Cobalt High-Speed Multi-Instance Engine (720p / MP3 Audio Muxed)
-        val cobaltInstances = listOf(
-            "https://api.cobalt.tools",
-            "https://co.wuk.sh",
-            "https://cobalt-api.kwiatekm.tokyo",
-            "https://api.server.ovh",
-            "https://cobalt.hyonsu.com"
-        )
-
-        for (cHost in cobaltInstances) {
-            if (resolvedFormats.isNotEmpty()) break
-            try {
-                val payload720 = JSONObject().apply {
-                    put("url", "https://www.youtube.com/watch?v=$videoId")
-                    put("videoQuality", "720")
-                    put("downloadMode", "auto")
-                    put("youtubeVideoCodec", "h264")
-                    put("alwaysProxy", true)
-                }
-                val req = Request.Builder()
-                    .url(cHost)
-                    .addHeader("Accept", "application/json")
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                    .post(payload720.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                val resp = okHttpClient.newCall(req).execute()
-                if (resp.isSuccessful) {
-                    val b = resp.body?.string() ?: ""
-                    if (b.startsWith("{")) {
-                        val cJson = JSONObject(b)
-                        val status = cJson.optString("status", "")
-                        var streamUrl: String? = null
-                        if (status == "stream" || status == "redirect" || status == "tunnel" || status == "success") {
-                            streamUrl = cJson.optString("url", "")
-                        } else if (status == "picker") {
-                            val picker = cJson.optJSONArray("picker")
-                            if (picker != null && picker.length() > 0) {
-                                for (p in 0 until picker.length()) {
-                                    val item = picker.getJSONObject(p)
-                                    if (item.optString("type") == "video" || streamUrl == null) {
-                                        streamUrl = item.optString("url")
-                                    }
-                                }
-                            }
-                        }
-                        if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
-                            resolvedFormats.addAll(generateMasterQualityFormats(ytTitle, streamUrl, streamUrl, "yt_cobalt", maxHeight = 720))
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-
-        // 3. Gateway 1: Piped Multi-Instance Progressive Video & Audio Streams
-        if (resolvedFormats.isEmpty()) {
-            val pipedInstances = listOf(
-                "https://api.piped.private.coffee",
-                "https://pipedapi.kavin.rocks",
-                "https://piped-api.lunar.icu",
-                "https://pipedapi.adminforge.de",
-                "https://pipedapi.tokhmi.xyz"
-            )
-
-            for (pipedHost in pipedInstances) {
-                if (resolvedFormats.isNotEmpty()) break
-                try {
-                    val apiEndpoint = "$pipedHost/streams/$videoId"
-                    val req = Request.Builder()
-                        .url(apiEndpoint)
-                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                        .addHeader("Accept", "application/json")
-                        .build()
-                    val resp = okHttpClient.newCall(req).execute()
-                    if (resp.isSuccessful) {
-                        val body = resp.body?.string()
-                        if (!body.isNullOrEmpty() && body.startsWith("{")) {
-                            val json = JSONObject(body)
-                            val pTitle = json.optString("title", "")
-                            if (pTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) ytTitle = cleanHtmlEntities(pTitle)
-                            val pUploader = json.optString("uploader", "")
-                            if (pUploader.isNotBlank() && ytAuthor == "YouTube Creator") ytAuthor = cleanHtmlEntities(pUploader)
-                            val pDuration = json.optLong("duration", 0L)
-                            if (pDuration > 0) {
-                                ytDuration = pDuration
-                                val mins = pDuration / 60
-                                val secs = pDuration % 60
-                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                            }
-
-                            val vStreams = json.optJSONArray("videoStreams")
-                            if (vStreams != null && vStreams.length() > 0) {
-                                for (i in 0 until vStreams.length()) {
-                                    val vs = vStreams.getJSONObject(i)
-                                    val isVideoOnly = vs.optBoolean("videoOnly", false)
-                                    if (isVideoOnly) continue // Skip video-only streams without sound
-
-                                    val vUrl = vs.optString("url", "")
-                                    val quality = vs.optString("quality", "720p")
-                                    val format = vs.optString("format", "mp4").lowercase()
-                                    val w = vs.optInt("width", if (quality.contains("1080")) 1920 else 1280)
-                                    val h = vs.optInt("height", if (quality.contains("1080")) 1080 else 720)
-                                    val fps = vs.optInt("fps", 30)
-                                    val bitrate = vs.optDouble("bitrate", 2500.0)
-
-                                    if (vUrl.isNotBlank() && vUrl.startsWith("http")) {
-                                        resolvedFormats.add(
-                                            FormatInfo(
-                                                formatId = "piped_${quality}_$format",
-                                                formatNote = "$quality • Fast Direct Stream with Audio ($format)",
-                                                resolution = quality,
-                                                width = w,
-                                                height = h,
-                                                fps = fps,
-                                                ext = if (format.contains("webm")) "webm" else "mp4",
-                                                vcodec = "h264",
-                                                acodec = "aac",
-                                                filesizeApprox = (bitrate * ytDuration / 8).toLong().coerceAtLeast(15_000_000L),
-                                                tbr = bitrate,
-                                                url = vUrl
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            val aStreams = json.optJSONArray("audioStreams")
-                            if (aStreams != null && aStreams.length() > 0) {
-                                for (i in 0 until aStreams.length()) {
-                                    val asObj = aStreams.getJSONObject(i)
-                                    val aUrl = asObj.optString("url", "")
-                                    val aFormat = asObj.optString("format", "m4a").lowercase()
-                                    val aBitrate = asObj.optDouble("bitrate", 128.0)
-                                    if (aUrl.isNotBlank() && aUrl.startsWith("http")) {
-                                        resolvedFormats.add(
-                                            FormatInfo(
-                                                formatId = "piped_audio_hq",
-                                                formatNote = "Audio Only • HQ ($aFormat)",
-                                                resolution = "Audio Only",
-                                                ext = if (aFormat.contains("opus") || aFormat.contains("webm")) "opus" else "m4a",
-                                                vcodec = "none",
-                                                acodec = aFormat,
-                                                filesizeApprox = (aBitrate * ytDuration / 8).toLong().coerceAtLeast(5_000_000L),
-                                                abr = aBitrate,
-                                                url = aUrl
-                                            )
-                                        )
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-
-        // 5. Gateway 3: Invidious Public Instances with Direct Streams
-        if (resolvedFormats.isEmpty()) {
-            val invidiousInstances = listOf(
-                "https://inv.tux.pizza",
-                "https://yewtu.be",
-                "https://invidious.nerdvpn.de",
-                "https://invidious.drgns.space",
-                "https://vid.priv.au",
-                "https://yt.artemislena.eu"
-            )
-
-            for (host in invidiousInstances) {
-                if (resolvedFormats.isNotEmpty()) break
-                try {
-                    val apiEndpoint = "$host/api/v1/videos/$videoId"
-                    val req = Request.Builder()
-                        .url(apiEndpoint)
-                        .addHeader("User-Agent", "Mozilla/5.0")
-                        .addHeader("Accept", "application/json")
-                        .build()
-                    val resp = okHttpClient.newCall(req).execute()
-                    if (resp.isSuccessful) {
-                        val body = resp.body?.string()
-                        if (!body.isNullOrEmpty() && body.startsWith("{")) {
-                            val json = JSONObject(body)
-                            val apiTitle = json.optString("title", "")
-                            if (apiTitle.isNotBlank() && ytTitle.startsWith("YouTube Video")) {
-                                ytTitle = cleanHtmlEntities(apiTitle)
-                            }
-                            val apiAuthor = json.optString("author", "")
-                            if (apiAuthor.isNotBlank() && ytAuthor == "YouTube Creator") {
-                                ytAuthor = cleanHtmlEntities(apiAuthor)
-                            }
-                            val lengthSeconds = json.optLong("lengthSeconds", 0L)
-                            if (lengthSeconds > 0) {
-                                ytDuration = lengthSeconds
-                                val mins = lengthSeconds / 60
-                                val secs = lengthSeconds % 60
-                                ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
-                            }
-
-                            // Combined formats
-                            val formatStreams = json.optJSONArray("formatStreams")
-                            if (formatStreams != null && formatStreams.length() > 0) {
-                                for (i in 0 until formatStreams.length()) {
-                                    val f = formatStreams.getJSONObject(i)
-                                    val fUrl = f.optString("url", "")
-                                    val qualityLabel = f.optString("qualityLabel", f.optString("resolution", "720p"))
-                                    val container = f.optString("container", "mp4")
-                                    val size = f.optString("size", "")
-                                    val approxBytes = if (size.contains("MB", true)) {
-                                        (size.replace("MB", "", true).trim().toDoubleOrNull() ?: 25.0) * 1024 * 1024
-                                    } else 35_000_000.0
-
-                                    if (fUrl.isNotBlank() && fUrl.startsWith("http")) {
-                                        resolvedFormats.add(
-                                            FormatInfo(
-                                                formatId = "yt_${qualityLabel}_$container",
-                                                formatNote = "$qualityLabel • Direct Stream ($container)",
-                                                resolution = qualityLabel,
-                                                width = if (qualityLabel.contains("1080")) 1920 else 1280,
-                                                height = if (qualityLabel.contains("1080")) 1080 else 720,
-                                                fps = 30,
-                                                ext = container,
-                                                vcodec = "h264",
-                                                acodec = "aac",
-                                                filesizeApprox = approxBytes.toLong(),
-                                                tbr = if (qualityLabel.contains("1080")) 4500.0 else 2200.0,
-                                                url = fUrl
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Audio streams
-                            val adaptiveFormats = json.optJSONArray("adaptiveFormats")
-                            if (adaptiveFormats != null && adaptiveFormats.length() > 0) {
-                                for (i in 0 until adaptiveFormats.length()) {
-                                    val af = adaptiveFormats.getJSONObject(i)
-                                    val type = af.optString("type", "")
-                                    if (type.startsWith("audio/")) {
-                                        val audioUrl = af.optString("url", "")
-                                        val container = af.optString("container", "m4a")
-                                        val bitrate = af.optDouble("bitrate", 160.0)
-                                        if (audioUrl.isNotBlank() && audioUrl.startsWith("http")) {
-                                            resolvedFormats.add(
-                                                FormatInfo(
-                                                    formatId = "yt_audio_hq",
-                                                    formatNote = "Audio Only • High Bitrate ($container)",
-                                                    resolution = "Audio Only",
-                                                    ext = container,
-                                                    vcodec = "none",
-                                                    acodec = container,
-                                                    filesizeApprox = 12_000_000L,
-                                                    abr = bitrate,
-                                                    url = audioUrl
-                                                )
-                                            )
-                                            break
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-
-        // 5. Fallback: Generate full suite of proxy streams and standard resolution mirrors
-        val finalFormats = if (resolvedFormats.isNotEmpty()) {
-            resolvedFormats
-        } else {
-            generateYouTubeFormats(ytTitle, videoId)
-        }
+        val formats = generateYouTubeFormats(ytTitle, videoId, maxHeight = 1080, direct720Url = direct720Url)
 
         return VideoInfoResponse(
             id = videoId,
@@ -1754,23 +1255,44 @@ class YtDlpClient(
             uploader = ytAuthor,
             extractor = "YouTube",
             webpageUrl = ytUrl,
-            description = "YouTube media extracted with high definition stream mirrors.",
-            formats = finalFormats
+            description = "YouTube media extracted with high-speed direct stream resolvers.",
+            formats = formats
         )
     }
 
     /**
-     * Generates reliable multi-quality direct YouTube streams with multi-instance mirrors
+     * Generates reliable multi-quality direct YouTube streams using high-speed token resolvers
      */
-    fun generateYouTubeFormats(title: String, videoId: String, maxHeight: Int = 720): List<FormatInfo> {
-        val primaryInstance = "https://inv.tux.pizza"
-        val backupInstance = "https://yewtu.be"
-        val thirdInstance = "https://invidious.nerdvpn.de"
-
+    fun generateYouTubeFormats(
+        title: String,
+        videoId: String,
+        maxHeight: Int = 1080,
+        direct720Url: String? = null
+    ): List<FormatInfo> {
         val formats = mutableListOf<FormatInfo>()
 
-        // 720p HD (itag 22: Progressive MP4 with synchronized AAC audio)
-        if (maxHeight >= 700) {
+        // 1080p Full HD
+        if (maxHeight >= 1080) {
+            formats.add(
+                FormatInfo(
+                    formatId = "yt_1080p",
+                    formatNote = "1080p Full HD • High Quality Stream",
+                    resolution = "1920x1080",
+                    width = 1920,
+                    height = 1080,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 75_000_000L,
+                    tbr = 3800.0,
+                    url = "yt_loader::1080"
+                )
+            )
+        }
+
+        // 720p HD
+        if (maxHeight >= 720) {
             formats.add(
                 FormatInfo(
                     formatId = "yt_720p",
@@ -1784,16 +1306,36 @@ class YtDlpClient(
                     acodec = "aac",
                     filesizeApprox = 42_000_000L,
                     tbr = 2400.0,
-                    url = "$primaryInstance/latest_version?id=$videoId&itag=22"
+                    url = direct720Url ?: "yt_loader::720"
                 )
             )
         }
 
-        // 360p SD (itag 18: Progressive MP4 with synchronized AAC audio)
+        // 480p SD
+        if (maxHeight >= 480) {
+            formats.add(
+                FormatInfo(
+                    formatId = "yt_480p",
+                    formatNote = "480p SD • Standard Stream",
+                    resolution = "854x480",
+                    width = 854,
+                    height = 480,
+                    fps = 30,
+                    ext = "mp4",
+                    vcodec = "h264",
+                    acodec = "aac",
+                    filesizeApprox = 24_000_000L,
+                    tbr = 1500.0,
+                    url = "yt_loader::480"
+                )
+            )
+        }
+
+        // 360p Fast Mobile
         formats.add(
             FormatInfo(
                 formatId = "yt_360p",
-                formatNote = "360p SD • Fast Mobile Stream (Muxed Audio)",
+                formatNote = "360p SD • Fast Mobile Stream",
                 resolution = "640x360",
                 width = 640,
                 height = 360,
@@ -1803,24 +1345,11 @@ class YtDlpClient(
                 acodec = "aac",
                 filesizeApprox = 14_000_000L,
                 tbr = 1100.0,
-                url = "$backupInstance/latest_version?id=$videoId&itag=18"
+                url = "yt_loader::360"
             )
         )
 
-        // Dedicated Audio Tracks (itag 140: 128-192kbps AAC/M4A)
-        formats.add(
-            FormatInfo(
-                formatId = "yt_audio_flac",
-                formatNote = "Studio FLAC Audio • Lossless Extract",
-                resolution = "Audio Only",
-                ext = "flac",
-                vcodec = "none",
-                acodec = "flac",
-                filesizeApprox = 32_000_000L,
-                abr = 1411.0,
-                url = "$primaryInstance/latest_version?id=$videoId&itag=140"
-            )
-        )
+        // Dedicated Audio Extract (HQ MP3 320 kbps)
         formats.add(
             FormatInfo(
                 formatId = "yt_audio_mp3",
@@ -1831,24 +1360,108 @@ class YtDlpClient(
                 acodec = "mp3",
                 filesizeApprox = 9_500_000L,
                 abr = 320.0,
-                url = "$backupInstance/latest_version?id=$videoId&itag=140"
-            )
-        )
-        formats.add(
-            FormatInfo(
-                formatId = "yt_audio_aac",
-                formatNote = "AAC / M4A 192 kbps • Universal Audio",
-                resolution = "Audio Only",
-                ext = "m4a",
-                vcodec = "none",
-                acodec = "aac",
-                filesizeApprox = 5_800_000L,
-                abr = 192.0,
-                url = "$thirdInstance/latest_version?id=$videoId&itag=140"
+                url = "yt_loader::mp3"
             )
         )
 
         return formats
+    }
+
+    /**
+     * Resolves a direct, high-speed downloadable media URL for any YouTube format or stream token.
+     */
+    suspend fun resolveYouTubeDirectStream(
+        targetQueryOrUrl: String,
+        sourceUrl: String? = null,
+        formatPreference: String = "720"
+    ): String? = withContext(Dispatchers.IO) {
+        val rawInput = if (targetQueryOrUrl.isNotBlank()) targetQueryOrUrl else (sourceUrl ?: "")
+        if (rawInput.isBlank()) return@withContext null
+
+        val videoId = extractYouTubeId(rawInput) ?: (if (!sourceUrl.isNullOrBlank()) extractYouTubeId(sourceUrl) else null)
+        if (videoId == null) return@withContext null
+
+        val fmt = when {
+            rawInput.contains(":1080") || formatPreference.contains("1080") -> "1080"
+            rawInput.contains(":480") || formatPreference.contains("480") -> "480"
+            rawInput.contains(":360") || formatPreference.contains("360") -> "360"
+            rawInput.contains(":mp3") || rawInput.contains("audio") || formatPreference.contains("audio", true) || formatPreference.contains("mp3", true) -> "mp3"
+            else -> "720"
+        }
+
+        // 1. Primary Resolver: Loader.to API
+        for (host in LOADER_TO_HOSTS) {
+            try {
+                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=", "UTF-8")
+                val startUrl = "/ajax/download.php?button=1&start=1&end=1&format=&url="
+                val req = Request.Builder()
+                    .url(startUrl)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                    .addHeader("Accept", "application/json")
+                    .build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val directDl = json.optString("download_url", "")
+                        if (directDl.isNotBlank() && directDl.startsWith("http")) {
+                            return@withContext directDl
+                        }
+                        val progressUrl = json.optString("progress_url", "")
+                        if (progressUrl.isNotBlank() && progressUrl.startsWith("http")) {
+                            for (p in 0 until 10) {
+                                kotlinx.coroutines.delay(1200)
+                                val pReq = Request.Builder()
+                                    .url(progressUrl)
+                                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                                    .addHeader("Accept", "application/json")
+                                    .build()
+                                val pResp = okHttpClient.newCall(pReq).execute()
+                                if (pResp.isSuccessful) {
+                                    val pBody = pResp.body?.string() ?: ""
+                                    if (pBody.startsWith("{")) {
+                                        val pJson = JSONObject(pBody)
+                                        val pDl = pJson.optString("download_url", "")
+                                        if (pDl.isNotBlank() && pDl.startsWith("http")) {
+                                            return@withContext pDl
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. Fallback: Piped private coffee
+        try {
+            val pipedReq = Request.Builder()
+                .url("https://api.piped.private.coffee/streams/")
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .addHeader("Accept", "application/json")
+                .build()
+            val pipedResp = okHttpClient.newCall(pipedReq).execute()
+            if (pipedResp.isSuccessful) {
+                val pBody = pipedResp.body?.string() ?: ""
+                if (pBody.startsWith("{")) {
+                    val pJson = JSONObject(pBody)
+                    val vStreams = pJson.optJSONArray("videoStreams")
+                    if (vStreams != null && vStreams.length() > 0) {
+                        for (i in 0 until vStreams.length()) {
+                            val vs = vStreams.getJSONObject(i)
+                            val vUrl = vs.optString("url", "")
+                            if (vUrl.isNotBlank() && vUrl.startsWith("http")) {
+                                return@withContext vUrl
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        null
     }
 
     /**
@@ -2137,7 +1750,8 @@ class YtDlpClient(
 
         // Gateway 0: Cobalt High-Speed VIP Engine (Combines Video + Audio Muxing with alwaysProxy)
         val cobaltInstances = listOf(
-            PRIMARY_RENDER_COBALT_URL,
+            PRIMARY_COBALT_API_URL,
+            RENDER_MIRROR_COBALT_URL,
             "https://cobalt-latest-a04h.onrender.com",
             "https://api.cobalt.tools",
             "https://co.wuk.sh",
