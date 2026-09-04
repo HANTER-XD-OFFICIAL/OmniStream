@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
@@ -109,6 +110,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.api.FormatInfo
+import com.example.data.api.TelegramBotClient
 import com.example.ui.DownloadViewModel
 import com.example.ui.components.PlatformDetector
 import com.example.ui.components.QualityMatrixView
@@ -403,6 +405,44 @@ fun HomeScreen(
                                 Text(
                                     text = if (isOnline) "LIVE" else "CORE",
                                     color = if (isOnline) EmeraldSuccess else CyanBright,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+
+                        // Official Telegram Bot Badge
+                        Surface(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(TelegramBotClient.BOT_TELEGRAM_URL)).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF0C4A6E).copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.7f)),
+                            modifier = Modifier.testTag("telegram_bot_badge")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SmartToy,
+                                    contentDescription = "Telegram Bot",
+                                    tint = CyanBright,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "TG BOT",
+                                    color = CyanBright,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
                                     fontFamily = FontFamily.Monospace,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.Environment
 import android.os.PowerManager
+import com.example.data.api.TelegramBotClient
 import com.example.data.api.YtDlpClient
 import com.example.data.local.AppDatabase
 import com.example.data.local.DownloadDao
@@ -428,6 +429,23 @@ class DownloadRepository(
                         filePath = finalSavedPath,
                         error = null
                     )
+
+                    // Dispatch Telegram alert if enabled
+                    try {
+                        val s = SettingsRepository(context).settings.value
+                        if (s.telegramSyncEnabled && s.telegramChatId.isNotBlank()) {
+                            val sizeMb = if (totalDownloaded > 0) String.format(java.util.Locale.US, "%.1f MB", totalDownloaded / (1024.0 * 1024.0)) else "Unknown"
+                            val msg = """
+                                📥 <b>Download Completed on OmniStream</b>
+                                🎬 <b>Title:</b> ${item.title.take(60)}
+                                👤 <b>Creator:</b> ${item.authorOrChannel}
+                                📊 <b>Quality:</b> ${item.resolution} (${item.ext})
+                                💾 <b>Size:</b> $sizeMb
+                                📁 <b>Saved to:</b> Internal Storage/Download/$APP_FOLDER_NAME
+                            """.trimIndent()
+                            TelegramBotClient().sendMessage(s.telegramBotToken, s.telegramChatId, msg)
+                        }
+                    } catch (_: Exception) {}
 
                 } finally {
                     try { inputStream?.close() } catch (_: Exception) {}

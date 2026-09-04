@@ -94,6 +94,7 @@ fun DeveloperSupportHubDialog(
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
     val devWhatsAppNumber = "+8801882278234"
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
+    val botTelegramUrl = "https://t.me/OmniStream34_bot"
     val devEmail = "alexraselchodhury@gmail.com"
 
     fun openUrl(url: String) {
@@ -338,19 +339,19 @@ fun DeveloperSupportHubDialog(
                     )
                 }
 
-                // 3. Telegram Assistant Bot / Contact
+                // 3. Official Telegram Bot (DOWNLOAD ALL IN ONE)
                 item {
                     HubContactChannelCard(
                         icon = Icons.Default.SmartToy,
-                        iconBgColor = Color(0xFF4C1D95),
-                        iconTintColor = Color(0xFFA78BFA),
-                        title = "Telegram Assistant Bot",
-                        subtitle = "24/7 Developer Contact & Direct Support",
-                        buttonText = "Start →",
-                        buttonBgColor = Color(0xFF4C1D95).copy(alpha = 0.7f),
-                        buttonBorderColor = Color(0xFF8B5CF6),
-                        buttonTextColor = Color(0xFFA78BFA),
-                        onClick = { openUrl(devTelegramUrl) }
+                        iconBgColor = Color(0xFF0C4A6E),
+                        iconTintColor = CyanBright,
+                        title = "OmniStream Official Bot",
+                        subtitle = "@OmniStream34_bot • Automated Telegram Media Bot",
+                        buttonText = "Start Bot →",
+                        buttonBgColor = Color(0xFF0C4A6E).copy(alpha = 0.7f),
+                        buttonBorderColor = CyanBright,
+                        buttonTextColor = CyanBright,
+                        onClick = { openUrl(botTelegramUrl) }
                     )
                 }
 

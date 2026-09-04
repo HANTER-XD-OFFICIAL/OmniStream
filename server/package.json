@@ -1,0 +1,24 @@
+{
+  "name": "download-all-in-one-telegram-bot",
+  "version": "1.0.0",
+  "description": "Official 24/7 Telegram Video Downloader Bot for OmniStream - DOWNLOAD ALL IN ONE",
+  "main": "bot.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node bot.mjs"
+  },
+  "keywords": [
+    "telegram-bot",
+    "video-downloader",
+    "tiktok",
+    "instagram",
+    "facebook",
+    "youtube",
+    "terabox"
+  ],
+  "author": "MD Rasel (HANTER_XD_OFFICIAL)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

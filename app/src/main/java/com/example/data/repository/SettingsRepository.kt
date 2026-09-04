@@ -14,7 +14,12 @@ data class AppSettings(
     val embedSubtitles: Boolean = true,
     val embedThumbnail: Boolean = true,
     val extraCliFlags: String = "--embed-metadata --embed-thumbnail",
-    val maxConcurrentDownloads: Int = 3
+    val maxConcurrentDownloads: Int = 3,
+    val telegramBotToken: String = "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18",
+    val telegramBotUsername: String = "OmniStream34_bot",
+    val telegramBotName: String = "OmniStream",
+    val telegramChatId: String = "",
+    val telegramSyncEnabled: Boolean = true
 )
 
 class SettingsRepository(context: Context) {
@@ -42,7 +47,28 @@ class SettingsRepository(context: Context) {
             embedThumbnail = prefs.getBoolean("embed_thumbnail", true),
             extraCliFlags = prefs.getString("extra_cli_flags", "--embed-metadata --embed-thumbnail")
                 ?: "--embed-metadata --embed-thumbnail",
-            maxConcurrentDownloads = prefs.getInt("max_concurrent", 3)
+            maxConcurrentDownloads = prefs.getInt("max_concurrent", 3),
+            telegramBotToken = run {
+                val saved = prefs.getString("telegram_bot_token", "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18")
+                if (saved.isNullOrBlank() || saved.contains("8523953940")) {
+                    prefs.edit().putString("telegram_bot_token", "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18").apply()
+                    "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18"
+                } else {
+                    saved
+                }
+            },
+            telegramBotUsername = run {
+                val saved = prefs.getString("telegram_bot_username", "OmniStream34_bot")
+                if (saved.isNullOrBlank() || saved == "downloadallinonebot") {
+                    prefs.edit().putString("telegram_bot_username", "OmniStream34_bot").apply()
+                    "OmniStream34_bot"
+                } else {
+                    saved
+                }
+            },
+            telegramBotName = "OmniStream",
+            telegramChatId = prefs.getString("telegram_chat_id", "") ?: "",
+            telegramSyncEnabled = prefs.getBoolean("telegram_sync_enabled", true)
         )
     }
 
@@ -56,6 +82,11 @@ class SettingsRepository(context: Context) {
             putBoolean("embed_thumbnail", newSettings.embedThumbnail)
             putString("extra_cli_flags", newSettings.extraCliFlags)
             putInt("max_concurrent", newSettings.maxConcurrentDownloads)
+            putString("telegram_bot_token", newSettings.telegramBotToken)
+            putString("telegram_bot_username", newSettings.telegramBotUsername)
+            putString("telegram_bot_name", newSettings.telegramBotName)
+            putString("telegram_chat_id", newSettings.telegramChatId)
+            putBoolean("telegram_sync_enabled", newSettings.telegramSyncEnabled)
             apply()
         }
         _settings.value = newSettings

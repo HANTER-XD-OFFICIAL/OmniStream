@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Card
@@ -100,6 +101,7 @@ fun DeveloperScreen(
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
     val devWhatsAppNumber = "+8801882278234"
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
+    val botTelegramUrl = "https://t.me/OmniStream34_bot"
     val devEmail = "alexraselchodhury@gmail.com"
 
     fun openUrl(url: String) {
@@ -413,6 +415,19 @@ fun DeveloperScreen(
                             buttonBg = Color(0xFF0C4A6E).copy(alpha = 0.8f),
                             buttonBorder = Color(0xFF0284C7),
                             onOpen = { openUrl(devTelegramUrl) }
+                        )
+
+                        // Official Telegram Bot
+                        DeveloperActionButtonRow(
+                            icon = Icons.Default.SmartToy,
+                            iconBgColor = Color(0xFF0C4A6E),
+                            iconColor = CyanBright,
+                            channelTitle = "OmniStream Official Bot",
+                            channelSubtitle = "Official automated downloader bot on Telegram (@OmniStream34_bot)",
+                            buttonLabel = "Start Bot",
+                            buttonBg = CyanBright.copy(alpha = 0.2f),
+                            buttonBorder = CyanBright,
+                            onOpen = { openUrl(botTelegramUrl) }
                         )
 
                         // 3. Facebook Profile

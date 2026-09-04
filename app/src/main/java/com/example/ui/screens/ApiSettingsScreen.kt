@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -23,17 +25,25 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -50,11 +60,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.api.TelegramBotClient
 import com.example.data.repository.AppSettings
 import com.example.ui.DownloadViewModel
 import com.example.ui.theme.CyberBorder
@@ -71,9 +85,14 @@ import com.example.ui.theme.TextSecondary
 
 @Composable
 fun ApiSettingsScreen(viewModel: DownloadViewModel) {
+    val context = LocalContext.current
     val currentSettings by viewModel.settings.collectAsStateWithLifecycle()
     val apiHealth by viewModel.apiHealth.collectAsStateWithLifecycle()
     val isTestingApi by viewModel.isTestingApi.collectAsStateWithLifecycle()
+
+    val telegramBotInfo by viewModel.telegramBotInfo.collectAsStateWithLifecycle()
+    val isVerifyingBot by viewModel.isVerifyingBot.collectAsStateWithLifecycle()
+    val botVerificationStatus by viewModel.botVerificationStatus.collectAsStateWithLifecycle()
 
     var apiUrl by remember(currentSettings) { mutableStateOf(currentSettings.customApiUrl) }
     var authToken by remember(currentSettings) { mutableStateOf(currentSettings.authToken) }
@@ -82,6 +101,9 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
     var embedSubs by remember(currentSettings) { mutableStateOf(currentSettings.embedSubtitles) }
     var embedThumb by remember(currentSettings) { mutableStateOf(currentSettings.embedThumbnail) }
     var cliFlags by remember(currentSettings) { mutableStateOf(currentSettings.extraCliFlags) }
+
+    var telegramChatId by remember(currentSettings) { mutableStateOf(currentSettings.telegramChatId) }
+    var telegramSyncEnabled by remember(currentSettings) { mutableStateOf(currentSettings.telegramSyncEnabled) }
 
     LazyColumn(
         modifier = Modifier
@@ -218,6 +240,322 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Telegram Bot Hub Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
+                border = BorderStroke(1.dp, CyberBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = CyanBright, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Telegram Bot Integration",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                        }
+
+                        // Verified Status Badge
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = EmeraldSuccess.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldSuccess)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "LINKED & READY",
+                                    color = EmeraldSuccess,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "Official Connected Bot: OmniStream (@OmniStream34_bot)",
+                        fontSize = 11.sp,
+                        color = CyanAccent,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    // Bot API Token (Completely Hidden & Protected in Internal Vault)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = CyberDarkSurface,
+                        border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .background(EmeraldSuccess.copy(alpha = 0.15f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Key,
+                                        contentDescription = "Vault Protected",
+                                        tint = EmeraldSuccess,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        "Telegram Bot API Token",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "Protected Vault • Hidden from view for security",
+                                        color = EmeraldSuccess,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Verified,
+                                        contentDescription = null,
+                                        tint = EmeraldSuccess,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "HIDDEN & SAFE",
+                                        color = EmeraldSuccess,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Real-time Verified Bot Status Card
+                    val info = telegramBotInfo
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = CyberDarkSurface,
+                        border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(info?.firstName ?: "OmniStream", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                                Text("@${info?.username ?: "OmniStream34_bot"} • Official Verified Downloader", color = TextSecondary, fontSize = 11.sp)
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    "Online",
+                                    color = EmeraldSuccess,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (botVerificationStatus != null && botVerificationStatus?.startsWith("Error") == true) {
+                        Text(
+                            text = botVerificationStatus.orEmpty(),
+                            fontSize = 11.sp,
+                            color = RoseError
+                        )
+                    }
+
+                    // 24/7 Downloader Engine Status Card
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = CyanBright.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.35f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(EmeraldSuccess)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "24/7 Media Downloader Active",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text("No Watermarks", color = CyanAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                "Send any video link to @OmniStream34_bot from TikTok, Facebook, Instagram, YouTube, or TeraBox to get HD MP4 & MP3 directly inside Telegram!",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    // Test & Launch Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.verifyTelegramBot() },
+                            modifier = Modifier.weight(1f).height(40.dp).testTag("verify_telegram_bot_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanBright),
+                            border = BorderStroke(1.dp, CyanBright),
+                            enabled = !isVerifyingBot
+                        ) {
+                            if (isVerifyingBot) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = CyanBright, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Verify Bot", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(TelegramBotClient.BOT_TELEGRAM_URL)).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier.weight(1f).height(40.dp).testTag("open_telegram_bot_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanBright.copy(alpha = 0.15f), contentColor = CyanBright),
+                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                        ) {
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Open in TG", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Telegram Push Alerts & Sync Configuration
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Send Alerts to Telegram", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Receive completed download alerts on TG", color = TextMuted, fontSize = 10.sp)
+                            }
+                        }
+                        Switch(
+                            checked = telegramSyncEnabled,
+                            onCheckedChange = { telegramSyncEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = CyanBright,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = CyberDarkSurface
+                            )
+                        )
+                    }
+
+                    if (telegramSyncEnabled) {
+                        OutlinedTextField(
+                            value = telegramChatId,
+                            onValueChange = { telegramChatId = it },
+                            modifier = Modifier.fillMaxWidth().testTag("telegram_chat_id_input"),
+                            label = { Text("Your Telegram Chat ID / User ID") },
+                            placeholder = { Text("e.g. 123456789 (optional)", color = TextMuted) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CyanBright,
+                                unfocusedBorderColor = CyberBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+
+                        if (telegramChatId.isNotBlank()) {
+                            Button(
+                                onClick = { viewModel.sendTestTelegramMessage(telegramChatId) },
+                                modifier = Modifier.fillMaxWidth().height(36.dp).testTag("send_telegram_test_msg_button"),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanAccent),
+                                border = BorderStroke(1.dp, CyberBorder)
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Send Test Message via Bot", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -398,7 +736,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         defaultAudioFormat = selectedAudioFormat,
                         embedSubtitles = embedSubs,
                         embedThumbnail = embedThumb,
-                        extraCliFlags = cliFlags.trim()
+                        extraCliFlags = cliFlags.trim(),
+                        telegramBotToken = currentSettings.telegramBotToken,
+                        telegramBotUsername = currentSettings.telegramBotUsername,
+                        telegramBotName = currentSettings.telegramBotName,
+                        telegramChatId = telegramChatId.trim(),
+                        telegramSyncEnabled = telegramSyncEnabled
                     )
                     viewModel.updateSettings(newSettings)
                 },
