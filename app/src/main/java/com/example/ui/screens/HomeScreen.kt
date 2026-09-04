@@ -298,7 +298,7 @@ fun HomeScreen(
                     // Left Brand Unit
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
@@ -323,8 +323,7 @@ fun HomeScreen(
                                 text = "OMNISTREAM",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.2.sp,
+                                    letterSpacing = 0.8.sp,
                                     fontSize = 16.sp
                                 ),
                                 color = TextPrimary,
@@ -346,7 +345,7 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Right Status Badges: Privacy & Live Engine
+                    // Right Status Badges: Privacy & Live Engine (Restored like original)
                     val isOnline = apiHealth?.status == "connected"
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -405,44 +404,6 @@ fun HomeScreen(
                                 Text(
                                     text = if (isOnline) "LIVE" else "CORE",
                                     color = if (isOnline) EmeraldSuccess else CyanBright,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-
-                        // Official Telegram Bot Badge
-                        Surface(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(TelegramBotClient.BOT_TELEGRAM_URL)).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF0C4A6E).copy(alpha = 0.35f),
-                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.7f)),
-                            modifier = Modifier.testTag("telegram_bot_badge")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SmartToy,
-                                    contentDescription = "Telegram Bot",
-                                    tint = CyanBright,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "TG BOT",
-                                    color = CyanBright,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
                                     fontFamily = FontFamily.Monospace,
