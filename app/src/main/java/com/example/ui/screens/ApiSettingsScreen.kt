@@ -255,20 +255,41 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                 colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
                 border = BorderStroke(1.dp, CyberBorder)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Header Row: Bot Identity + Live Status Badge
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = CyanBright, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Telegram Bot Integration",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = TextPrimary
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(CyanBright.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.SmartToy,
+                                    contentDescription = null,
+                                    tint = CyanBright,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Telegram Bot Integration",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "@OmniStream34_bot",
+                                    color = CyanAccent,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
 
                         // Verified Status Badge
@@ -278,7 +299,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.4f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
@@ -289,7 +310,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = "LINKED & READY",
+                                    text = "ONLINE & READY",
                                     color = EmeraldSuccess,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -298,117 +319,105 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         }
                     }
 
-                    Text(
-                        text = "Official Connected Bot: OmniStream (@OmniStream34_bot)",
-                        fontSize = 11.sp,
-                        color = CyanAccent,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    // Bot API Token (Completely Hidden & Protected in Internal Vault)
+                    // Unified Clean Status & Vault Banner
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = CyberDarkSurface,
-                        border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.35f))
+                        border = BorderStroke(1.dp, CyberBorder)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // Vault Protection Row
                             Row(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .background(EmeraldSuccess.copy(alpha = 0.15f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         Icons.Default.Key,
-                                        contentDescription = "Vault Protected",
-                                        tint = EmeraldSuccess,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        "Telegram Bot API Token",
-                                        color = TextPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        "Protected Vault • Hidden from view for security",
-                                        color = EmeraldSuccess,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = EmeraldSuccess.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.5f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Verified,
                                         contentDescription = null,
                                         tint = EmeraldSuccess,
-                                        modifier = Modifier.size(12.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        "HIDDEN & SAFE",
+                                        "Bot API Credentials",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = EmeraldSuccess.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.35f))
+                                ) {
+                                    Text(
+                                        "VAULT PROTECTED",
                                         color = EmeraldSuccess,
                                         fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                     )
                                 }
                             }
-                        }
-                    }
 
-                    // Real-time Verified Bot Status Card
-                    val info = telegramBotInfo
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        color = CyberDarkSurface,
-                        border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.4f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(info?.firstName ?: "OmniStream", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                }
-                                Text("@${info?.username ?: "OmniStream34_bot"} • Official Verified Downloader", color = TextSecondary, fontSize = 11.sp)
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = EmeraldSuccess.copy(alpha = 0.2f)
+                            // Clean description
+                            Text(
+                                text = "Send any video or audio link directly to @OmniStream34_bot in Telegram to receive Full HD media with zero watermarks.",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+
+                            // Feature Chips Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(
-                                    "Online",
-                                    color = EmeraldSuccess,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = CyanBright.copy(alpha = 0.1f),
+                                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.25f))
+                                ) {
+                                    Text(
+                                        "⚡ 24/7 Active",
+                                        color = CyanAccent,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = CyanBright.copy(alpha = 0.1f),
+                                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.25f))
+                                ) {
+                                    Text(
+                                        "✨ No Watermark",
+                                        color = CyanAccent,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = EmeraldSuccess.copy(alpha = 0.1f),
+                                    border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.25f))
+                                ) {
+                                    Text(
+                                        "🔒 Token Private",
+                                        color = EmeraldSuccess,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -421,45 +430,6 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         )
                     }
 
-                    // 24/7 Downloader Engine Status Card
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = CyanBright.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.35f))
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(EmeraldSuccess)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        "24/7 Media Downloader Active",
-                                        color = TextPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Text("No Watermarks", color = CyanAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Text(
-                                "Send any video link to @OmniStream34_bot from TikTok, Facebook, Instagram, YouTube, or TeraBox to get HD MP4 & MP3 directly inside Telegram!",
-                                color = TextSecondary,
-                                fontSize = 11.sp,
-                                lineHeight = 15.sp
-                            )
-                        }
-                    }
-
                     // Test & Launch Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -467,7 +437,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                     ) {
                         Button(
                             onClick = { viewModel.verifyTelegramBot() },
-                            modifier = Modifier.weight(1f).height(40.dp).testTag("verify_telegram_bot_button"),
+                            modifier = Modifier.weight(1f).height(42.dp).testTag("verify_telegram_bot_button"),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanBright),
                             border = BorderStroke(1.dp, CyanBright),
@@ -491,7 +461,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                     context.startActivity(intent)
                                 } catch (_: Exception) {}
                             },
-                            modifier = Modifier.weight(1f).height(40.dp).testTag("open_telegram_bot_button"),
+                            modifier = Modifier.weight(1f).height(42.dp).testTag("open_telegram_bot_button"),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = CyanBright.copy(alpha = 0.15f), contentColor = CyanBright),
                             border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
