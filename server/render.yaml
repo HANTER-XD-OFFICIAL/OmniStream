@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: omnistream-telegram-bot
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node bot.mjs
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: BOT_TOKEN
+        value: 8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18

@@ -4,6 +4,7 @@
 // Language Policy: STRICTLY 100% ENGLISH FOR ALL USER-FACING BOT MESSAGES
 
 import process from 'node:process';
+import http from 'node:http';
 
 // Catch ALL unhandled errors to guarantee 100% 24/7 uptime without crashes
 process.on('uncaughtException', (err) => {
@@ -548,3 +549,34 @@ pollUpdates().catch(err => {
   console.error("Critical poll loop failure, restarting:", err?.message);
   setTimeout(pollUpdates, 3000);
 });
+
+// ==================== UPTIME HTTP SERVER ====================
+// Responds to Render, UptimeRobot, or external health checks so cloud hosts stay awake 24/7
+const PORT = process.env.PORT || 8088;
+const uptimeServer = http.createServer((req, res) => {
+  res.writeHead(200, { 
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*'
+  });
+  res.end(JSON.stringify({
+    status: 'online',
+    healthy: true,
+    bot: '@OmniStream34_bot',
+    service: 'OmniStream Telegram Downloader Bot Daemon',
+    developer: 'MD Rasel (@HANTER_XD_OFFICIAL)',
+    uptime_seconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  }));
+});
+
+uptimeServer.on('error', (err) => {
+  console.warn(`[UPTIME HTTP WARNING] Could not bind to port ${PORT}: ${err.message}`);
+});
+
+try {
+  uptimeServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 24/7 Uptime Healthcheck HTTP Server listening on port ${PORT} (0.0.0.0)`);
+  });
+} catch (e) {
+  console.warn('[UPTIME HTTP WARNING] Server start ignored:', e.message);
+}
