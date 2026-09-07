@@ -44,6 +44,8 @@ function getChromeExecutablePath() {
 
   // Search directories inside project
   const searchDirs = [
+    '/opt/render/project/.render/chrome',
+    '/opt/render/project/.render',
     localChromeDir,
     path.join(process.cwd(), 'chrome'),
     path.join(__dirname, 'node_modules', 'puppeteer'),

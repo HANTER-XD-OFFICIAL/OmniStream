@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     rootDir: server
-    buildCommand: npm install && npm run build
+    buildCommand: bash render-build.sh
     startCommand: node index.js
     autoDeploy: true
     healthCheckPath: /
