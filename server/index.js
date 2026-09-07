@@ -146,6 +146,10 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
 // Endpoint to view QR code in browser if terminal isn't easily accessible
 app.get('/qr', (req, res) => {
   if (connectedUser) {
@@ -170,6 +174,16 @@ app.get('/qr', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 24/7 Express Healthcheck Server listening on port ${PORT} (0.0.0.0)`);
 });
+
+// 24/7 Self-Ping to prevent Render free instance from idling
+setInterval(async () => {
+  try {
+    const targetUrl = process.env.RENDER_EXTERNAL_URL
+      ? `https://${process.env.RENDER_EXTERNAL_URL}/ping`
+      : `http://localhost:${PORT}/ping`;
+    await fetch(targetUrl).catch(() => {});
+  } catch (_) {}
+}, 4 * 60 * 1000); // every 4 minutes
 
 // ==================== WHATSAPP CLIENT INITIALIZATION ====================
 const resolvedChromePath = await getChromeExecutablePath();
@@ -234,6 +248,7 @@ const client = new Client({
       '--disable-extensions',
       '--disable-component-update',
       '--disable-features=Translate,OptimizationHints,MediaRouter',
+      '--js-flags=--max-old-space-size=256',
       '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
     ]
   }
@@ -659,12 +674,23 @@ const MSG_EXPIRED =
 
 Normal chat mode is active. Whenever you want to download videos again, simply type *#download* or paste a video link!`;
 
-// Robust message delivery helper (tries msg.reply first, then client.sendMessage)
+// Timeout wrapper to prevent Puppeteer operations from hanging indefinitely
+function executeWithTimeout(promise, timeoutMs = 25000, errorMsg = 'Operation timed out') {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+// Robust message delivery helper (tries msg.reply first, then client.sendMessage with timeout)
 async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = null) {
-  // Strategy 1: msg.reply directly back to the message sender
-  if (originalMsg && typeof originalMsg.reply === 'function') {
+  // Strategy 1: msg.reply directly back to the message sender (for text strings)
+  if (originalMsg && typeof originalMsg.reply === 'function' && typeof content === 'string') {
     try {
-      return await originalMsg.reply(content, undefined, options);
+      return await executeWithTimeout(originalMsg.reply(content, undefined, options), 12000, 'msg.reply timeout');
     } catch (err1) {
       console.warn(`[WA SEND] msg.reply failed: ${err1.message}`);
     }
@@ -672,12 +698,12 @@ async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = 
 
   // Strategy 2: client.sendMessage to target chatId
   try {
-    return await client.sendMessage(chatId, content, options);
+    return await executeWithTimeout(client.sendMessage(chatId, content, options), 15000, 'client.sendMessage timeout');
   } catch (err2) {
     console.error(`[WA SEND] client.sendMessage failed to ${chatId}: ${err2.message}`);
-    if (originalMsg && typeof originalMsg.reply === 'function') {
+    if (originalMsg && typeof originalMsg.reply === 'function' && typeof content === 'string') {
       try {
-        return await originalMsg.reply(content);
+        return await executeWithTimeout(originalMsg.reply(content), 10000, 'Fallback msg.reply timeout');
       } catch (err3) {
         console.error(`[WA SEND] Final fallback reply also failed: ${err3.message}`);
       }
@@ -685,7 +711,7 @@ async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = 
   }
 }
 
-// Helper: Download and Deliver Media
+// Helper: Download and Deliver Media safely without crashing headless Chromium
 async function downloadAndSendMedia(chatId, msg, targetUrl) {
   console.log(`[WA BOT] Processing download for: ${targetUrl} in ${chatId}`);
 
@@ -700,8 +726,12 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
     msg
   );
 
-  // Resolve Media URL
-  const media = await resolveAnyMedia(targetUrl);
+  let media = null;
+  try {
+    media = await executeWithTimeout(resolveAnyMedia(targetUrl), 15000, 'Media resolution timed out');
+  } catch (resErr) {
+    console.warn(`[WA BOT] Media resolution error: ${resErr.message}`);
+  }
 
   if (!media || !media.videoUrl) {
     try { await msg.react('❌'); } catch (_) {}
@@ -715,74 +745,81 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
   }
 
   const title = media.title ? String(media.title).trim() : "Social Media Video";
-  const shortTitle = title.length > 50 ? title.substring(0, 50) + "..." : title;
+  const shortTitle = title.length > 60 ? title.substring(0, 60) + "..." : title;
+  const durationStr = media.duration ? `⏱️ *Duration:* ${formatSeconds(media.duration)}\n` : "";
 
-  // Fetch video data
-  const videoResponse = await fetch(media.videoUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "Referer": targetUrl
-    },
-    signal: AbortSignal.timeout(60000)
-  });
+  let sentAsMedia = false;
 
-  if (!videoResponse.ok) {
-    throw new Error(`HTTP ${videoResponse.status} from video source`);
-  }
-
-  const arrayBuffer = await videoResponse.arrayBuffer();
-  const sizeBytes = arrayBuffer.byteLength;
-  const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
-
-  const caption = `🎬 *${title}*\n\n` +
-    `👤 *Platform:* ${media.type || "Social Media"}\n` +
-    (media.duration ? `⏱ *Duration:* ${formatSeconds(media.duration)}\n` : "") +
-    `💾 *Size:* ${sizeMb} MB\n\n` +
-    `⚡ *Downloaded via OmniStream Bot*`;
-
-  // Large file protection: On Render Free tier (512MB RAM), base64 files > 30MB cause Chrome CDP memory crash
-  if (sizeBytes > 30 * 1024 * 1024) {
-    try { await msg.react('✅'); } catch (_) {}
-    await sendWhatsAppMessage(
-      chatId,
-      `🎬 *${shortTitle}*\n\n` +
-      `👤 *Platform:* ${media.type || "Social Media"}\n` +
-      `💾 *File Size:* ${sizeMb} MB\n\n` +
-      `⚠️ *Video file is large (>30MB). Here is your high-speed direct download link:*\n\n` +
-      `📥 *Direct Fast Download:*\n${media.videoUrl}\n\n` +
-      `⚡ *OmniStream Bot*`,
-      {},
-      msg
-    );
-    return;
-  }
-
-  // Direct WhatsApp video upload
+  // Safe file upload: Only attempt in-memory buffer upload if video is <= 15MB
+  // This prevents Render 512MB RAM exhaustion and Chrome DevTools Protocol disconnects
   try {
-    const base64Data = Buffer.from(arrayBuffer).toString('base64');
-    const mediaFile = new MessageMedia('video/mp4', base64Data, 'video.mp4');
+    console.log(`[WA BOT] Checking video stream from source...`);
+    const videoResponse = await fetch(media.videoUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": targetUrl
+      },
+      signal: AbortSignal.timeout(15000)
+    });
 
-    await sendWhatsAppMessage(
-      chatId,
-      mediaFile,
-      { caption: caption },
-      msg
-    );
+    if (videoResponse.ok) {
+      const contentLength = videoResponse.headers.get('content-length');
+      const expectedSize = contentLength ? parseInt(contentLength, 10) : 0;
 
-    try { await msg.react('✅'); } catch (_) {}
-    console.log(`[WA BOT] Successfully delivered video to ${chatId}`);
+      if (expectedSize > 0 && expectedSize <= 15 * 1024 * 1024) {
+        const arrayBuffer = await videoResponse.arrayBuffer();
+        const sizeBytes = arrayBuffer.byteLength;
+        const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+
+        if (sizeBytes > 1000 && sizeBytes <= 15 * 1024 * 1024) {
+          const base64Data = Buffer.from(arrayBuffer).toString('base64');
+          const mediaFile = new MessageMedia('video/mp4', base64Data, 'video.mp4');
+
+          const caption = 
+            `🎬 *${shortTitle}*\n\n` +
+            `👤 *Platform:* ${media.type || "Social Media"}\n` +
+            durationStr +
+            `💾 *Size:* ${sizeMb} MB\n\n` +
+            `⚡ *Downloaded via OmniStream Bot*`;
+
+          console.log(`[WA BOT] Uploading video (${sizeMb} MB) with 20s timeout...`);
+          // sendMediaAsDocument: true prevents headless Chromium video codec crash on Linux
+          await executeWithTimeout(
+            client.sendMessage(chatId, mediaFile, {
+              caption: caption,
+              sendMediaAsDocument: true
+            }),
+            20000,
+            'Video upload timed out'
+          );
+
+          sentAsMedia = true;
+          try { await msg.react('✅'); } catch (_) {}
+          console.log(`[WA BOT] ✅ Video uploaded successfully to ${chatId}`);
+        }
+      }
+    }
   } catch (uploadErr) {
-    console.warn(`[WA BOT] Direct upload failed, falling back to direct stream link: ${uploadErr.message}`);
+    console.warn(`[WA BOT] Direct upload skipped or failed (${uploadErr.message}). Delivering direct link.`);
+  }
+
+  // If video couldn't be sent directly as a document file (size > 15MB, timed out, or fetch error),
+  // instantly deliver the High-Speed Direct Stream Download Link!
+  if (!sentAsMedia) {
+    try { await msg.react('✅'); } catch (_) {}
     await sendWhatsAppMessage(
       chatId,
       `🎬 *${shortTitle}*\n\n` +
       `👤 *Platform:* ${media.type || "Social Media"}\n` +
-      `💾 *Size:* ${sizeMb} MB\n\n` +
-      `📥 *Direct Video Link:*\n${media.videoUrl}\n\n` +
-      `⚡ *Downloaded via OmniStream Bot*`,
+      durationStr +
+      `⚡ *High-Speed Direct Download Link:*\n\n` +
+      `📥 *Direct Video Stream:*\n${media.videoUrl}\n\n` +
+      `💡 *Tip:* Tap the link above to watch or save the video directly in HD!\n\n` +
+      `🚀 *Downloaded via OmniStream Bot*`,
       {},
       msg
     );
+    console.log(`[WA BOT] Delivered high-speed direct stream link to ${chatId}`);
   }
 }
 
