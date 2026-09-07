@@ -12,6 +12,7 @@
 import express from 'express';
 import qrcode from 'qrcode-terminal';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
@@ -28,34 +29,38 @@ if (!process.env.PUPPETEER_CACHE_DIR) {
   process.env.PUPPETEER_CACHE_DIR = localChromeDir;
 }
 
-function getChromeExecutablePath() {
+async function getChromeExecutablePath() {
+  // 1. First priority: @sparticuz/chromium (bundled in node_modules, bulletproof in serverless / cloud containers)
+  try {
+    const sparticuzModule = await import('@sparticuz/chromium');
+    const chromium = sparticuzModule.default || sparticuzModule;
+    const sparticuzPath = await chromium.executablePath();
+    if (sparticuzPath && fs.existsSync(sparticuzPath)) {
+      console.log(`🎯 [CHROME] Successfully loaded @sparticuz/chromium at: ${sparticuzPath}`);
+      return sparticuzPath;
+    }
+  } catch (err) {
+    console.log(`ℹ️ [CHROME] @sparticuz/chromium check: ${err.message}`);
+  }
+
+  // 2. Direct environment variable override
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-    console.log(`[CHROME] Using env PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+    console.log(`🎯 [CHROME] Using env PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
-  // Try puppeteer.executablePath()
-  try {
-    const pPath = puppeteer.executablePath();
-    if (pPath && fs.existsSync(pPath)) {
-      console.log(`[CHROME] Found via puppeteer.executablePath(): ${pPath}`);
-      return pPath;
-    }
-  } catch (_) {}
 
-  // Search directories inside project
+  // 3. Search directories inside project and system cache
   const searchDirs = [
-    '/opt/render/project/.render/chrome',
-    '/opt/render/project/.render',
+    '/opt/render/project/src/server/chrome',
     localChromeDir,
     path.join(process.cwd(), 'chrome'),
-    path.join(__dirname, 'node_modules', 'puppeteer'),
+    path.join(os.homedir(), '.cache', 'puppeteer'),
+    '/opt/render/project/.render/chrome',
+    '/opt/render/.cache/puppeteer',
     cacheDir,
     path.join(process.cwd(), '.cache', 'puppeteer'),
     path.join(process.cwd(), '.cache'),
-    '/opt/render/project/src/server/chrome',
-    '/opt/render/project/src/server/.cache/puppeteer',
-    '/opt/render/project/src/.cache/puppeteer',
-    '/opt/render/.cache/puppeteer'
+    '/tmp'
   ];
 
   for (const sDir of searchDirs) {
@@ -71,7 +76,7 @@ function getChromeExecutablePath() {
               if (stat.isDirectory()) {
                 const res = walk(fullPath, depth + 1);
                 if (res) return res;
-              } else if (file === 'chrome' || file === 'chrome.exe' || file === 'chromium') {
+              } else if (file === 'chrome' || file === 'chromium' || file === 'chrome-headless-shell' || file === 'chrome.exe') {
                 try {
                   fs.chmodSync(fullPath, 0o755);
                 } catch (_) {}
@@ -84,13 +89,22 @@ function getChromeExecutablePath() {
       };
       const found = walk(sDir);
       if (found) {
-        console.log(`[CHROME] Discovered in directory: ${found}`);
+        console.log(`🎯 [CHROME] Discovered executable in ${sDir}: ${found}`);
         return found;
       }
     }
   }
 
-  // System fallback
+  // 4. Try puppeteer.executablePath()
+  try {
+    const pPath = puppeteer.executablePath();
+    if (pPath && fs.existsSync(pPath)) {
+      console.log(`🎯 [CHROME] Found via puppeteer.executablePath(): ${pPath}`);
+      return pPath;
+    }
+  } catch (_) {}
+
+  // 5. System fallback
   const systemPaths = [
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
@@ -99,7 +113,7 @@ function getChromeExecutablePath() {
   ];
   for (const sp of systemPaths) {
     if (fs.existsSync(sp)) {
-      console.log(`[CHROME] Found system Chrome: ${sp}`);
+      console.log(`🎯 [CHROME] Found system Chrome: ${sp}`);
       return sp;
     }
   }
@@ -158,7 +172,7 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 // ==================== WHATSAPP CLIENT INITIALIZATION ====================
-const resolvedChromePath = getChromeExecutablePath();
+const resolvedChromePath = await getChromeExecutablePath();
 if (resolvedChromePath) {
   console.log(`🎯 Using Chrome Executable: ${resolvedChromePath}`);
 } else {
@@ -171,7 +185,7 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
-    executablePath: resolvedChromePath || undefined,
+    ...(resolvedChromePath ? { executablePath: resolvedChromePath } : {}),
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
