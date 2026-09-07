@@ -5,6 +5,18 @@
 
 import process from 'node:process';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const localYtDlp = path.join(__dirname, 'yt-dlp');
+const YT_DLP_PATH = fs.existsSync(localYtDlp) ? localYtDlp : 'yt-dlp';
 
 // Catch ALL unhandled errors to guarantee 100% 24/7 uptime without crashes
 process.on('uncaughtException', (err) => {
@@ -120,13 +132,46 @@ function formatSeconds(sec) {
 
 // ==================== RESOLVERS ====================
 
+// 0. Universal / Fast yt-dlp Extractor
+function resolveWithYtDlp(url, platformName = "Social Video", timeoutMs = 7000) {
+  return new Promise((resolve) => {
+    const args = [
+      '--js-runtimes', 'node:node',
+      '--no-playlist',
+      '--no-warnings',
+      '-f', 'b[ext=mp4]/best[ext=mp4]/best',
+      '--print', '%(title)s###%(uploader)s###%(duration)s###%(url)s',
+      url
+    ];
+    execFile(YT_DLP_PATH, args, { timeout: timeoutMs }, (error, stdout) => {
+      if (error || !stdout) return resolve(null);
+      try {
+        const lines = stdout.trim().split('\n');
+        const lastLine = lines[lines.length - 1];
+        const parts = lastLine.split('###');
+        if (parts.length >= 4 && parts[3].startsWith('http')) {
+          return resolve({
+            type: platformName,
+            title: parts[0] || `${platformName} Video`,
+            author: parts[1] || `${platformName} Creator`,
+            duration: parseInt(parts[2], 10) || 30,
+            videoUrl: parts[3],
+            directStream: true
+          });
+        }
+      } catch (_) {}
+      resolve(null);
+    });
+  });
+}
+
 // 1. TikTok Resolver (TikWM)
 async function resolveTikTok(url) {
   try {
     const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
     const res = await fetch(apiUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      signal: AbortSignal.timeout(12000)
+      signal: AbortSignal.timeout(6000)
     });
     if (!res.ok) return null;
     const json = await res.json();
@@ -150,7 +195,63 @@ async function resolveTikTok(url) {
   }
 }
 
-// 2. Cobalt Multi-Host Resolver (Instagram, Facebook, Twitter, Reddit)
+// 2. Facebook Resolver
+async function resolveFacebook(url) {
+  try {
+    const fbDownloader = require('@renpwn/fb-downloader');
+    if (typeof fbDownloader === 'function') {
+      const fbData = await fbDownloader(url);
+      if (fbData && (fbData.hd || fbData.sd)) {
+        return {
+          type: "Facebook",
+          title: fbData.title || "Facebook Video",
+          author: "Facebook Creator",
+          videoUrl: fbData.hd || fbData.sd,
+          cover: fbData.thumbnail,
+          directStream: true
+        };
+      }
+    }
+  } catch (_) {}
+
+  // Fast yt-dlp fallback
+  const ytRes = await resolveWithYtDlp(url, "Facebook", 6500);
+  if (ytRes) return ytRes;
+
+  return await resolveCobalt(url);
+}
+
+// 3. Instagram Resolver
+async function resolveInstagram(url) {
+  try {
+    const igDownloader = require('@jerrycoder/instagram-api');
+    if (typeof igDownloader.igdl === 'function') {
+      const igRes = await igDownloader.igdl(url);
+      if (igRes && Array.isArray(igRes.data) && igRes.data.length > 0) {
+        const first = igRes.data[0];
+        const stream = first.url || first.download_url;
+        if (stream && stream.startsWith('http')) {
+          return {
+            type: "Instagram",
+            title: "Instagram Reel / Post",
+            author: "Instagram Creator",
+            videoUrl: stream,
+            cover: first.thumbnail,
+            directStream: true
+          };
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Fast yt-dlp fallback
+  const ytRes = await resolveWithYtDlp(url, "Instagram", 6500);
+  if (ytRes) return ytRes;
+
+  return await resolveCobalt(url);
+}
+
+// 4. Cobalt Multi-Host Resolver (Fallback)
 const COBALT_HOSTS = [
   "https://cobalt-latest-a04h.onrender.com",
   "https://co.wuk.sh",
@@ -173,7 +274,7 @@ async function resolveCobalt(url, quality = "720") {
           downloadMode: "auto",
           alwaysProxy: true
         }),
-        signal: AbortSignal.timeout(9000)
+        signal: AbortSignal.timeout(6000)
       });
       if (res.ok) {
         const json = await res.json();
@@ -193,7 +294,7 @@ async function resolveCobalt(url, quality = "720") {
   return null;
 }
 
-// 3. Dedicated YouTube Resolver (Loader.to Full Poll Cycle + oEmbed)
+// 5. Dedicated YouTube Resolver (Fast yt-dlp + oEmbed fallback)
 async function resolveYouTube(url, onProgressUpdate = null) {
   try {
     let oEmbedTitle = "YouTube Video";
@@ -202,7 +303,7 @@ async function resolveYouTube(url, onProgressUpdate = null) {
 
     try {
       const oeRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(3500)
       });
       if (oeRes.ok) {
         const oeJson = await oeRes.json();
@@ -212,7 +313,15 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       }
     } catch (_) {}
 
-    // Method: Loader.to API
+    // 1st Priority: Ultra-fast yt-dlp (3-5s)
+    const ytdlRes = await resolveWithYtDlp(url, "YouTube", 7000);
+    if (ytdlRes && ytdlRes.videoUrl) {
+      if (oEmbedThumb && !ytdlRes.cover) ytdlRes.cover = oEmbedThumb;
+      if (oEmbedTitle && ytdlRes.title === "YouTube Video") ytdlRes.title = oEmbedTitle;
+      return ytdlRes;
+    }
+
+    // 2nd Priority: Loader.to API
     const hosts = ["https://loader.to", "https://en.loader.to"];
     for (const host of hosts) {
       try {
@@ -220,7 +329,7 @@ async function resolveYouTube(url, onProgressUpdate = null) {
         const startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`;
         const startRes = await fetch(startUrl, {
           headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": `${host}/` },
-          signal: AbortSignal.timeout(12000)
+          signal: AbortSignal.timeout(8000)
         });
 
         if (startRes.ok) {
@@ -240,11 +349,10 @@ async function resolveYouTube(url, onProgressUpdate = null) {
             if (onProgressUpdate) {
               await onProgressUpdate("⏳ <b>Converting YouTube Video...</b>\n<i>Rendering high-definition MP4 stream...</i>");
             }
-            // Poll up to 14 times (28 seconds max)
-            for (let i = 0; i < 14; i++) {
-              await new Promise(r => setTimeout(r, 2000));
+            for (let i = 0; i < 8; i++) {
+              await new Promise(r => setTimeout(r, 1500));
               try {
-                const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(6000) });
+                const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(4000) });
                 if (pRes.ok) {
                   const pJson = await pRes.json();
                   if (pJson.download_url && pJson.download_url.startsWith("http")) {
@@ -280,11 +388,11 @@ async function resolveYouTube(url, onProgressUpdate = null) {
   }
 }
 
-// 4. TeraBox Resolver
+// 6. TeraBox Resolver
 async function resolveTeraBox(url) {
   try {
     const res = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(8000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -315,6 +423,10 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId) {
   try {
     if (lower.includes("tiktok.com")) {
       media = await resolveTikTok(url);
+    } else if (lower.includes("facebook.com") || lower.includes("fb.watch") || lower.includes("fb.com")) {
+      media = await resolveFacebook(url);
+    } else if (lower.includes("instagram.com") || lower.includes("instagr.am")) {
+      media = await resolveInstagram(url);
     } else if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
       media = await resolveYouTube(url, async (statusText) => {
         await callTg("editMessageText", {
@@ -327,8 +439,11 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId) {
     } else if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink")) {
       media = await resolveTeraBox(url);
     } else {
-      // Instagram, Facebook, Twitter, Pinterest, etc.
-      media = await resolveCobalt(url);
+      // General video link (Twitter, Pinterest, Reddit, etc.)
+      media = await resolveWithYtDlp(url, "Social Video", 7000);
+      if (!media) {
+        media = await resolveCobalt(url);
+      }
     }
 
     if (!media || !media.videoUrl) {
