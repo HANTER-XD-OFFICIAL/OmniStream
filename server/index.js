@@ -330,13 +330,13 @@ client.on('ready', () => {
   botStatus = 'Connected & Operational';
   connectedUser = client.info?.wid?.user || 'Active User';
   console.log(`✅ OmniStream WhatsApp Bot is READY! Connected as: ${connectedUser}`);
-  console.log('🤫 Silent Mode Active: Ignoring all messages except #download and /download');
+  console.log('⚡ 10-Minute Downloader Mode Active: Use #download or /download to activate');
   sendTelegramNotification(
 `✅ *WhatsApp Connected Successfully!*
 
 🤖 *Service:* OmniStream WhatsApp Media Bot
 👤 *Connected User:* \`${connectedUser}\`
-🤫 *Mode:* Strict Silent Active (#download and /download only)
+⚡ *Mode:* 10-Minute Active Downloader (\`#download\` or \`#start\` to activate)
 🚀 *Status:* 100% Operational 24/7 (Session Saved)`
   );
 });
@@ -600,6 +600,26 @@ const activeSessions = new Map();
 const SESSION_DURATION_MS = 10 * 60 * 1000; // 10 Minutes
 const processedMessageIds = new Set();
 
+// Robust message delivery helper (tries client.sendMessage, falls back to msg.reply)
+async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = null) {
+  try {
+    return await client.sendMessage(chatId, content, options);
+  } catch (err1) {
+    console.warn(`[WA SEND] client.sendMessage failed to ${chatId}: ${err1.message}`);
+    if (originalMsg && typeof originalMsg.reply === 'function') {
+      try {
+        if (typeof content === 'string') {
+          return await originalMsg.reply(content);
+        } else {
+          return await client.sendMessage(originalMsg.from, content, options);
+        }
+      } catch (err2) {
+        console.error(`[WA SEND] Fallback reply also failed: ${err2.message}`);
+      }
+    }
+  }
+}
+
 // Helper: Download and Deliver Media
 async function downloadAndSendMedia(chatId, msg, targetUrl) {
   console.log(`[WA BOT] Processing download for: ${targetUrl} in ${chatId}`);
@@ -608,18 +628,23 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
     await msg.react('⏳');
   } catch (_) {}
 
-  try {
-    await client.sendMessage(chatId, "⚡ *Analyzing link...*\n_Fetching high-speed media stream from server..._");
-  } catch (_) {}
+  await sendWhatsAppMessage(
+    chatId,
+    "⚡ *Analyzing link...*\n_Fetching high-speed media stream from server..._",
+    {},
+    msg
+  );
 
   // Resolve Media URL
   const media = await resolveAnyMedia(targetUrl);
 
   if (!media || !media.videoUrl) {
     try { await msg.react('❌'); } catch (_) {}
-    await client.sendMessage(
+    await sendWhatsAppMessage(
       chatId,
-      "❌ *Download Failed*\n\nCould not extract a downloadable video stream from this link. Please ensure the link is public and try again."
+      "❌ *Download Failed*\n\nCould not extract a downloadable video stream from this link. Please ensure the link is public and try again.",
+      {},
+      msg
     );
     return;
   }
@@ -653,14 +678,16 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
   // Large file protection: On Render Free tier (512MB RAM), base64 files > 30MB cause Chrome CDP memory crash
   if (sizeBytes > 30 * 1024 * 1024) {
     try { await msg.react('✅'); } catch (_) {}
-    await client.sendMessage(
+    await sendWhatsAppMessage(
       chatId,
       `🎬 *${shortTitle}*\n\n` +
       `👤 *Platform:* ${media.type || "Social Media"}\n` +
       `💾 *File Size:* ${sizeMb} MB\n\n` +
       `⚠️ *ভিডিও সাইজ বড় হওয়ায় সরাসরি দ্রুত ডাউনলোড লিংক দেওয়া হলো:*\n\n` +
       `📥 *Direct Fast Download:*\n${media.videoUrl}\n\n` +
-      `⚡ *OmniStream Bot*`
+      `⚡ *OmniStream Bot*`,
+      {},
+      msg
     );
     return;
   }
@@ -670,32 +697,38 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
     const base64Data = Buffer.from(arrayBuffer).toString('base64');
     const mediaFile = new MessageMedia('video/mp4', base64Data, 'video.mp4');
 
-    await client.sendMessage(chatId, mediaFile, {
-      caption: caption
-    });
+    await sendWhatsAppMessage(
+      chatId,
+      mediaFile,
+      { caption: caption },
+      msg
+    );
 
     try { await msg.react('✅'); } catch (_) {}
     console.log(`[WA BOT] Successfully delivered video to ${chatId}`);
   } catch (uploadErr) {
     console.warn(`[WA BOT] Direct upload failed, falling back to direct stream link: ${uploadErr.message}`);
-    await client.sendMessage(
+    await sendWhatsAppMessage(
       chatId,
       `🎬 *${shortTitle}*\n\n` +
       `👤 *Platform:* ${media.type || "Social Media"}\n` +
       `💾 *Size:* ${sizeMb} MB\n\n` +
       `📥 *Direct Video Link:*\n${media.videoUrl}\n\n` +
-      `⚡ *Downloaded via OmniStream Bot*`
+      `⚡ *Downloaded via OmniStream Bot*`,
+      {},
+      msg
     );
   }
 }
 
-client.on('message_create', async (msg) => {
+// Master Incoming & Outgoing Message Handler
+async function handleWhatsAppMessage(msg) {
   try {
     const text = (msg.body || "").trim();
     if (!text) return;
 
-    // Deduplication check
-    const msgId = msg.id?._serialized || `${msg.from}_${text}_${Date.now()}`;
+    // Deduplication check: Guarantee each message is processed only once
+    const msgId = msg.id?._serialized || `${msg.from}_${text}_${msg.timestamp || Date.now()}`;
     if (processedMessageIds.has(msgId)) return;
     processedMessageIds.add(msgId);
     if (processedMessageIds.size > 500) {
@@ -703,27 +736,57 @@ client.on('message_create', async (msg) => {
       processedMessageIds.delete(first);
     }
 
-    // Target chat
-    const chatId = msg.fromMe ? (msg.to || msg.from) : msg.from;
+    // Determine target chatId (supports remote contacts, group chats, and self-chat "Message yourself")
+    let chatId = null;
+    if (typeof msg.id?.remote === 'string' && msg.id.remote) {
+      chatId = msg.id.remote;
+    } else if (msg.fromMe) {
+      chatId = (typeof msg.to === 'string' ? msg.to : msg.to?._serialized) || 
+               (typeof msg.from === 'string' ? msg.from : msg.from?._serialized);
+    } else {
+      chatId = (typeof msg.from === 'string' ? msg.from : msg.from?._serialized);
+    }
+
     if (!chatId) return;
 
+    console.log(`📩 [WA INCOMING] Chat: ${chatId} | fromMe: ${msg.fromMe} | Msg: "${text.substring(0, 60)}"`);
+
     // 1. Check for STOP / EXIT command
-    const isStopCommand = /^([#/]stop|[#/]cancel|[#/]exit|[#/]off)\b/i.test(text);
+    const isStopCommand = /^([#/]?(stop|cancel|exit|off))\b/i.test(text);
     if (isStopCommand) {
       if (activeSessions.has(chatId)) {
         const session = activeSessions.get(chatId);
         if (session?.timer) clearTimeout(session.timer);
         activeSessions.delete(chatId);
-        await client.sendMessage(
+        await sendWhatsAppMessage(
           chatId,
-          "🛑 *OmniStream Downloader বন্ধ করা হয়েছে।* \n\nএখন আপনারা স্বাভাবিকভাবে চ্যাট করতে পারবেন। আবার ডাউনলোড করতে চাইলে `#download` লিখুন।"
+          "🛑 *OmniStream Downloader বন্ধ করা হয়েছে।* \n\nএখন আপনারা স্বাভাবিকভাবে চ্যাট করতে পারবেন। আবার ডাউনলোড করতে চাইলে `#download` লিখুন।",
+          {},
+          msg
         );
       }
       return;
     }
 
-    // 2. Check for ACTIVATION command: #download or /download
-    const isActivation = /^([#/]download|[#/]start)\b/i.test(text);
+    // 2. Check for HELP / MENU command
+    const isHelpCommand = /^([#/]?(help|menu|info))\b/i.test(text);
+    if (isHelpCommand) {
+      await sendWhatsAppMessage(
+        chatId,
+        `🤖 *OmniStream WhatsApp Media Bot*\n\n` +
+        `📌 *ব্যবহার করার নিয়ম:*\n` +
+        `1️⃣ বটের ডাউনলোডার সক্রিয় করতে লিখুন: \`#download\` বা \`/download\`\n` +
+        `2️⃣ এরপর ১০ মিনিটের ভেতর যেকোনো ভিডিও লিংক (TikTok, Instagram, Facebook, YouTube, TeraBox) সরাসরি পাঠিয়ে দিন।\n` +
+        `3️⃣ ১০ মিনিট পর স্বয়ংক্রিয়ভাবে সেশন বন্ধ হবে এবং আপনি স্বাভাবিকভাবে কথা বলতে পারবেন।\n\n` +
+        `🛑 সেশন আগে বন্ধ করতে লিখুন: \`#stop\``,
+        {},
+        msg
+      );
+      return;
+    }
+
+    // 3. Check for ACTIVATION command: #download, /download, download, #start, /start, start
+    const isActivation = /^([#/]?(download|start))\b/i.test(text);
     if (isActivation) {
       // Set or renew 10-minute session
       const existing = activeSessions.get(chatId);
@@ -732,7 +795,7 @@ client.on('message_create', async (msg) => {
       const timeoutTimer = setTimeout(async () => {
         activeSessions.delete(chatId);
         try {
-          await client.sendMessage(
+          await sendWhatsAppMessage(
             chatId,
             "⏱️ *ডাউনলোডার সেশন শেষ (১০ মিনিট সমাপ্ত)*\n\nস্বাভাবিক চ্যাট চালু রয়েছে। পরবর্তীতে যেকোনো ভিডিও ডাউনলোড করতে চাইলে পুনরায় `#download` লিখুন।"
           );
@@ -744,60 +807,67 @@ client.on('message_create', async (msg) => {
         timer: timeoutTimer
       });
 
-      console.log(`[WA BOT] Activated 10-min Downloader session for: ${chatId}`);
+      console.log(`[WA BOT] 🟢 Activated 10-min Downloader session for: ${chatId}`);
 
-      // Check if user also included a URL in the activation message
+      // Check if user also included a video URL with the command
       const targetUrl = extractUrl(text);
       if (targetUrl) {
         await downloadAndSendMedia(chatId, msg, targetUrl);
       } else {
         // Send activation welcome card
-        await client.sendMessage(
+        await sendWhatsAppMessage(
           chatId,
           `⚡ *OmniStream Video Downloader সক্রিয় হয়েছে!* ⚡\n\n` +
           `⏱️ *সেশন মেয়াদ:* ১০ মিনিট সচল থাকবে\n` +
           `📥 *ব্যবহার:* এখন যেকোনো ভিডিও লিংক (TikTok, Instagram, YouTube, Facebook, TeraBox) সরাসরি এই চ্যাটে পাঠিয়ে দিন।\n\n` +
           `💡 *নোট:* আগামী ১০ মিনিটের মধ্যে যে ভিডিও লিংকই দেবেন, বট নিজে থেকেই ডাউনলোড করে দেবে।\n` +
           `১০ মিনিট পর সেশন স্বয়ংক্রিয়ভাবে বন্ধ হয়ে যাবে এবং আপনি স্বাভাবিকভাবে কথা বলতে পারবেন।\n\n` +
-          `🛑 যেকোনো সময় বন্ধ করতে লিখুন: \`#stop\``
+          `🛑 যেকোনো সময় বন্ধ করতে লিখুন: \`#stop\``,
+          {},
+          msg
         );
       }
       return;
     }
 
-    // 3. If session is active, check if user sent a video link directly
-    const session = activeSessions.get(chatId);
-    const isSessionActive = session && session.expiresAt > Date.now();
+    // 4. Check if message contains a video URL directly
+    const directUrl = extractUrl(text);
+    if (directUrl) {
+      // If someone sends a video URL, automatically activate 10-min session and download it!
+      const existing = activeSessions.get(chatId);
+      if (existing?.timer) clearTimeout(existing.timer);
 
-    if (isSessionActive) {
-      const targetUrl = extractUrl(text);
-      if (targetUrl) {
-        // Refresh 10-minute timer
-        if (session.timer) clearTimeout(session.timer);
-        session.expiresAt = Date.now() + SESSION_DURATION_MS;
-        session.timer = setTimeout(async () => {
-          activeSessions.delete(chatId);
-          try {
-            await client.sendMessage(
-              chatId,
-              "⏱️ *ডাউনলোডার সেশন শেষ (১০ মিনিট সমাপ্ত)*\n\nস্বাভাবিক চ্যাট চালু রয়েছে। পরবর্তীতে যেকোনো ভিডিও ডাউনলোড করতে চাইলে পুনরায় `#download` লিখুন।"
-            );
-          } catch (_) {}
-        }, SESSION_DURATION_MS);
+      const timeoutTimer = setTimeout(async () => {
+        activeSessions.delete(chatId);
+        try {
+          await sendWhatsAppMessage(
+            chatId,
+            "⏱️ *ডাউনলোডার সেশন শেষ (১০ মিনিট সমাপ্ত)*\n\nস্বাভাবিক চ্যাট চালু রয়েছে। পরবর্তীতে যেকোনো ভিডিও ডাউনলোড করতে চাইলে পুনরায় `#download` লিখুন।"
+          );
+        } catch (_) {}
+      }, SESSION_DURATION_MS);
 
-        await downloadAndSendMedia(chatId, msg, targetUrl);
-        return;
-      }
-      // If active session but normal message (no URL), do not disturb, let them chat
+      activeSessions.set(chatId, {
+        expiresAt: Date.now() + SESSION_DURATION_MS,
+        timer: timeoutTimer
+      });
+
+      console.log(`[WA BOT] Direct URL detected, auto-activated session for: ${chatId}`);
+      await downloadAndSendMedia(chatId, msg, directUrl);
       return;
     }
 
-    // 4. If session is NOT active: 100% STRICT SILENCE MODE
-    // Do nothing at all so normal conversation between friends continues smoothly!
+    // 5. If session is active and user sends normal text (no URL):
+    // Do not interfere! Let them talk normally even during the active session.
+    return;
   } catch (err) {
     console.error("[WA BOT ERROR]:", err.message);
   }
-});
+}
+
+// Bind BOTH 'message' (incoming from others) and 'message_create' (outgoing/self)
+client.on('message', handleWhatsAppMessage);
+client.on('message_create', handleWhatsAppMessage);
 
 // Initialize the WhatsApp Client
 console.log('🚀 Initializing OmniStream WhatsApp Downloader Client...');
