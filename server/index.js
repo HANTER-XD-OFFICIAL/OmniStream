@@ -11,8 +11,84 @@
 
 import express from 'express';
 import qrcode from 'qrcode-terminal';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import puppeteer from 'puppeteer';
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia } = pkg;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure PUPPETEER_CACHE_DIR points to our persistent local cache directory
+const cacheDir = path.join(__dirname, '.cache', 'puppeteer');
+if (!process.env.PUPPETEER_CACHE_DIR) {
+  process.env.PUPPETEER_CACHE_DIR = cacheDir;
+}
+
+function getChromeExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    console.log(`[CHROME] Using env PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  // Try puppeteer.executablePath()
+  try {
+    const pPath = puppeteer.executablePath();
+    if (pPath && fs.existsSync(pPath)) {
+      console.log(`[CHROME] Found via puppeteer.executablePath(): ${pPath}`);
+      return pPath;
+    }
+  } catch (_) {}
+
+  // Search in cache folders
+  const searchDirs = [
+    cacheDir,
+    path.join(process.cwd(), '.cache', 'puppeteer'),
+    '/opt/render/.cache/puppeteer'
+  ];
+  for (const sDir of searchDirs) {
+    if (fs.existsSync(sDir)) {
+      const walk = (d) => {
+        try {
+          const files = fs.readdirSync(d);
+          for (const file of files) {
+            const fullPath = path.join(d, file);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              const res = walk(fullPath);
+              if (res) return res;
+            } else if ((file === 'chrome' || file === 'chrome.exe') && (stat.mode & 0o111 || process.platform === 'win32')) {
+              return fullPath;
+            }
+          }
+        } catch (_) {}
+        return null;
+      };
+      const found = walk(sDir);
+      if (found) {
+        console.log(`[CHROME] Discovered in cache directory: ${found}`);
+        return found;
+      }
+    }
+  }
+
+  // System fallback
+  const systemPaths = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser'
+  ];
+  for (const sp of systemPaths) {
+    if (fs.existsSync(sp)) {
+      console.log(`[CHROME] Found system Chrome: ${sp}`);
+      return sp;
+    }
+  }
+
+  return undefined;
+}
 
 // ==================== EXPRESS HEALTHCHECK SERVER ====================
 // Required by Render so port binding passes & UptimeRobot can keep it alive 24/7
@@ -65,13 +141,20 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 // ==================== WHATSAPP CLIENT INITIALIZATION ====================
+const resolvedChromePath = getChromeExecutablePath();
+if (resolvedChromePath) {
+  console.log(`🎯 Using Chrome Executable: ${resolvedChromePath}`);
+} else {
+  console.log(`ℹ️ No explicit Chrome path found, relying on Puppeteer default resolver.`);
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: './.wwebjs_auth'
   }),
   puppeteer: {
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath: resolvedChromePath || undefined,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',

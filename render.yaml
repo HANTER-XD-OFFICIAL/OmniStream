@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: omnistream-telegram-bot
+    name: omnistream-whatsapp-bot
     runtime: node
     plan: free
     rootDir: server
-    buildCommand: npm install
-    startCommand: node bot.mjs
+    buildCommand: npm install && npx puppeteer browsers install chrome
+    startCommand: node index.js
     autoDeploy: true
     healthCheckPath: /
     envVars:
-      - key: BOT_TOKEN
-        value: 8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/server/.cache/puppeteer
