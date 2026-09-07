@@ -2,10 +2,17 @@
   "name": "download-all-in-one-telegram-bot",
   "version": "1.0.0",
   "description": "Official 24/7 Telegram Video Downloader Bot for OmniStream - DOWNLOAD ALL IN ONE",
-  "main": "bot.mjs",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node bot.mjs"
+    "start": "node index.js",
+    "start:whatsapp": "node index.js",
+    "start:telegram": "node bot.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
   },
   "keywords": [
     "telegram-bot",
