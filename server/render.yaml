@@ -9,4 +9,4 @@ services:
     healthCheckPath: /
     envVars:
       - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/src/server/.cache/puppeteer
+        value: /opt/render/project/src/server/chrome

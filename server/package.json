@@ -8,7 +8,7 @@
     "start": "node index.js",
     "start:whatsapp": "node index.js",
     "start:telegram": "node bot.mjs",
-    "build": "npx @puppeteer/browsers install chrome@stable"
+    "build": "npx @puppeteer/browsers install chrome@stable --path ./chrome"
   },
   "dependencies": {
     "express": "^4.21.0",

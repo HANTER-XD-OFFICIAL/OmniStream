@@ -21,10 +21,11 @@ const { Client, LocalAuth, MessageMedia } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure PUPPETEER_CACHE_DIR points to our persistent local cache directory
+// Ensure PUPPETEER_CACHE_DIR points to our persistent local directory
+const localChromeDir = path.join(__dirname, 'chrome');
 const cacheDir = path.join(__dirname, '.cache', 'puppeteer');
 if (!process.env.PUPPETEER_CACHE_DIR) {
-  process.env.PUPPETEER_CACHE_DIR = cacheDir;
+  process.env.PUPPETEER_CACHE_DIR = localChromeDir;
 }
 
 function getChromeExecutablePath() {
@@ -41,33 +42,47 @@ function getChromeExecutablePath() {
     }
   } catch (_) {}
 
-  // Search in cache folders
+  // Search directories inside project
   const searchDirs = [
+    localChromeDir,
+    path.join(process.cwd(), 'chrome'),
+    path.join(__dirname, 'node_modules', 'puppeteer'),
     cacheDir,
     path.join(process.cwd(), '.cache', 'puppeteer'),
+    path.join(process.cwd(), '.cache'),
+    '/opt/render/project/src/server/chrome',
+    '/opt/render/project/src/server/.cache/puppeteer',
+    '/opt/render/project/src/.cache/puppeteer',
     '/opt/render/.cache/puppeteer'
   ];
+
   for (const sDir of searchDirs) {
     if (fs.existsSync(sDir)) {
-      const walk = (d) => {
+      const walk = (d, depth = 0) => {
+        if (depth > 6) return null;
         try {
           const files = fs.readdirSync(d);
           for (const file of files) {
             const fullPath = path.join(d, file);
-            const stat = fs.statSync(fullPath);
-            if (stat.isDirectory()) {
-              const res = walk(fullPath);
-              if (res) return res;
-            } else if ((file === 'chrome' || file === 'chrome.exe') && (stat.mode & 0o111 || process.platform === 'win32')) {
-              return fullPath;
-            }
+            try {
+              const stat = fs.statSync(fullPath);
+              if (stat.isDirectory()) {
+                const res = walk(fullPath, depth + 1);
+                if (res) return res;
+              } else if (file === 'chrome' || file === 'chrome.exe' || file === 'chromium') {
+                try {
+                  fs.chmodSync(fullPath, 0o755);
+                } catch (_) {}
+                return fullPath;
+              }
+            } catch (_) {}
           }
         } catch (_) {}
         return null;
       };
       const found = walk(sDir);
       if (found) {
-        console.log(`[CHROME] Discovered in cache directory: ${found}`);
+        console.log(`[CHROME] Discovered in directory: ${found}`);
         return found;
       }
     }
