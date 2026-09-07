@@ -3,7 +3,7 @@ services:
     name: omnistream-whatsapp-bot
     runtime: node
     plan: free
-    buildCommand: npm install && npx puppeteer browsers install chrome
+    buildCommand: npm install && npm run build
     startCommand: node index.js
     autoDeploy: true
     healthCheckPath: /
