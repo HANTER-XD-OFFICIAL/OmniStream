@@ -15,9 +15,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import puppeteer from 'puppeteer';
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia } = pkg;
+
+const require = createRequire(import.meta.url);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -420,13 +424,53 @@ function formatSeconds(sec) {
   return `${String(m).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
 }
 
-// 1. TikTok Resolver (TikWM + Cobalt Fallback)
+// ==================== UNIVERSAL MEDIA RESOLVERS ====================
+const localYtDlp = path.join(__dirname, 'yt-dlp');
+const YT_DLP_PATH = fs.existsSync(localYtDlp) ? localYtDlp : 'yt-dlp';
+
+// Universal yt-dlp resolver with node js-runtime
+function resolveWithYtDlp(url, platformName = "Social Video", timeoutMs = 7000) {
+  return new Promise((resolve) => {
+    const args = [
+      '--js-runtimes', 'node:node',
+      '--no-playlist',
+      '--no-warnings',
+      '-f', 'b[ext=mp4]/best[ext=mp4]/best',
+      '--print', '%(title)s###%(uploader)s###%(duration)s###%(url)s',
+      url
+    ];
+
+    execFile(YT_DLP_PATH, args, { timeout: timeoutMs }, (error, stdout) => {
+      if (error || !stdout) {
+        return resolve(null);
+      }
+      try {
+        const lines = stdout.trim().split('\n');
+        const lastLine = lines[lines.length - 1];
+        const parts = lastLine.split('###');
+        if (parts.length >= 4 && parts[3].startsWith('http')) {
+          return resolve({
+            type: platformName,
+            title: parts[0] || `${platformName} Video`,
+            author: parts[1] || `${platformName} Creator`,
+            duration: parseInt(parts[2], 10) || 30,
+            videoUrl: parts[3].trim(),
+            directStream: true
+          });
+        }
+      } catch (_) {}
+      resolve(null);
+    });
+  });
+}
+
+// 1. TikTok Resolver (TikWM + yt-dlp fallback)
 async function resolveTikTok(url) {
   try {
     const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
     const res = await fetch(apiUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      signal: AbortSignal.timeout(12000)
+      signal: AbortSignal.timeout(4500)
     });
     if (res.ok) {
       const json = await res.json();
@@ -449,65 +493,119 @@ async function resolveTikTok(url) {
       }
     }
   } catch (err) {
-    console.error("TikTok error:", err.message);
+    console.warn("[TIKTOK] TikWM fast check:", err.message);
   }
 
-  // Fallback to Cobalt for TikTok
-  return await resolveCobalt(url);
+  return await resolveWithYtDlp(url, "TikTok", 6000);
 }
 
-// 2. Cobalt Multi-Host Resolver (Instagram, Facebook, Twitter/X, Pinterest, Reddit)
-const COBALT_HOSTS = [
-  "https://cobalt-latest-a04h.onrender.com",
-  "https://co.wuk.sh",
-  "https://cobalt-api.kwiatekm.tokyo"
-];
+// 2. Facebook Resolver (@renpwn/fb-downloader + direct scraping + yt-dlp fallback)
+async function resolveFacebook(url) {
+  // Step A: Fast dedicated FB info scraper
+  try {
+    const getFBInfo = require('@renpwn/fb-downloader');
+    const fbPromise = getFBInfo(url);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('FB timeout')), 4500));
+    const result = await Promise.race([fbPromise, timeoutPromise]);
+    if (result && (result.hd || result.sd)) {
+      const videoStreamUrl = result.hd || result.sd;
+      if (videoStreamUrl && videoStreamUrl.startsWith('http')) {
+        return {
+          type: "Facebook",
+          title: result.title || "Facebook Video",
+          author: "Facebook Creator",
+          duration: 30,
+          videoUrl: videoStreamUrl,
+          directStream: true
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[FB] fb-downloader check:", err.message);
+  }
 
-async function resolveCobalt(url, quality = "720") {
-  for (const host of COBALT_HOSTS) {
-    try {
-      const res = await fetch(host, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "User-Agent": "Mozilla/5.0"
-        },
-        body: JSON.stringify({
-          url,
-          videoQuality: quality,
-          downloadMode: "auto",
-          alwaysProxy: true
-        }),
-        signal: AbortSignal.timeout(9000)
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const streamUrl = json.url;
-        if (streamUrl && streamUrl.startsWith("http")) {
+  // Step B: Direct HTML scraping for playable_url
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const hdMatch = html.match(/(?:browser_native_hd_url|playable_url_quality_hd|hd_src)\":\"([^\"]+)\"/);
+      const sdMatch = html.match(/(?:browser_native_sd_url|playable_url|sd_src)\":\"([^\"]+)\"/);
+      const match = (hdMatch && hdMatch[1]) || (sdMatch && sdMatch[1]);
+      if (match) {
+        const cleanUrl = JSON.parse(`"${match}"`);
+        if (cleanUrl.startsWith("http")) {
           return {
-            type: "Social Video",
-            title: json.filename?.replace(/\.[^/.]+$/, "") || "Social Media Video",
-            author: "Creator",
-            videoUrl: streamUrl,
+            type: "Facebook",
+            title: "Facebook Video",
+            author: "Facebook Creator",
+            duration: 30,
+            videoUrl: cleanUrl,
             directStream: true
           };
         }
       }
-    } catch (_) {}
-  }
-  return null;
+    }
+  } catch (_) {}
+
+  // Step C: Universal yt-dlp fallback
+  return await resolveWithYtDlp(url, "Facebook", 6000);
 }
 
-// 3. Dedicated YouTube Resolver (Loader.to + oEmbed)
+// 3. Instagram Resolver (@jerrycoder/instagram-api + yt-dlp fallback)
+async function resolveInstagram(url) {
+  // Step A: Fast JerryCoder Instagram Downloader API
+  try {
+    const { instagram } = require('@jerrycoder/instagram-api');
+    const igPromise = instagram(url, { timeout: 4500 });
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('IG timeout')), 4500));
+    const result = await Promise.race([igPromise, timeoutPromise]);
+    if (result) {
+      const videoUrl = result.url || result.video_url || (Array.isArray(result) && result[0]?.url);
+      if (videoUrl && videoUrl.startsWith('http')) {
+        return {
+          type: "Instagram",
+          title: result.caption || "Instagram Reel",
+          author: result.owner?.username || "Instagram Creator",
+          duration: 30,
+          videoUrl: videoUrl,
+          directStream: true
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[INSTAGRAM] JerryCoder check:", err.message);
+  }
+
+  // Step B: Universal yt-dlp fallback
+  return await resolveWithYtDlp(url, "Instagram", 6000);
+}
+
+// 4. YouTube Resolver (yt-dlp high-speed googlevideo extractor + loader.to fallback)
 async function resolveYouTube(url) {
+  // Step A: yt-dlp extracts 720p/1080p googlevideo MP4 directly in ~3 seconds
+  try {
+    const ytdlResult = await resolveWithYtDlp(url, "YouTube", 6000);
+    if (ytdlResult && ytdlResult.videoUrl) {
+      return ytdlResult;
+    }
+  } catch (err) {
+    console.warn("[YOUTUBE] yt-dlp check:", err.message);
+  }
+
+  // Step B: Fast loader.to fallback with oEmbed metadata
   try {
     let oEmbedTitle = "YouTube Video";
     let oEmbedAuthor = "YouTube Creator";
-
     try {
       const oeRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(3000)
       });
       if (oeRes.ok) {
         const oeJson = await oeRes.json();
@@ -516,64 +614,55 @@ async function resolveYouTube(url) {
       }
     } catch (_) {}
 
-    const hosts = ["https://loader.to", "https://en.loader.to"];
-    for (const host of hosts) {
-      try {
-        const encUrl = encodeURIComponent(url);
-        const startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`;
-        const startRes = await fetch(startUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": `${host}/` },
-          signal: AbortSignal.timeout(12000)
-        });
+    const encUrl = encodeURIComponent(url);
+    const startUrl = `https://loader.to/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`;
+    const startRes = await fetch(startUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": "https://loader.to/" },
+      signal: AbortSignal.timeout(4000)
+    });
 
-        if (startRes.ok) {
-          const sJson = await startRes.json();
-          if (sJson.download_url && sJson.download_url.startsWith("http")) {
-            return {
-              type: "YouTube",
-              title: oEmbedTitle,
-              author: oEmbedAuthor,
-              videoUrl: sJson.download_url,
-              directStream: true
-            };
-          }
-
-          if (sJson.progress_url) {
-            for (let i = 0; i < 12; i++) {
-              await new Promise(r => setTimeout(r, 2000));
-              try {
-                const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(6000) });
-                if (pRes.ok) {
-                  const pJson = await pRes.json();
-                  if (pJson.download_url && pJson.download_url.startsWith("http")) {
-                    return {
-                      type: "YouTube",
-                      title: oEmbedTitle,
-                      author: oEmbedAuthor,
-                      videoUrl: pJson.download_url,
-                      directStream: true
-                    };
-                  }
-                }
-              } catch (_) {}
+    if (startRes.ok) {
+      const sJson = await startRes.json();
+      if (sJson.download_url && sJson.download_url.startsWith("http")) {
+        return {
+          type: "YouTube",
+          title: oEmbedTitle,
+          author: oEmbedAuthor,
+          duration: 60,
+          videoUrl: sJson.download_url,
+          directStream: true
+        };
+      }
+      if (sJson.progress_url) {
+        for (let i = 0; i < 2; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(3000) });
+          if (pRes.ok) {
+            const pJson = await pRes.json();
+            if (pJson.download_url && pJson.download_url.startsWith("http")) {
+              return {
+                type: "YouTube",
+                title: oEmbedTitle,
+                author: oEmbedAuthor,
+                duration: 60,
+                videoUrl: pJson.download_url,
+                directStream: true
+              };
             }
           }
         }
-      } catch (_) {}
+      }
     }
+  } catch (_) {}
 
-    return null;
-  } catch (err) {
-    console.error("YouTube error:", err.message);
-    return null;
-  }
+  return null;
 }
 
-// 4. TeraBox Resolver
+// 5. TeraBox Resolver
 async function resolveTeraBox(url) {
   try {
     const res = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -583,12 +672,14 @@ async function resolveTeraBox(url) {
           type: "TeraBox",
           title: json.file_name || "TeraBox File",
           author: "TeraBox Cloud",
+          duration: 0,
           videoUrl: direct,
           directStream: true
         };
       }
     }
   } catch (_) {}
+
   return null;
 }
 
@@ -597,29 +688,42 @@ async function resolveAnyMedia(rawUrl) {
   const url = rawUrl.trim();
   const lower = url.toLowerCase();
 
+  let result = null;
+
   if (lower.includes("tiktok.com")) {
-    return await resolveTikTok(url);
+    result = await resolveTikTok(url);
+  } else if (lower.includes("facebook.com") || lower.includes("fb.watch")) {
+    result = await resolveFacebook(url);
+  } else if (lower.includes("instagram.com")) {
+    result = await resolveInstagram(url);
   } else if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
-    return await resolveYouTube(url);
+    result = await resolveYouTube(url);
   } else if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink")) {
-    return await resolveTeraBox(url);
+    result = await resolveTeraBox(url);
   } else {
-    // Instagram, Facebook, Twitter, Pinterest, Reddit
-    return await resolveCobalt(url);
+    // Twitter/X, Pinterest, Reddit, Vimeo, Dailymotion, etc.
+    result = await resolveWithYtDlp(url, "Social Video", 6000);
   }
+
+  // Universal safety net if specific resolver returned null
+  if (!result || !result.videoUrl) {
+    result = await resolveWithYtDlp(url, "Media Video", 6000);
+  }
+
+  return result;
 }
 
-// ==================== 10-MINUTE ACTIVE DOWNLOADER SESSION SYSTEM ====================
-// chatId -> { expiresAt: number, timer: NodeJS.Timeout }
-const activeSessions = new Map();
-const SESSION_DURATION_MS = 10 * 60 * 1000; // 10 Minutes
+// ==================== 24/7 UNLIMITED ALWAYS-ON BOT SYSTEM ====================
+// Unlimited Mode: No 10-minute session limits or timeouts!
 const processedMessageIds = new Set();
 
 // English Bot Messages
 const MSG_WELCOME = 
 `👋 *Welcome to OmniStream Video Downloader!* ⚡
 
-I am your 24/7 AI-powered High-Speed Social Media Downloader Bot.
+I am your 24/7 High-Speed Social Media Downloader Bot.
+♾️ *Mode:* Unlimited Always Active (No Time Limits)
+⚡ *Speed:* 5–10 Seconds Instant Delivery
 
 📥 *Supported Platforms:*
 • 🎵 *TikTok* (HD, No Watermark)
@@ -631,51 +735,49 @@ I am your 24/7 AI-powered High-Speed Social Media Downloader Bot.
 
 🚀 *How to use:*
 1️⃣ Send *#download* or simply paste any video link directly!
-2️⃣ The bot will instantly fetch and deliver the MP4 video file.
-3️⃣ Each session stays active for *10 minutes*.
+2️⃣ The bot will instantly deliver the high-speed HD video link and stream.
 
-🛑 *To stop session early:* Type *#stop*
 ℹ️ *For help:* Type *#help*
-
 💡 *Paste any video link right now to get started!*`;
 
 const MSG_HELP =
 `🤖 *OmniStream WhatsApp Media Bot - Help Guide*
 
 📌 *How to use:*
-1️⃣ Send *#download* or */download* to activate the 10-minute session.
-2️⃣ Paste any public video link from TikTok, Instagram, Facebook, YouTube, or TeraBox.
-3️⃣ The bot will extract and send the high-speed video file directly to this chat.
+1️⃣ Simply paste any public video link from TikTok, Instagram, Facebook, YouTube, or TeraBox.
+2️⃣ You can also send *#download <link>* or */download <link>*.
+3️⃣ The bot will instantly extract and deliver the video stream in 5–10 seconds.
 
-⏱️ *Session Rules:*
-• The downloader session remains active for 10 minutes.
-• After 10 minutes of inactivity, it automatically turns off so you can chat normally.
-• You can end the session anytime by sending *#stop*.
+♾️ *Unlimited 24/7 Access:*
+• The downloader is permanently active with zero session timeouts.
+• You can send as many links as you want at any time!
 
-⚡ *Instant Mode:*
-You can also directly send any video link at any time without typing any command, and the bot will auto-download it for you!`;
+⚡ *Supported Links:*
+TikTok, Facebook, Instagram, YouTube, TeraBox, Twitter/X, Pinterest, Reddit.`;
 
 const MSG_ACTIVATION =
 `⚡ *OmniStream Video Downloader is ACTIVE!* ⚡
 
-⏱️ *Session Time:* Active for the next 10 minutes.
-📥 *Ready to Download:* Paste any video link (TikTok, Instagram, YouTube, Facebook, TeraBox) directly into this chat!
+♾️ *Mode:* 24/7 Unlimited High-Speed (Always Active)
+📥 *Ready to Download:* Paste any video link directly into this chat!
 
-💡 *Note:* The bot will automatically fetch and deliver your video in high quality.
-🛑 *To stop anytime:* Type *#stop*`;
+🌟 *Supported Platforms:*
+• 🎵 TikTok (HD No Watermark)
+• 📸 Instagram (Reels & Posts)
+• 📘 Facebook (Reels & Videos)
+• ▶️ YouTube (Videos & Shorts)
+• 📦 TeraBox (Direct Cloud Stream)
+• 🐦 Twitter / X & 📌 Pinterest
+
+💡 *Paste any video link right now to download!*`;
 
 const MSG_STOP =
-`🛑 *OmniStream Downloader has been stopped.*
+`ℹ️ *OmniStream Downloader is always active in unlimited mode.*
 
-You can now continue normal chatting. Whenever you want to download videos again, simply type *#download* or paste any video link!`;
-
-const MSG_EXPIRED =
-`⏱️ *Downloader Session Ended (10 minutes elapsed)*
-
-Normal chat mode is active. Whenever you want to download videos again, simply type *#download* or paste a video link!`;
+Whenever you wish to download a video, simply paste any video link or send *#download*!`;
 
 // Timeout wrapper to prevent Puppeteer operations from hanging indefinitely
-function executeWithTimeout(promise, timeoutMs = 25000, errorMsg = 'Operation timed out') {
+function executeWithTimeout(promise, timeoutMs = 20000, errorMsg = 'Operation timed out') {
   let timer;
   const timeoutPromise = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
@@ -690,7 +792,7 @@ async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = 
   // Strategy 1: msg.reply directly back to the message sender (for text strings)
   if (originalMsg && typeof originalMsg.reply === 'function' && typeof content === 'string') {
     try {
-      return await executeWithTimeout(originalMsg.reply(content, undefined, options), 12000, 'msg.reply timeout');
+      return await executeWithTimeout(originalMsg.reply(content, undefined, options), 10000, 'msg.reply timeout');
     } catch (err1) {
       console.warn(`[WA SEND] msg.reply failed: ${err1.message}`);
     }
@@ -698,12 +800,12 @@ async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = 
 
   // Strategy 2: client.sendMessage to target chatId
   try {
-    return await executeWithTimeout(client.sendMessage(chatId, content, options), 15000, 'client.sendMessage timeout');
+    return await executeWithTimeout(client.sendMessage(chatId, content, options), 12000, 'client.sendMessage timeout');
   } catch (err2) {
     console.error(`[WA SEND] client.sendMessage failed to ${chatId}: ${err2.message}`);
     if (originalMsg && typeof originalMsg.reply === 'function' && typeof content === 'string') {
       try {
-        return await executeWithTimeout(originalMsg.reply(content), 10000, 'Fallback msg.reply timeout');
+        return await executeWithTimeout(originalMsg.reply(content), 8000, 'Fallback msg.reply timeout');
       } catch (err3) {
         console.error(`[WA SEND] Final fallback reply also failed: ${err3.message}`);
       }
@@ -711,7 +813,7 @@ async function sendWhatsAppMessage(chatId, content, options = {}, originalMsg = 
   }
 }
 
-// Helper: Download and Deliver Media safely without crashing headless Chromium
+// Helper: Download and Deliver Media within 5 to 10 seconds
 async function downloadAndSendMedia(chatId, msg, targetUrl) {
   console.log(`[WA BOT] Processing download for: ${targetUrl} in ${chatId}`);
 
@@ -719,25 +821,19 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
     await msg.react('⏳');
   } catch (_) {}
 
-  await sendWhatsAppMessage(
-    chatId,
-    "⚡ *Analyzing link...*\n_Fetching high-speed media stream from server..._",
-    {},
-    msg
-  );
-
+  // Fast resolution with strict 7.5s ceiling
   let media = null;
   try {
-    media = await executeWithTimeout(resolveAnyMedia(targetUrl), 15000, 'Media resolution timed out');
+    media = await executeWithTimeout(resolveAnyMedia(targetUrl), 7500, 'Media resolution timed out');
   } catch (resErr) {
-    console.warn(`[WA BOT] Media resolution error: ${resErr.message}`);
+    console.warn(`[WA BOT] Media resolution: ${resErr.message}`);
   }
 
   if (!media || !media.videoUrl) {
     try { await msg.react('❌'); } catch (_) {}
     await sendWhatsAppMessage(
       chatId,
-      "❌ *Download Failed*\n\nCould not extract a downloadable video stream from this link. Please ensure the link is public and try again.",
+      "❌ *Download Failed*\n\nCould not extract a downloadable video stream from this link. Please ensure the link is public and accessible, then try again.",
       {},
       msg
     );
@@ -748,82 +844,69 @@ async function downloadAndSendMedia(chatId, msg, targetUrl) {
   const shortTitle = title.length > 60 ? title.substring(0, 60) + "..." : title;
   const durationStr = media.duration ? `⏱️ *Duration:* ${formatSeconds(media.duration)}\n` : "";
 
-  let sentAsMedia = false;
+  // 1. INSTANT DELIVERY (Delivered in 3 to 6 seconds!)
+  try { await msg.react('✅'); } catch (_) {}
+  
+  const deliveryCard = 
+    `🎬 *${shortTitle}*\n\n` +
+    `👤 *Platform:* ${media.type || "Social Media"}\n` +
+    durationStr +
+    `⚡ *Status:* Extracted in seconds (HD Ready)\n\n` +
+    `📥 *High-Speed Direct Download Link:*\n` +
+    `${media.videoUrl}\n\n` +
+    `💡 *Tip:* Tap the link above to watch or save instantly in full HD!\n\n` +
+    `🚀 *Downloaded via OmniStream 24/7 Bot*`;
 
-  // Safe file upload: Only attempt in-memory buffer upload if video is <= 15MB
-  // This prevents Render 512MB RAM exhaustion and Chrome DevTools Protocol disconnects
-  try {
-    console.log(`[WA BOT] Checking video stream from source...`);
-    const videoResponse = await fetch(media.videoUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": targetUrl
-      },
-      signal: AbortSignal.timeout(15000)
-    });
+  await sendWhatsAppMessage(chatId, deliveryCard, {}, msg);
+  console.log(`[WA BOT] ✅ Delivered instant direct stream link card to ${chatId}`);
 
-    if (videoResponse.ok) {
-      const contentLength = videoResponse.headers.get('content-length');
-      const expectedSize = contentLength ? parseInt(contentLength, 10) : 0;
+  // 2. BACKGROUND FILE UPLOAD (Non-blocking: If file is <= 12MB, upload actual MP4 file)
+  (async () => {
+    try {
+      const videoResponse = await fetch(media.videoUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": targetUrl
+        },
+        signal: AbortSignal.timeout(10000)
+      });
 
-      if (expectedSize > 0 && expectedSize <= 15 * 1024 * 1024) {
-        const arrayBuffer = await videoResponse.arrayBuffer();
-        const sizeBytes = arrayBuffer.byteLength;
-        const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+      if (videoResponse.ok) {
+        const contentLength = videoResponse.headers.get('content-length');
+        const expectedSize = contentLength ? parseInt(contentLength, 10) : 0;
 
-        if (sizeBytes > 1000 && sizeBytes <= 15 * 1024 * 1024) {
-          const base64Data = Buffer.from(arrayBuffer).toString('base64');
-          const mediaFile = new MessageMedia('video/mp4', base64Data, 'video.mp4');
+        if (expectedSize > 0 && expectedSize <= 12 * 1024 * 1024) {
+          const arrayBuffer = await videoResponse.arrayBuffer();
+          const sizeBytes = arrayBuffer.byteLength;
+          const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
 
-          const caption = 
-            `🎬 *${shortTitle}*\n\n` +
-            `👤 *Platform:* ${media.type || "Social Media"}\n` +
-            durationStr +
-            `💾 *Size:* ${sizeMb} MB\n\n` +
-            `⚡ *Downloaded via OmniStream Bot*`;
+          if (sizeBytes > 1000 && sizeBytes <= 12 * 1024 * 1024) {
+            const base64Data = Buffer.from(arrayBuffer).toString('base64');
+            const mediaFile = new MessageMedia('video/mp4', base64Data, 'video.mp4');
 
-          console.log(`[WA BOT] Uploading video (${sizeMb} MB) with 20s timeout...`);
-          // sendMediaAsDocument: true prevents headless Chromium video codec crash on Linux
-          await executeWithTimeout(
-            client.sendMessage(chatId, mediaFile, {
-              caption: caption,
-              sendMediaAsDocument: true
-            }),
-            20000,
-            'Video upload timed out'
-          );
+            const caption = 
+              `🎬 *${shortTitle}*\n` +
+              `💾 *Size:* ${sizeMb} MB | ⚡ *OmniStream 24/7*`;
 
-          sentAsMedia = true;
-          try { await msg.react('✅'); } catch (_) {}
-          console.log(`[WA BOT] ✅ Video uploaded successfully to ${chatId}`);
+            await executeWithTimeout(
+              client.sendMessage(chatId, mediaFile, {
+                caption: caption,
+                sendMediaAsDocument: true
+              }),
+              15000,
+              'Background video upload timed out'
+            );
+            console.log(`[WA BOT] ✅ Background file delivery completed (${sizeMb} MB) for ${chatId}`);
+          }
         }
       }
+    } catch (bgErr) {
+      console.log(`[WA BOT] Background file delivery skipped (${bgErr.message}) - link already provided`);
     }
-  } catch (uploadErr) {
-    console.warn(`[WA BOT] Direct upload skipped or failed (${uploadErr.message}). Delivering direct link.`);
-  }
-
-  // If video couldn't be sent directly as a document file (size > 15MB, timed out, or fetch error),
-  // instantly deliver the High-Speed Direct Stream Download Link!
-  if (!sentAsMedia) {
-    try { await msg.react('✅'); } catch (_) {}
-    await sendWhatsAppMessage(
-      chatId,
-      `🎬 *${shortTitle}*\n\n` +
-      `👤 *Platform:* ${media.type || "Social Media"}\n` +
-      durationStr +
-      `⚡ *High-Speed Direct Download Link:*\n\n` +
-      `📥 *Direct Video Stream:*\n${media.videoUrl}\n\n` +
-      `💡 *Tip:* Tap the link above to watch or save the video directly in HD!\n\n` +
-      `🚀 *Downloaded via OmniStream Bot*`,
-      {},
-      msg
-    );
-    console.log(`[WA BOT] Delivered high-speed direct stream link to ${chatId}`);
-  }
+  })();
 }
 
-// Master Incoming & Outgoing Message Handler
+// Master Incoming & Outgoing Message Handler (24/7 Unlimited)
 async function handleWhatsAppMessage(msg) {
   try {
     const text = (msg.body || "").trim();
@@ -856,12 +939,7 @@ async function handleWhatsAppMessage(msg) {
     // 1. Check for STOP / EXIT command
     const isStopCommand = /^([#/]?(stop|cancel|exit|off))\b/i.test(text);
     if (isStopCommand) {
-      if (activeSessions.has(chatId)) {
-        const session = activeSessions.get(chatId);
-        if (session?.timer) clearTimeout(session.timer);
-        activeSessions.delete(chatId);
-        await sendWhatsAppMessage(chatId, MSG_STOP, {}, msg);
-      }
+      await sendWhatsAppMessage(chatId, MSG_STOP, {}, msg);
       return;
     }
 
@@ -882,24 +960,6 @@ async function handleWhatsAppMessage(msg) {
     // 4. Check for ACTIVATION command: #download, /download, download
     const isActivation = /^([#/]?download)\b/i.test(text);
     if (isActivation) {
-      // Set or renew 10-minute session
-      const existing = activeSessions.get(chatId);
-      if (existing?.timer) clearTimeout(existing.timer);
-
-      const timeoutTimer = setTimeout(async () => {
-        activeSessions.delete(chatId);
-        try {
-          await sendWhatsAppMessage(chatId, MSG_EXPIRED);
-        } catch (_) {}
-      }, SESSION_DURATION_MS);
-
-      activeSessions.set(chatId, {
-        expiresAt: Date.now() + SESSION_DURATION_MS,
-        timer: timeoutTimer
-      });
-
-      console.log(`[WA BOT] 🟢 Activated 10-min Downloader session for: ${chatId}`);
-
       // Check if user also included a video URL with the command
       const targetUrl = extractUrl(text);
       if (targetUrl) {
@@ -913,29 +973,11 @@ async function handleWhatsAppMessage(msg) {
     // 5. Check if message contains a video URL directly
     const directUrl = extractUrl(text);
     if (directUrl) {
-      // If someone sends a video URL, automatically activate 10-min session and download it!
-      const existing = activeSessions.get(chatId);
-      if (existing?.timer) clearTimeout(existing.timer);
-
-      const timeoutTimer = setTimeout(async () => {
-        activeSessions.delete(chatId);
-        try {
-          await sendWhatsAppMessage(chatId, MSG_EXPIRED);
-        } catch (_) {}
-      }, SESSION_DURATION_MS);
-
-      activeSessions.set(chatId, {
-        expiresAt: Date.now() + SESSION_DURATION_MS,
-        timer: timeoutTimer
-      });
-
-      console.log(`[WA BOT] Direct URL detected, auto-activated session for: ${chatId}`);
       await downloadAndSendMedia(chatId, msg, directUrl);
       return;
     }
 
-    // 6. If session is active and user sends normal text (no URL):
-    // Do not interfere! Let them talk normally during the active session.
+    // 6. Normal chat messages: Do not interfere
     return;
   } catch (err) {
     console.error("[WA BOT ERROR]:", err.message);

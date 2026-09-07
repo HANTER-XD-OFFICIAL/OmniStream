@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@jerrycoder/instagram-api": "^2.5.9",
+    "@renpwn/fb-downloader": "^1.0.16",
+    "btch-downloader": "^6.3.6",
+    "snapsave-media-downloader": "^2.4.1"
+  }
+}
