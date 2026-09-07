@@ -179,10 +179,41 @@ if (resolvedChromePath) {
   console.log(`ℹ️ No explicit Chrome path found, relying on Puppeteer default resolver.`);
 }
 
+// Clean up any stale Chrome profile locks from previous runs to prevent browser lockup
+function cleanStaleChromeLocks(dir) {
+  try {
+    if (!fs.existsSync(dir)) return;
+    const items = fs.readdirSync(dir);
+    for (const item of items) {
+      const full = path.join(dir, item);
+      try {
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) {
+          cleanStaleChromeLocks(full);
+        } else if (item.startsWith('Singleton') || item === 'parent.lock') {
+          fs.unlinkSync(full);
+          console.log(`🧹 Cleared stale Chrome lock: ${item}`);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+const authDataPath = path.join(__dirname, '.wwebjs_auth');
+cleanStaleChromeLocks(authDataPath);
+
 const client = new Client({
   authStrategy: new LocalAuth({
-    dataPath: './.wwebjs_auth'
+    clientId: 'omnistream-master',
+    dataPath: authDataPath
   }),
+  takeoverOnConflict: true,
+  takeoverTimeoutMs: 0,
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+    strict: false
+  },
   puppeteer: {
     headless: true,
     ...(resolvedChromePath ? { executablePath: resolvedChromePath } : {}),
@@ -192,9 +223,11 @@ const client = new Client({
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-extensions',
+      '--disable-component-update',
+      '--disable-features=Translate,OptimizationHints,MediaRouter',
+      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
     ]
   }
 });
@@ -272,6 +305,18 @@ client.on('qr', (qr) => {
   sendTelegramQR(qr);
 });
 
+// Authenticated Event (Credentials saved to LocalAuth disk)
+client.on('authenticated', () => {
+  currentQR = null;
+  botStatus = 'Authenticated';
+  console.log('🔐 [WHATSAPP] Session AUTHENTICATED! Credentials locked into persistent storage.');
+});
+
+// Loading screen event (WhatsApp syncing chats)
+client.on('loading_screen', (percent, message) => {
+  console.log(`⏳ [WHATSAPP] Syncing chats: ${percent}% - ${message}`);
+});
+
 // Ready Event
 client.on('ready', () => {
   currentQR = null;
@@ -285,7 +330,7 @@ client.on('ready', () => {
 🤖 *Service:* OmniStream WhatsApp Media Bot
 👤 *Connected User:* \`${connectedUser}\`
 🤫 *Mode:* Strict Silent Active (#download and /download only)
-🚀 *Status:* 100% Operational 24/7`
+🚀 *Status:* 100% Operational 24/7 (Session Saved)`
   );
 });
 
@@ -296,15 +341,46 @@ client.on('auth_failure', (msg) => {
   sendTelegramNotification(`❌ *WhatsApp Authentication Failure:*\n\`${msg}\``);
 });
 
-// Disconnected Event
-client.on('disconnected', (reason) => {
+// Disconnected Event with Safe Reconnect
+let isReconnecting = false;
+client.on('disconnected', async (reason) => {
   botStatus = 'Disconnected';
   connectedUser = null;
   console.warn('⚠️ WhatsApp client disconnected:', reason);
-  sendTelegramNotification(`⚠️ *WhatsApp Disconnected:*\nReason: \`${reason}\`\n🔄 Reconnecting...`);
-  console.log('🔄 Reconnecting WhatsApp client...');
-  client.initialize();
+  sendTelegramNotification(`⚠️ *WhatsApp Disconnected:*\nReason: \`${reason}\`\n🔄 Attempting safe reconnection...`);
+
+  if (isReconnecting) return;
+  isReconnecting = true;
+
+  try {
+    await client.destroy().catch(() => {});
+  } catch (_) {}
+
+  // Wait 5 seconds to let OS release file locks and sockets
+  setTimeout(async () => {
+    try {
+      console.log('🔄 Re-initializing WhatsApp client from saved session...');
+      cleanStaleChromeLocks(authDataPath);
+      await client.initialize();
+    } catch (err) {
+      console.error('❌ Reconnection error:', err.message);
+    } finally {
+      isReconnecting = false;
+    }
+  }, 5000);
 });
+
+// 24/7 Keep-Alive Heartbeat: Pings WhatsApp Web state every 25 seconds to prevent idle timeout
+setInterval(async () => {
+  try {
+    if (client && connectedUser) {
+      const state = await client.getState().catch(() => null);
+      if (state && state !== 'CONNECTED') {
+        console.log(`📡 [HEARTBEAT] WhatsApp state: ${state}`);
+      }
+    }
+  } catch (_) {}
+}, 25000);
 
 // ==================== VIDEO RESOLVERS ENGINE ====================
 
