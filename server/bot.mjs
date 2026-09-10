@@ -317,6 +317,8 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "start", description: "Start OmniStream Bot" },
+        { command: "menu", description: "📋 Open Menu Bar" },
+        { command: "close", description: "❌ Close Menu Bar" },
         { command: "app", description: "📱 Download Official Android App (APK)" },
         { command: "help", description: "How to download videos & guide" }
       ],
@@ -327,6 +329,8 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "admin", description: "👑 Open Master Admin Panel" },
+        { command: "menu", description: "📋 Open Menu Bar" },
+        { command: "close", description: "❌ Close Menu Bar" },
         { command: "app", description: "📱 Download Official App (APK)" },
         { command: "check_update", description: "🚀 Check GitHub Releases & Notify" },
         { command: "users", description: "👥 View Registered Users" },
@@ -353,19 +357,17 @@ function getReplyKeyboardForUser(userId) {
       keyboard: [
         [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
         [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
-        [{ text: "📱 Download Official App" }]
+        [{ text: "📱 Download Official App" }, { text: "❌ Close Menu" }]
       ],
-      resize_keyboard: true,
-      is_persistent: true
+      resize_keyboard: true
     };
   } else {
     return {
       keyboard: [
-        [{ text: "📱 Download Official App" }],
+        [{ text: "📱 Download Official App" }, { text: "❌ Close Menu" }],
         [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }]
       ],
-      resize_keyboard: true,
-      is_persistent: true
+      resize_keyboard: true
     };
   }
 }
@@ -1590,8 +1592,7 @@ async function handleUpdate(update) {
         await callTg("sendMessage", {
           chat_id: chatId,
           text: `⚠️ <i>Unknown command. Send any media link (YouTube, TikTok, Facebook, Instagram, TeraBox) to download.</i>`,
-          parse_mode: "HTML",
-          reply_markup: getReplyKeyboardForUser(senderId)
+          parse_mode: "HTML"
         });
         return;
       }
@@ -1600,6 +1601,29 @@ async function handleUpdate(update) {
     // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
     if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app")) {
       await handleSendApk(chatId, senderId);
+      return;
+    }
+
+    // ==================== CLOSE / OPEN MENU TOGGLES ====================
+    if (text === "❌ Close Menu" || text === "/close" || text === "/close_menu" || text === "❌ মেনু বন্ধ করুন" || text === "❌ Hide Menu") {
+      await callTg("sendMessage", {
+        chat_id: chatId,
+        text: "❌ <b>Menu bar closed.</b>\n<i>Tap <b>/menu</b> anytime to reopen the menu bar.</i>",
+        parse_mode: "HTML",
+        reply_markup: {
+          remove_keyboard: true
+        }
+      });
+      return;
+    }
+
+    if (text === "/menu" || text === "📋 Menu" || text === "📋 মেনু খুলুন") {
+      await callTg("sendMessage", {
+        chat_id: chatId,
+        text: "📋 <b>Menu bar opened.</b>\n<i>Select an option below or tap <b>❌ Close Menu</b> to hide it:</i>",
+        parse_mode: "HTML",
+        reply_markup: getReplyKeyboardForUser(senderId)
+      });
       return;
     }
 
@@ -1697,8 +1721,7 @@ async function handleUpdate(update) {
       await callTg("sendMessage", {
         chat_id: chatId,
         text: "⚠️ <i>Please send a valid media link (TikTok, Facebook, Instagram, YouTube, TeraBox) to download.</i>",
-        parse_mode: "HTML",
-        reply_markup: getReplyKeyboardForUser(senderId)
+        parse_mode: "HTML"
       });
     }
   } catch (err) {
