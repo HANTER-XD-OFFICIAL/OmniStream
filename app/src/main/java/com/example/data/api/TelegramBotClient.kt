@@ -32,7 +32,8 @@ class TelegramBotClient {
         .build()
 
     companion object {
-        const val DEFAULT_BOT_TOKEN = "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18"
+        val DEFAULT_BOT_TOKEN: String
+            get() = SecureTokenStore.getDecryptedBotToken()
         const val DEFAULT_BOT_USERNAME = "OmniStream34_bot"
         const val DEFAULT_BOT_NAME = "OmniStream"
         const val BOT_TELEGRAM_URL = "https://t.me/OmniStream34_bot"

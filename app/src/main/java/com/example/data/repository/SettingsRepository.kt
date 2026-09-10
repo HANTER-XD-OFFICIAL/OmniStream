@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.data.api.SecureTokenStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +16,7 @@ data class AppSettings(
     val embedThumbnail: Boolean = true,
     val extraCliFlags: String = "--embed-metadata --embed-thumbnail",
     val maxConcurrentDownloads: Int = 3,
-    val telegramBotToken: String = "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18",
+    val telegramBotToken: String = SecureTokenStore.getDecryptedBotToken(),
     val telegramBotUsername: String = "OmniStream34_bot",
     val telegramBotName: String = "OmniStream",
     val telegramChatId: String = "",
@@ -49,10 +50,11 @@ class SettingsRepository(context: Context) {
                 ?: "--embed-metadata --embed-thumbnail",
             maxConcurrentDownloads = prefs.getInt("max_concurrent", 3),
             telegramBotToken = run {
-                val saved = prefs.getString("telegram_bot_token", "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18")
-                if (saved.isNullOrBlank() || saved.contains("8523953940")) {
-                    prefs.edit().putString("telegram_bot_token", "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18").apply()
-                    "8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18"
+                val defaultEncryptedToken = SecureTokenStore.getDecryptedBotToken()
+                val saved = prefs.getString("telegram_bot_token", "")
+                if (saved.isNullOrBlank() || saved != defaultEncryptedToken) {
+                    prefs.edit().putString("telegram_bot_token", defaultEncryptedToken).apply()
+                    defaultEncryptedToken
                 } else {
                     saved
                 }

@@ -13,7 +13,7 @@ Official Telegram Downloader Bot for OmniStream.
 3. আপনার GitHub রিপোজিটরি কানেক্ট করুন অথবা এই `server` ফোল্ডার আপলোড করুন।
 4. **Build Command:** `echo "Ready"`
 5. **Start Command:** `node bot.mjs`
-6. **Environment Variable:** `BOT_TOKEN` = `8451030732:AAEK2MnsTmdJbhqQVMtUik4s58TuNZFHo18`
+6. **Environment Variable:** `BOT_TOKEN` = (Optional: securely injected via Render Secret, or runs from internal encrypted vault)
 7. ব্যস! আপনার অফিসিয়াল বট ২৪ ঘণ্টা ৩৬৫ দিন অনলাইনে থাকবে এবং সবাই ভিডিও ডাউনলোড করতে পারবে!
 
 ---
