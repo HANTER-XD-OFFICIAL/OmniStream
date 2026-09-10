@@ -2067,7 +2067,19 @@ class YtDlpClient(
      */
     private fun extractTikTokVideo(tiktokUrl: String): VideoInfoResponse? {
         try {
-            val encoded = Uri.encode(tiktokUrl)
+            var targetUrl = tiktokUrl.trim()
+            if ("vm.tiktok.com" in targetUrl || "vt.tiktok.com" in targetUrl || "/t/" in targetUrl) {
+                try {
+                    val headReq = Request.Builder().url(targetUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                    val headResp = okHttpClient.newCall(headReq).execute()
+                    val finalUrl = headResp.request.url.toString()
+                    if (finalUrl.isNotBlank() && "tiktok.com" in finalUrl) {
+                        targetUrl = finalUrl
+                    }
+                } catch (_: Exception) {}
+            }
+
+            val encoded = Uri.encode(targetUrl)
             val apiUrl = "https://www.tikwm.com/api/?url=$encoded"
             val request = Request.Builder()
                 .url(apiUrl)
@@ -2159,9 +2171,63 @@ class YtDlpClient(
                             durationString = durStr,
                             uploader = author,
                             extractor = "TikTok",
-                            webpageUrl = tiktokUrl,
+                            webpageUrl = targetUrl,
                             description = "TikTok watermark-free video and original audio stream.",
                             formats = if (formats.isNotEmpty()) formats else generateSocialFormats(title, playUrl)
+                        )
+                    }
+                }
+            }
+
+            // Cobalt Failover for TikTok
+            val cobaltPayload = JSONObject().apply {
+                put("url", targetUrl)
+                put("videoQuality", "720")
+                put("downloadMode", "auto")
+            }.toString()
+
+            val cobaltReq = Request.Builder()
+                .url("https://cobalt-latest-a04h.onrender.com")
+                .post(cobaltPayload.toRequestBody("application/json".toMediaType()))
+                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .addHeader("Accept", "application/json")
+                .build()
+
+            val cobaltResp = okHttpClient.newCall(cobaltReq).execute()
+            if (cobaltResp.isSuccessful) {
+                val cBody = cobaltResp.body?.string() ?: ""
+                if (cBody.startsWith("{")) {
+                    val cJson = JSONObject(cBody)
+                    val streamUrl = cJson.optString("url", "")
+                    if (streamUrl.isNotBlank()) {
+                        val videoId = "tiktok_${System.currentTimeMillis() % 10000}"
+                        val filename = cJson.optString("filename", "TikTok Video")
+                        return VideoInfoResponse(
+                            id = videoId,
+                            title = filename,
+                            thumbnail = null,
+                            duration = 30L,
+                            durationString = "00:30",
+                            uploader = "TikTok Creator",
+                            extractor = "TikTok",
+                            webpageUrl = targetUrl,
+                            description = "TikTok watermark-free direct stream.",
+                            formats = listOf(
+                                FormatInfo(
+                                    formatId = "cobalt_hd",
+                                    formatNote = "HD 720p • Watermark-Free Direct Stream",
+                                    resolution = "720x1280",
+                                    width = 720,
+                                    height = 1280,
+                                    fps = 30,
+                                    ext = "mp4",
+                                    vcodec = "h264",
+                                    acodec = "aac",
+                                    filesizeApprox = 16_000_000L,
+                                    tbr = 2000.0,
+                                    url = streamUrl
+                                )
+                            )
                         )
                     }
                 }

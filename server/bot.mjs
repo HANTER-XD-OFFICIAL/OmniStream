@@ -167,7 +167,7 @@ function unblockUser(userId) {
 }
 
 // ==================== RENDER / UPTIMEROBOT HTTP SERVER ====================
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.BOT_PORT || (process.env.PORT && process.env.PORT !== '8080' ? process.env.PORT : 10000);
 const uptimeServer = http.createServer((req, res) => {
   res.writeHead(200, { 
     'Content-Type': 'application/json',
@@ -267,8 +267,18 @@ async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup
 
 function extractUrl(text) {
   if (!text) return null;
-  const match = text.match(/https?:\/\/[^\s]+/i);
-  return match ? match[0] : null;
+  const matches = text.match(/https?:\/\/[^\s"'<>\)]+/gi);
+  if (!matches || matches.length === 0) return null;
+
+  // Prioritize actual media URLs over app store/marketing links (e.g. tiktoklite, play.google.com)
+  const mediaMatches = matches.filter(u => {
+    const l = u.toLowerCase();
+    if (l.includes("tiktoklite") || l.includes("play.google.com") || l.includes("apps.apple.com")) return false;
+    return true;
+  });
+
+  const selected = mediaMatches.length > 0 ? mediaMatches[0] : matches[0];
+  return selected.replace(/[.,;:!?)\]}>"'\\]+$/, "").trim();
 }
 
 function escapeHtml(text) {
@@ -612,34 +622,185 @@ setInterval(() => {
 
 // ==================== RESOLVERS ====================
 
-// 1. TikTok Resolver (TikWM) - Includes Full Audio
-async function resolveTikTok(url) {
-  try {
-    const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
-    const res = await fetch(apiUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      signal: AbortSignal.timeout(12000)
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json.code !== 0 || !json.data) return null;
+// 1. TikTok Multi-Tier High-Availability Engine (TikWM + Cobalt + SSSTik + oEmbed)
 
-    const data = json.data;
-    const playUrl = data.play || data.hdplay;
-    return {
-      type: "TikTok",
-      title: data.title || "TikTok Video",
-      author: data.author?.nickname || "TikTok Creator",
-      duration: data.duration || 15,
-      cover: data.cover || data.origin_cover,
-      videoUrl: playUrl,
-      audioUrl: data.music || data.music_info?.play,
-      directStream: true
-    };
-  } catch (err) {
-    console.error("TikTok error:", err.message);
-    return null;
+async function expandShortUrl(rawUrl) {
+  try {
+    const res = await fetch(rawUrl, {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+      },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (res.url && res.url !== rawUrl && res.url.startsWith("http")) {
+      return res.url;
+    }
+  } catch (_) {}
+  return rawUrl;
+}
+
+async function getTikTokOEmbed(targetUrl) {
+  try {
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(targetUrl)}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(4000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        title: data.title,
+        author: data.author_name ? `@${data.author_unique_id || ""} (${data.author_name})` : (data.author_unique_id || "TikTok Creator"),
+        cover: data.thumbnail_url
+      };
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function resolveTikTok(rawUrl) {
+  const url = rawUrl.trim();
+  console.log(`[TIKTOK] Starting multi-tier resolution for: ${url}`);
+
+  // Auto-expand shortlinks (vm.tiktok.com, vt.tiktok.com, v.douyin.com, tiktok.com/t/)
+  let canonicalUrl = url;
+  if (url.includes("vm.tiktok.com") || url.includes("vt.tiktok.com") || url.includes("v.douyin.com") || url.includes("/t/")) {
+    canonicalUrl = await expandShortUrl(url);
+    console.log(`[TIKTOK] Shortlink expanded to: ${canonicalUrl}`);
   }
+
+  // Fetch authentic metadata in background via oEmbed if available
+  let oEmbedMeta = null;
+  try {
+    oEmbedMeta = await getTikTokOEmbed(canonicalUrl);
+  } catch (_) {}
+
+  const candidateUrls = [canonicalUrl, url].filter((v, i, a) => a.indexOf(v) === i);
+
+  // TIER 1: TikWM Direct & Mirror with Auto-Retry
+  for (const tUrl of candidateUrls) {
+    const endpoints = [
+      "https://www.tikwm.com/api/",
+      "https://tikwm.com/api/"
+    ];
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(`${ep}?url=${encodeURIComponent(tUrl)}&hd=1`, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*"
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.code === 0 && json.data) {
+            const data = json.data;
+            let playUrl = data.hdplay || data.play || data.wmplay;
+            if (playUrl && playUrl.startsWith("/")) {
+              playUrl = "https://www.tikwm.com" + playUrl;
+            }
+
+            if (playUrl) {
+              console.log(`[TIKTOK] Tier 1 (TikWM) Success via ${ep}`);
+              return {
+                type: "TikTok",
+                title: data.title || oEmbedMeta?.title || "TikTok Video",
+                author: data.author?.nickname || data.author?.unique_id || oEmbedMeta?.author || "TikTok Creator",
+                duration: data.duration || 15,
+                cover: data.cover || data.origin_cover || oEmbedMeta?.cover,
+                videoUrl: playUrl,
+                audioUrl: data.music || data.music_info?.play,
+                directStream: true
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[TIKTOK] TikWM error on ${ep}:`, err.message);
+      }
+    }
+  }
+
+  // TIER 2: Cobalt High-Speed Dedicated Stream (Full Audio & Video Muxed)
+  for (const tUrl of candidateUrls) {
+    const cobaltHosts = [
+      "https://cobalt-latest-a04h.onrender.com",
+      "https://cobalt.api.redstream.org"
+    ];
+    for (const host of cobaltHosts) {
+      try {
+        const res = await fetch(host, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0"
+          },
+          body: JSON.stringify({
+            url: tUrl,
+            videoQuality: "720",
+            downloadMode: "auto"
+          }),
+          signal: AbortSignal.timeout(8000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.status === "tunnel" || data.status === "redirect" || data.status === "stream") && data.url) {
+            console.log(`[TIKTOK] Tier 2 (Cobalt) Success via ${host}`);
+            return {
+              type: "TikTok",
+              title: data.filename || oEmbedMeta?.title || "TikTok Video",
+              author: oEmbedMeta?.author || "TikTok Creator",
+              cover: oEmbedMeta?.cover,
+              videoUrl: data.url,
+              directStream: true
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(`[TIKTOK] Cobalt error on ${host}:`, err.message);
+      }
+    }
+  }
+
+  // TIER 3: SSSTik Engine Scraper (tikcdn.io)
+  for (const tUrl of candidateUrls) {
+    try {
+      const res = await fetch("https://ssstik.io/abc?url=dl", {
+        method: "POST",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "HX-Request": "true"
+        },
+        body: `id=${encodeURIComponent(tUrl)}&locale=en&tt=0`,
+        signal: AbortSignal.timeout(7000)
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const match = html.match(/href="(https:\/\/[^"]+)"[^>]*class="[^"]*without_watermark/i) ||
+                      html.match(/href="(https:\/\/[^"]+)"/i);
+        if (match && match[1] && (match[1].includes("tikcdn.io") || match[1].includes(".mp4") || match[1].startsWith("http"))) {
+          console.log("[TIKTOK] Tier 3 (SSSTik) Success");
+          return {
+            type: "TikTok",
+            title: oEmbedMeta?.title || "TikTok Video",
+            author: oEmbedMeta?.author || "TikTok Creator",
+            cover: oEmbedMeta?.cover,
+            videoUrl: match[1],
+            directStream: true
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("[TIKTOK] SSSTik error:", err.message);
+    }
+  }
+
+  console.warn(`[TIKTOK] All dedicated tiers exhausted for: ${url}`);
+  return null;
 }
 
 // 2. Cobalt Multi-Host Resolver (Instagram, Facebook, Twitter, Reddit) - Complete with Audio & Video Muxed
@@ -806,8 +967,12 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
   saveDatabase();
 
   try {
-    if (lower.includes("tiktok.com")) {
+    if (lower.includes("tiktok.com") || lower.includes("douyin.com")) {
       media = await resolveTikTok(url);
+      if (!media || !media.videoUrl) {
+        console.log(`[TIKTOK FAILOVER] resolveTikTok exhausted, trying resolveCobalt for: ${url}`);
+        media = await resolveCobalt(url);
+      }
     } else if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
       media = await resolveYouTube(url, async (statusText) => {
         await callTg("editMessageText", {
@@ -831,7 +996,6 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
             [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
         }
@@ -888,13 +1052,22 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           return;
         }
 
-        const vidRes = await fetch(media.videoUrl, {
+        let vidRes = await fetch(media.videoUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": url
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
           },
           signal: AbortSignal.timeout(60000)
         });
+
+        if (!vidRes.ok && media.type === "TikTok") {
+          vidRes = await fetch(media.videoUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            },
+            signal: AbortSignal.timeout(60000)
+          });
+        }
 
         if (vidRes.ok) {
           const videoBuffer = await vidRes.arrayBuffer();
@@ -911,7 +1084,6 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
             const replyMarkup = {
               inline_keyboard: [
                 [{ text: "🌐 Direct HD Stream Link", url: media.videoUrl }],
-                [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
                 [{ text: "👨‍💻 Developer Profile", url: DEV_TELEGRAM }]
               ]
             };
@@ -938,7 +1110,6 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     const buttons = [
       [{ text: "📥 Download / Watch Video (HD)", url: media.videoUrl }],
-      [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
       [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
     ];
 
@@ -1479,12 +1650,10 @@ async function handleUpdate(update) {
           `1. Copy any video link from YouTube, TikTok, Facebook, Instagram, or TeraBox.\n` +
           `2. Send the link directly to this chat.\n` +
           `3. The bot will automatically fetch and deliver the MP4 video directly to you!\n\n` +
-          `📱 <b>Official Android App:</b> Tap <b>📱 Download Official App</b> below to get the latest APK.\n` +
           `👨‍💻 <b>Developer:</b> ${DEV_NAME}`,
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
             [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
         }
@@ -1505,7 +1674,7 @@ async function handleUpdate(update) {
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }]
+            [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
         }
       });
