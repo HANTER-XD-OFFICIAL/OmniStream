@@ -166,6 +166,8 @@ function unblockUser(userId) {
   return { success: true };
 }
 
+let adminPendingMsgTarget = null;
+
 // ==================== RENDER / UPTIMEROBOT HTTP SERVER ====================
 const PORT = process.env.BOT_PORT || (process.env.PORT && process.env.PORT !== '8080' ? process.env.PORT : 10000);
 const uptimeServer = http.createServer((req, res) => {
@@ -310,6 +312,45 @@ function formatUptime(uptimeSeconds) {
   return `${minutes}m ${seconds}s`;
 }
 
+// Deliver direct 1-to-1 message to an individual user from Admin
+async function deliverDirectMessage(targetId, userMsg, adminChatId) {
+  const idStr = String(targetId).trim();
+  const targetUser = db.users[idStr];
+  const targetName = targetUser?.firstName || `User ${idStr}`;
+
+  const sendRes = await callTg("sendMessage", {
+    chat_id: idStr,
+    text: `💬 <b>Message from Admin / Support:</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `${escapeHtml(userMsg)}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `<i>You can reply directly in this chat anytime.</i>`,
+    parse_mode: "HTML"
+  });
+
+  if (sendRes.ok) {
+    await callTg("sendMessage", {
+      chat_id: adminChatId,
+      text: `✅ <b>Direct Message Delivered!</b>\n\n` +
+        `👤 <b>To:</b> ${escapeHtml(targetName)} (<code>${idStr}</code>)\n` +
+        `💬 <b>Message:</b>\n"${escapeHtml(userMsg)}"`,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: `💬 Send Another Message to ${escapeHtml(targetName)}`, callback_data: `admin_msg_user_${idStr}` }],
+          [{ text: "👑 Back to Admin Panel", callback_data: "admin_refresh" }]
+        ]
+      }
+    });
+  } else {
+    await callTg("sendMessage", {
+      chat_id: adminChatId,
+      text: `❌ <b>Failed to deliver message:</b>\n<code>${escapeHtml(sendRes.description || "User may have blocked the bot or invalid chat ID.")}</code>`,
+      parse_mode: "HTML"
+    });
+  }
+}
+
 // Configure Telegram native bot menu commands (Scoped strictly: Admin gets Admin commands, Users get user commands)
 async function setupBotCommands() {
   try {
@@ -327,12 +368,13 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "admin", description: "👑 Open Master Admin Panel" },
+        { command: "msg", description: "💬 Message Single User (/msg ID text)" },
+        { command: "broadcast", description: "📢 Send Broadcast to All" },
+        { command: "users", description: "👥 View Registered Users" },
         { command: "app", description: "📱 Download Official App (APK)" },
         { command: "check_update", description: "🚀 Check GitHub Releases & Notify" },
-        { command: "users", description: "👥 View Registered Users" },
         { command: "block", description: "🚫 Block User (/block ID)" },
         { command: "unblock", description: "✅ Unblock User (/unblock ID)" },
-        { command: "broadcast", description: "📢 Send Broadcast to All" },
         { command: "stats", description: "📊 Bot System Statistics" },
         { command: "help", description: "Help Guide" }
       ],
@@ -353,15 +395,15 @@ function getReplyKeyboardForUser(userId) {
       keyboard: [
         [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
         [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
-        [{ text: "📱 Download Official App" }]
+        [{ text: "💬 Message User" }, { text: "📱 Download Official App" }]
       ],
       resize_keyboard: true
     };
   } else {
     return {
       keyboard: [
-        [{ text: "📱 Download Official App" }],
-        [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }]
+        [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }],
+        [{ text: "📱 Download Official App" }]
       ],
       resize_keyboard: true
     };
@@ -1166,15 +1208,15 @@ async function sendAdminDashboard(chatId, messageId = null) {
         { text: "📊 Detailed Stats", callback_data: "admin_stats" }
       ],
       [
+        { text: "💬 Message User (ID)", callback_data: "admin_prompt_dm" },
+        { text: "📢 Broadcast Message", callback_data: "admin_prompt_broadcast" }
+      ],
+      [
         { text: "🚫 Block User (ID)", callback_data: "admin_prompt_block" },
         { text: "✅ Unblock User (ID)", callback_data: "admin_prompt_unblock" }
       ],
       [
-        { text: "📢 Broadcast Message", callback_data: "admin_prompt_broadcast" },
-        { text: "🚀 Check App Release", callback_data: "admin_check_release" }
-      ],
-      [
-        { text: "📱 Download Latest APK", callback_data: "get_apk" },
+        { text: "🚀 Check App Release", callback_data: "admin_check_release" },
         { text: "🔄 Refresh Dashboard", callback_data: "admin_refresh" }
       ]
     ]
@@ -1229,16 +1271,17 @@ async function sendUsersList(chatId, messageId = null) {
       `  🆔 <code>${u.id}</code> | ${statusIcon} | 📥 ${u.downloads || 0} dl\n\n`;
 
     if (!isAdm) {
-      if (isBlocked) {
-        inlineButtons.push([{ text: `✅ Unblock ${userDisplay} (${u.id})`, callback_data: `admin_unblock_do_${u.id}` }]);
-      } else {
-        inlineButtons.push([{ text: `🚫 Block ${userDisplay} (${u.id})`, callback_data: `admin_block_do_${u.id}` }]);
-      }
+      inlineButtons.push([
+        { text: `💬 Message ${userDisplay}`, callback_data: `admin_msg_user_${u.id}` },
+        { text: isBlocked ? `✅ Unblock` : `🚫 Block`, callback_data: isBlocked ? `admin_unblock_do_${u.id}` : `admin_block_do_${u.id}` }
+      ]);
     }
   }
 
   text += `━━━━━━━━━━━━━━━━━━━━\n` +
-    `💡 <b>Quick Commands:</b>\n` +
+    `💡 <b>Quick Actions:</b>\n` +
+    `• Direct Message: <code>/msg &lt;userId&gt; &lt;text&gt;</code>\n` +
+    `• Broadcast All: <code>/broadcast &lt;text&gt;</code>\n` +
     `• Block user: <code>/block &lt;userId&gt;</code>\n` +
     `• Unblock user: <code>/unblock &lt;userId&gt;</code>`;
 
@@ -1348,6 +1391,32 @@ async function handleUpdate(update) {
           return;
         }
 
+        if (data === "admin_prompt_dm") {
+          await callTg("answerCallbackQuery", { callback_query_id: cqId });
+          await callTg("sendMessage", {
+            chat_id: chatId,
+            text: `💬 <b>Direct Message to an Individual User:</b>\n\nPlease type:\n<code>/msg &lt;User_ID&gt; &lt;Your message here&gt;</code>\n\nExample:\n<code>/msg 8939822002 Hello! Thank you for using OmniStream.</code>\n\n<i>💡 Tip: Tap <b>👥 Registered Users</b> to message any user with 1-click!</i>`,
+            parse_mode: "HTML"
+          });
+          return;
+        }
+
+        if (data.startsWith("admin_msg_user_")) {
+          const targetId = data.replace("admin_msg_user_", "").trim();
+          adminPendingMsgTarget = targetId;
+          const targetUser = db.users[targetId];
+          const targetName = targetUser?.firstName || `User ${targetId}`;
+          await callTg("answerCallbackQuery", { callback_query_id: cqId, text: `Replying to ${targetName}...` });
+          await callTg("sendMessage", {
+            chat_id: chatId,
+            text: `💬 <b>Send Direct Message to ${escapeHtml(targetName)} (<code>${targetId}</code>):</b>\n\n` +
+              `Type your message below and send it, and the bot will immediately deliver it to this user!\n\n` +
+              `<i>Or send: <code>/msg ${targetId} &lt;Your message&gt;</code></i>`,
+            parse_mode: "HTML"
+          });
+          return;
+        }
+
         if (data === "admin_prompt_broadcast") {
           await callTg("answerCallbackQuery", { callback_query_id: cqId });
           await callTg("sendMessage", {
@@ -1416,12 +1485,22 @@ async function handleUpdate(update) {
         `🆔 <b>User ID:</b> <code>${senderId}</code>\n` +
         `📅 <b>Joined:</b> ${new Date().toLocaleString()}\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
-        `<i>Quick action:</i> <code>/block ${senderId}</code>`;
+        `<i>Quick action:</i>\n` +
+        `• Message: <code>/msg ${senderId} Hello!</code>\n` +
+        `• Block: <code>/block ${senderId}</code>`;
 
       callTg("sendMessage", {
         chat_id: ADMIN_ID,
         text: alertAdmin,
-        parse_mode: "HTML"
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: `💬 Message ${escapeHtml(senderName)}`, callback_data: `admin_msg_user_${senderId}` },
+              { text: `🚫 Block User (${senderId})`, callback_data: `admin_block_do_${senderId}` }
+            ]
+          ]
+        }
       }).catch(e => console.warn("Could not notify admin of new user:", e.message));
     }
 
@@ -1582,9 +1661,39 @@ async function handleUpdate(update) {
         });
         return;
       }
+
+      // Individual Direct Message to specific user: /msg <userId> <text> or /dm <userId> <text>
+      if (text.startsWith("/msg") || text.startsWith("/dm") || text.startsWith("/send_user") || text === "💬 Message User") {
+        const content = text.replace(/^\/(msg|dm|send_user)\s*/i, "").trim();
+        const match = content.match(/^(\d+)\s+([\s\S]+)$/);
+        if (!match) {
+          await callTg("sendMessage", {
+            chat_id: chatId,
+            text: `💬 <b>Direct Message Instructions:</b>\n\n` +
+              `Send: <code>/msg &lt;userId&gt; &lt;Your message here&gt;</code>\n\n` +
+              `Example:\n<code>/msg 8939822002 Hi! How can I assist you today?</code>\n\n` +
+              `<i>💡 Tip: You can also tap <b>👥 User Management</b> to select any user and message them directly!</i>`,
+            parse_mode: "HTML"
+          });
+          return;
+        }
+
+        const targetId = match[1];
+        const userMsg = match[2].trim();
+        await deliverDirectMessage(targetId, userMsg, chatId);
+        return;
+      }
+
+      // If admin tapped a user button and typed a message directly
+      if (adminPendingMsgTarget && !text.startsWith("/")) {
+        const targetId = adminPendingMsgTarget;
+        adminPendingMsgTarget = null;
+        await deliverDirectMessage(targetId, text, chatId);
+        return;
+      }
     } else {
       // If a non-admin attempts to send admin commands, deny silently without revealing admin endpoints
-      if (text.startsWith("/admin") || text.startsWith("/block") || text.startsWith("/unblock") || text.startsWith("/broadcast") || text.startsWith("/users") || text.startsWith("/stats") || text.startsWith("/check_update")) {
+      if (text.startsWith("/admin") || text.startsWith("/block") || text.startsWith("/unblock") || text.startsWith("/broadcast") || text.startsWith("/users") || text.startsWith("/stats") || text.startsWith("/check_update") || text.startsWith("/msg") || text.startsWith("/dm")) {
         await callTg("sendMessage", {
           chat_id: chatId,
           text: `⚠️ <i>Unknown command. Send any media link (YouTube, TikTok, Facebook, Instagram, TeraBox) to download.</i>`,
@@ -1696,6 +1805,25 @@ async function handleUpdate(update) {
         text: "⚠️ <i>Please send a valid media link (TikTok, Facebook, Instagram, YouTube, TeraBox) to download.</i>",
         parse_mode: "HTML"
       });
+
+      // Forward general message/inquiry to Admin so Admin can 1-click reply!
+      if (!isAdmin(senderId)) {
+        const uName = senderName ? escapeHtml(senderName) : "User";
+        const uHandle = msg.from?.username ? `@${escapeHtml(msg.from.username)}` : "";
+        callTg("sendMessage", {
+          chat_id: ADMIN_ID,
+          text: `📩 <b>Message from User:</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+            `👤 <b>From:</b> ${uName} ${uHandle} (<code>${senderId}</code>)\n` +
+            `💬 <i>"${escapeHtml(text)}"</i>\n━━━━━━━━━━━━━━━━━━━━\n` +
+            `<i>Quick reply:</i> <code>/msg ${senderId} &lt;Your reply&gt;</code>`,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: `💬 Reply to ${uName}`, callback_data: `admin_msg_user_${senderId}` }]
+            ]
+          }
+        }).catch(() => {});
+      }
     }
   } catch (err) {
     console.error("handleUpdate error:", err.message);
