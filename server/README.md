@@ -6,7 +6,7 @@ Official Telegram Downloader Bot for OmniStream.
 
 ---
 
-## 🚀 Newly Added Features
+## 🚀 Key Features
 
 1. **Direct Official Android APK Delivery:**
    - Users can tap **📱 Download Official App** from the bottom menu or use `/app`.
@@ -17,34 +17,39 @@ Official Telegram Downloader Bot for OmniStream.
    - When a new version is published, it automatically sends an update notification and download prompt to all active users.
    - Admin can manually check and trigger broadcasts anytime via `/check_update` or the Admin Dashboard.
 
-3. **Developer Support In-Chat Button:**
+3. **1-to-1 Direct Messaging & Broadcast System:**
+   - **Direct Message:** Admin can message any individual user directly using `/msg <userId> <message>` or via the interactive **Registered Users** list.
+   - **Two-Way Support:** When users send messages or questions, the admin receives instant notification with a 1-click reply button.
+   - **Mass Broadcast:** Broadcast announcements to all active users with `/broadcast <message>`.
+
+4. **Developer Support In-Chat Button:**
    - Restored direct Developer Support button `[👨‍💻 Developer (@HANTER_XD_OFFICIAL)]` under the `/start` welcome greeting and help commands.
 
 ---
 
-## 🇧🇩 অলটাইম ২৪/৭ ফ্রিতে রান রাখার উপায় (How to run 24/7 Free)
+## 🌐 How to Keep the Bot Running 24/7 Free
 
-### পদ্ধতি ১: Render.com এ আজীবন ফ্রিতে রান রাখুন (Best 24/7 Free Hosting)
-1. [Render.com](https://render.com) এ গিয়ে ফ্রি একাউন্ট খুলুন।
-2. **New +** এ ক্লিক করে **Background Worker** বা **Web Service** সিলেক্ট করুন।
-3. আপনার GitHub রিপোজিটরি কানেক্ট করুন অথবা এই `server` ফোল্ডার আপলোড করুন।
+### Method 1: Deploy on Render.com (Best 24/7 Free Hosting)
+1. Sign up for a free account at [Render.com](https://render.com).
+2. Click **New +** and select **Web Service** or **Background Worker**.
+3. Connect your GitHub repository or upload this `server` directory.
 4. **Build Command:** `echo "Ready"`
 5. **Start Command:** `node bot.mjs`
-6. **Environment Variable:** `BOT_TOKEN` = (Optional: securely injected via Render Secret, or runs from internal encrypted vault)
-7. ব্যস! আপনার অফিসিয়াল বট ২৪ ঘণ্টা ৩৬৫ দিন অনলাইনে থাকবে এবং সবাই ভিডিও ডাউনলোড করতে পারবে!
+6. **Environment Variable:** `BOT_TOKEN` = (Optional: securely injected via Render Secret, or runs from internal encrypted vault).
+7. That's it! Your official bot will remain online 24/7/365 to process video downloads and deliver APK updates.
 
 ---
 
-### পদ্ধতি ২: Android মোবাইলের Termux দিয়ে অলটাইম রানিং রাখুন
-১. মোবাইল থেকে **Termux** অ্যাপ ওপেন করুন।  
-২. নিচের কমান্ডগুলো পরপর রান করুন:
+### Method 2: Run 24/7 via Termux on Android
+1. Open the **Termux** app on your Android device.
+2. Run the following commands sequentially:
 ```bash
 pkg update -y && pkg install nodejs git -y
 git clone <your-repo-link>
 cd server
 node bot.mjs
 ```
-বট অলটাইম ব্যাকগ্রাউন্ডে চলতে থাকবে!
+The bot will run continuously in the background!
 
 ---
 
