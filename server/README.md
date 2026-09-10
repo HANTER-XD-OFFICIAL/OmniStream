@@ -1,7 +1,24 @@
 # OmniStream - 24/7 Official Telegram Video Downloader Bot
 Official Telegram Downloader Bot for OmniStream.
 **Bot Username:** [@OmniStream34_bot](https://t.me/OmniStream34_bot)  
-**Developer:** MD Rasel ([@HANTER_XD_OFFICIAL](https://t.me/HANTER_XD_OFFICIAL))
+**Developer:** MD Rasel ([@HANTER_XD_OFFICIAL](https://t.me/HANTER_XD_OFFICIAL))  
+**GitHub Releases:** [HANTER-XD-OFFICIAL/OmniStream](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases)
+
+---
+
+## 🚀 Newly Added Features
+
+1. **Direct Official Android APK Delivery:**
+   - Users can tap **📱 Download Official App** from the bottom menu or use `/app`.
+   - The bot automatically connects to the official GitHub repository (`HANTER-XD-OFFICIAL/OmniStream/releases/latest`), fetches the latest release APK, and delivers it directly to Telegram so users can install it on their device with 1 tap.
+
+2. **Automatic GitHub Release Monitor & Broadcast:**
+   - The bot monitors GitHub releases every 5 minutes.
+   - When a new version is published, it automatically sends an update notification and download prompt to all active users.
+   - Admin can manually check and trigger broadcasts anytime via `/check_update` or the Admin Dashboard.
+
+3. **Developer Support In-Chat Button:**
+   - Restored direct Developer Support button `[👨‍💻 Developer (@HANTER_XD_OFFICIAL)]` under the `/start` welcome greeting and help commands.
 
 ---
 
@@ -38,3 +55,4 @@ node bot.mjs
 - **YouTube** (Shorts, Videos)
 - **TeraBox** (Direct Fast Download)
 - **Twitter / X**
+- **Official APK Direct Download & Auto-Update Notifications**

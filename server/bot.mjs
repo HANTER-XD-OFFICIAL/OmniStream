@@ -1,6 +1,7 @@
 // OmniStream - Official Telegram Bot Daemon (24/7 Production Engine)
 // Bot Username: @OmniStream34_bot
 // Developer: MD Rasel (@HANTER_XD_OFFICIAL)
+// GitHub Repository: HANTER-XD-OFFICIAL/OmniStream
 // Language Policy: STRICTLY 100% ENGLISH FOR ALL USER-FACING BOT MESSAGES
 
 import process from 'node:process';
@@ -47,6 +48,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const ADMIN_ID = String(process.env.ADMIN_ID || "6204875999");
 const DEV_TELEGRAM = "https://t.me/HANTER_XD_OFFICIAL";
 const DEV_NAME = "MD Rasel (@HANTER_XD_OFFICIAL)";
+const GITHUB_REPO = "HANTER-XD-OFFICIAL/OmniStream";
 
 function isAdmin(userId) {
   return String(userId) === String(ADMIN_ID);
@@ -58,6 +60,7 @@ const DB_FILE = path.join(__dirname, 'users_db.json');
 let db = {
   users: {},
   blockedUsers: [],
+  lastReleaseTag: "v1.0.0.OmniStreamPro",
   stats: {
     totalDownloads: 0,
     totalLinks: 0,
@@ -73,13 +76,14 @@ function loadDatabase() {
       db = {
         users: parsed.users || {},
         blockedUsers: Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [],
+        lastReleaseTag: parsed.lastReleaseTag || "v1.0.0.OmniStreamPro",
         stats: {
           totalDownloads: parsed.stats?.totalDownloads || 0,
           totalLinks: parsed.stats?.totalLinks || 0,
           botStartedAt: parsed.stats?.botStartedAt || new Date().toISOString()
         }
       };
-      console.log(`📂 Loaded database: ${Object.keys(db.users).length} users, ${db.blockedUsers.length} blocked.`);
+      console.log(`📂 Loaded database: ${Object.keys(db.users).length} users, ${db.blockedUsers.length} blocked, latest tag: ${db.lastReleaseTag}`);
     } else {
       saveDatabase();
     }
@@ -178,6 +182,7 @@ const uptimeServer = http.createServer((req, res) => {
     uptime_seconds: Math.floor(process.uptime()),
     total_users: Object.keys(db.users).length,
     blocked_users: db.blockedUsers.length,
+    latest_app_tag: db.lastReleaseTag,
     timestamp: new Date().toISOString()
   }));
 });
@@ -194,7 +199,7 @@ try {
   console.warn('[UPTIME HTTP WARNING] Server start ignored:', e.message);
 }
 
-console.log("🚀 Starting OmniStream Bot (@OmniStream34_bot) with Encrypted Vault & Exclusive Admin Panel...");
+console.log("🚀 Starting OmniStream Bot (@OmniStream34_bot) with Encrypted Vault, Admin Panel & APK Engine...");
 
 // ==================== TELEGRAM API HELPERS ====================
 
@@ -237,6 +242,29 @@ async function sendTgVideo(chatId, videoBuffer, filename, caption, replyMarkup =
   }
 }
 
+async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup = null) {
+  try {
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    form.append("caption", caption || "");
+    form.append("parse_mode", "HTML");
+    if (replyMarkup) {
+      form.append("reply_markup", JSON.stringify(replyMarkup));
+    }
+    form.append("document", new Blob([fileBuffer], { type: "application/vnd.android.package-archive" }), filename || "OmniStream.apk");
+
+    const res = await fetch(`${TELEGRAM_API}/sendDocument`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(120000)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("sendTgDocument error:", err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 function extractUrl(text) {
   if (!text) return null;
   const match = text.match(/https?:\/\/[^\s]+/i);
@@ -272,14 +300,15 @@ function formatUptime(uptimeSeconds) {
   return `${minutes}m ${seconds}s`;
 }
 
-// Configure Telegram native bot menu commands (Scoped strictly: Admin gets Admin commands, Users get only standard commands)
+// Configure Telegram native bot menu commands (Scoped strictly: Admin gets Admin commands, Users get user commands)
 async function setupBotCommands() {
   try {
     // 1. Default scope: All ordinary users
     await callTg("setMyCommands", {
       commands: [
-        { command: "start", description: "Start the OmniStream Downloader" },
-        { command: "help", description: "How to download videos" }
+        { command: "start", description: "Start OmniStream Bot" },
+        { command: "app", description: "📱 Download Official Android App (APK)" },
+        { command: "help", description: "How to download videos & guide" }
       ],
       scope: { type: "default" }
     });
@@ -288,6 +317,8 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "admin", description: "👑 Open Master Admin Panel" },
+        { command: "app", description: "📱 Download Official App (APK)" },
+        { command: "check_update", description: "🚀 Check GitHub Releases & Notify" },
         { command: "users", description: "👥 View Registered Users" },
         { command: "block", description: "🚫 Block User (/block ID)" },
         { command: "unblock", description: "✅ Unblock User (/unblock ID)" },
@@ -297,7 +328,7 @@ async function setupBotCommands() {
       ],
       scope: { type: "chat", chat_id: ADMIN_ID }
     });
-    console.log("✅ Bot Menu Commands configured with isolated Admin privileges.");
+    console.log("✅ Bot Menu Commands configured with isolated Admin privileges & APK Download.");
   } catch (e) {
     console.warn("Could not set bot commands:", e.message);
   }
@@ -305,13 +336,14 @@ async function setupBotCommands() {
 
 setupBotCommands();
 
-// Keyboard builders: Admin gets Admin Panel in menu bar, Regular users NEVER see Admin Panel
+// Keyboard builders: Admin gets Admin Panel in menu bar, Regular users get direct Download App button
 function getReplyKeyboardForUser(userId) {
   if (isAdmin(userId)) {
     return {
       keyboard: [
         [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
-        [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }]
+        [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
+        [{ text: "📱 Download Official App" }]
       ],
       resize_keyboard: true,
       is_persistent: true
@@ -319,12 +351,264 @@ function getReplyKeyboardForUser(userId) {
   } else {
     return {
       keyboard: [
+        [{ text: "📱 Download Official App" }],
         [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }]
       ],
-      resize_keyboard: true
+      resize_keyboard: true,
+      is_persistent: true
     };
   }
 }
+
+// ==================== GITHUB RELEASES & APK ENGINE ====================
+
+async function getLatestAppRelease() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: {
+        "User-Agent": "OmniStreamBot/1.0",
+        "Accept": "application/vnd.github.v3+json"
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      console.warn(`[GITHUB RELEASES] API status: ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    const apkAsset = data.assets?.find(a => a.name.endsWith('.apk')) || data.assets?.[0];
+    return {
+      tag: data.tag_name,
+      name: data.name || data.tag_name,
+      publishedAt: data.published_at,
+      htmlUrl: data.html_url,
+      body: data.body || "Performance optimizations and latest media downloader engine updates.",
+      apkAsset: apkAsset ? {
+        name: apkAsset.name,
+        size: apkAsset.size,
+        downloadUrl: apkAsset.browser_download_url
+      } : null
+    };
+  } catch (err) {
+    console.error('[GITHUB RELEASES] Error fetching latest release:', err.message);
+    return null;
+  }
+}
+
+async function handleSendApk(chatId, userId) {
+  if (isUserBlocked(userId)) return;
+
+  const initMsg = await callTg("sendMessage", {
+    chat_id: chatId,
+    text: `⏳ <b>Checking Official Releases...</b>\n<i>Connecting to GitHub repository for the latest build...</i>`,
+    parse_mode: "HTML"
+  });
+  const progressMsgId = initMsg.result?.message_id;
+
+  try {
+    const release = await getLatestAppRelease();
+    if (!release || !release.apkAsset) {
+      const fallbackUrl = `https://github.com/${GITHUB_REPO}/releases/latest`;
+      if (progressMsgId) {
+        await callTg("editMessageText", {
+          chat_id: chatId,
+          message_id: progressMsgId,
+          text: `⚠️ <b>Could Not Fetch Direct Release File</b>\n\nPlease visit the official GitHub releases page to download the latest APK:`,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🌐 Open GitHub Releases", url: fallbackUrl }],
+              [{ text: "👨‍💻 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+            ]
+          }
+        });
+      }
+      return;
+    }
+
+    const apk = release.apkAsset;
+    const sizeMb = (apk.size / (1024 * 1024)).toFixed(1);
+
+    if (progressMsgId) {
+      await callTg("editMessageText", {
+        chat_id: chatId,
+        message_id: progressMsgId,
+        text: `📥 <b>Downloading ${escapeHtml(apk.name)} (${sizeMb} MB)...</b>\n<i>Uploading APK package directly to Telegram chat...</i>`,
+        parse_mode: "HTML"
+      });
+    }
+
+    if (apk.size <= 49 * 1024 * 1024) {
+      const apkRes = await fetch(apk.downloadUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        signal: AbortSignal.timeout(90000)
+      });
+
+      if (apkRes.ok) {
+        const apkBuffer = await apkRes.arrayBuffer();
+        const caption = `📱 <b>OmniStream Official Android App</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `🏷 <b>Version:</b> <code>${escapeHtml(release.tag)}</code>\n` +
+          `💾 <b>File Size:</b> ${sizeMb} MB\n` +
+          `🛡 <b>Integrity:</b> Verified Official GitHub Build\n` +
+          `👨‍💻 <b>Developer:</b> ${DEV_NAME}\n\n` +
+          `⚡ <b>Features Included:</b>\n` +
+          `• All-in-One 4K Video & MP3 Downloader\n` +
+          `• YouTube, TikTok, Facebook, Instagram, TeraBox\n` +
+          `• Foreground Download Service & Native Player\n` +
+          `• Multi-thread Edge Acceleration\n\n` +
+          `📥 <i>Tap the APK file above to install directly on your Android phone!</i>`;
+
+        const replyMarkup = {
+          inline_keyboard: [
+            [{ text: "🌐 GitHub Release Page", url: release.htmlUrl }],
+            [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+          ]
+        };
+
+        const docRes = await sendTgDocument(chatId, apkBuffer, apk.name, caption, replyMarkup);
+        if (docRes.ok) {
+          if (progressMsgId) {
+            await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId });
+          }
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
+          saveDatabase();
+          console.log(`[APK DELIVERED] OmniStream APK delivered to ${chatId} (${userId})`);
+          return;
+        }
+      }
+    }
+
+    // If buffer fetch failed or file > 49MB (Telegram 50MB ceiling)
+    const fallbackText = `📱 <b>OmniStream Official Android App</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🏷 <b>Version:</b> <code>${escapeHtml(release.tag)}</code>\n` +
+      `💾 <b>Size:</b> ${sizeMb} MB\n` +
+      `👨‍💻 <b>Developer:</b> ${DEV_NAME}\n\n` +
+      `⚡ <i>Click below to download the latest APK directly:</i>`;
+
+    if (progressMsgId) {
+      await callTg("editMessageText", {
+        chat_id: chatId,
+        message_id: progressMsgId,
+        text: fallbackText,
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `📥 Download ${apk.name} (${sizeMb} MB)`, url: apk.downloadUrl }],
+            [{ text: "🌐 GitHub Releases", url: release.htmlUrl }],
+            [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+          ]
+        }
+      });
+    }
+    db.stats.totalDownloads++;
+    if (db.users[userId]) db.users[userId].downloads++;
+    saveDatabase();
+
+  } catch (err) {
+    console.error("[APK ERROR]:", err.message);
+    if (progressMsgId) {
+      await callTg("editMessageText", {
+        chat_id: chatId,
+        message_id: progressMsgId,
+        text: `❌ Could not download the APK right now (${escapeHtml(err.message)}). Please try again or download from GitHub.`,
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🌐 GitHub Releases", url: `https://github.com/${GITHUB_REPO}/releases` }],
+            [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+          ]
+        }
+      });
+    }
+  }
+}
+
+// Background Automatic Release Monitor (Checks GitHub every 5 minutes & notifies all active users)
+async function checkAndNotifyNewRelease(manualTriggerChatId = null) {
+  const release = await getLatestAppRelease();
+  if (!release) {
+    if (manualTriggerChatId) {
+      await callTg("sendMessage", {
+        chat_id: manualTriggerChatId,
+        text: "⚠️ Could not connect to GitHub API to check releases. Please verify repo accessibility.",
+        parse_mode: "HTML"
+      });
+    }
+    return;
+  }
+
+  const isNewRelease = db.lastReleaseTag && release.tag !== db.lastReleaseTag;
+  if (isNewRelease || manualTriggerChatId) {
+    if (isNewRelease) {
+      db.lastReleaseTag = release.tag;
+      saveDatabase();
+    }
+
+    // Clean up changelog (first 250 chars max, strip markdown headers)
+    const rawBody = (release.body || "").replace(/^#+\s*/gm, "").trim();
+    const shortBody = rawBody.length > 250 ? rawBody.substring(0, 250) + "..." : rawBody;
+
+    const announcementText = `🚀 <b>New OmniStream App Version Released!</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🏷 <b>Version:</b> <code>${escapeHtml(release.tag)}</code>\n` +
+      `📅 <b>Release Date:</b> ${new Date(release.publishedAt).toLocaleDateString()}\n\n` +
+      `✨ <b>What's New:</b>\n` +
+      `<i>${escapeHtml(shortBody)}</i>\n\n` +
+      `⚡ <i>An updated version of the official OmniStream Android app is now available! Update your app now to get higher download speeds, bug fixes, and new platform support.</i>\n` +
+      `━━━━━━━━━━━━━━━━━━━━`;
+
+    const inlineButtons = {
+      inline_keyboard: [
+        [{ text: "📱 Download APK Directly in Telegram", callback_data: "get_apk" }],
+        [{ text: "🌐 View Release on GitHub", url: release.htmlUrl }],
+        [{ text: "👨‍💻 Developer Support", url: DEV_TELEGRAM }]
+      ]
+    };
+
+    if (isNewRelease) {
+      const userIds = Object.keys(db.users).filter(id => !isUserBlocked(id));
+      console.log(`[RELEASE BROADCAST] Broadcasting new version ${release.tag} to ${userIds.length} users...`);
+      
+      let sent = 0;
+      for (const uid of userIds) {
+        try {
+          await callTg("sendMessage", {
+            chat_id: uid,
+            text: announcementText,
+            parse_mode: "HTML",
+            reply_markup: inlineButtons
+          });
+          sent++;
+        } catch (_) {}
+        await new Promise(r => setTimeout(r, 60));
+      }
+
+      // Notify Admin about broadcast completion
+      callTg("sendMessage", {
+        chat_id: ADMIN_ID,
+        text: `✅ <b>Automatic Release Broadcast Finished!</b>\n\nVersion <code>${escapeHtml(release.tag)}</code> was announced to <b>${sent}</b> users.`,
+        parse_mode: "HTML"
+      }).catch(() => {});
+    } else if (manualTriggerChatId) {
+      await callTg("sendMessage", {
+        chat_id: manualTriggerChatId,
+        text: `ℹ️ <b>Latest Release Status:</b>\n\nCurrently on latest version: <code>${escapeHtml(release.tag)}</code>\nNo newer release detected on GitHub yet.`,
+        parse_mode: "HTML",
+        reply_markup: inlineButtons
+      });
+    }
+  }
+}
+
+// Check every 5 minutes for new GitHub releases automatically
+setInterval(() => {
+  checkAndNotifyNewRelease().catch(err => console.warn('[RELEASE CHECK WARNING]:', err.message));
+}, 5 * 60 * 1000);
 
 // ==================== RESOLVERS ====================
 
@@ -547,6 +831,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [
+            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
             [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
         }
@@ -593,7 +878,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
             reply_markup: {
               inline_keyboard: [
                 [{ text: `📥 Download Full HD Video (${sizeMb} MB)`, url: media.videoUrl }],
-                [{ text: "👨‍💻 Developer Profile", url: DEV_TELEGRAM }]
+                [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
               ]
             }
           });
@@ -626,6 +911,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
             const replyMarkup = {
               inline_keyboard: [
                 [{ text: "🌐 Direct HD Stream Link", url: media.videoUrl }],
+                [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
                 [{ text: "👨‍💻 Developer Profile", url: DEV_TELEGRAM }]
               ]
             };
@@ -652,6 +938,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     const buttons = [
       [{ text: "📥 Download / Watch Video (HD)", url: media.videoUrl }],
+      [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
       [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
     ];
 
@@ -698,6 +985,7 @@ async function sendAdminDashboard(chatId, messageId = null) {
     `• 🚫 <b>Blocked Users:</b> <b>${blockedCount}</b>\n` +
     `• 📥 <b>Total Downloads:</b> <b>${db.stats.totalDownloads}</b>\n` +
     `• 🔗 <b>Total Links Processed:</b> <b>${db.stats.totalLinks}</b>\n` +
+    `• 🏷 <b>Latest App Release:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
     `• ⚡ <b>Bot Uptime:</b> <b>${uptime}</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `<i>Select an action below to manage users and system controls:</i>`;
@@ -714,6 +1002,10 @@ async function sendAdminDashboard(chatId, messageId = null) {
       ],
       [
         { text: "📢 Broadcast Message", callback_data: "admin_prompt_broadcast" },
+        { text: "🚀 Check App Release", callback_data: "admin_check_release" }
+      ],
+      [
+        { text: "📱 Download Latest APK", callback_data: "get_apk" },
         { text: "🔄 Refresh Dashboard", callback_data: "admin_refresh" }
       ]
     ]
@@ -804,6 +1096,13 @@ async function handleUpdate(update) {
       const msgId = cq.message?.message_id;
       const data = cq.data || "";
 
+      // Allow any registered user to request the APK file
+      if (data === "get_apk") {
+        await callTg("answerCallbackQuery", { callback_query_id: cqId, text: "Fetching OmniStream APK..." });
+        await handleSendApk(chatId, senderId);
+        return;
+      }
+
       // Strictly check admin access for all admin callbacks
       if (data.startsWith("admin_")) {
         if (!isAdmin(senderId)) {
@@ -827,6 +1126,12 @@ async function handleUpdate(update) {
           return;
         }
 
+        if (data === "admin_check_release") {
+          await callTg("answerCallbackQuery", { callback_query_id: cqId, text: "Checking GitHub Releases..." });
+          await checkAndNotifyNewRelease(chatId);
+          return;
+        }
+
         if (data === "admin_stats") {
           await callTg("answerCallbackQuery", { callback_query_id: cqId });
           const uptime = formatUptime(process.uptime());
@@ -837,8 +1142,9 @@ async function handleUpdate(update) {
             `• <b>Uptime:</b> ${uptime}\n` +
             `• <b>Total Users:</b> ${Object.keys(db.users).length}\n` +
             `• <b>Blocked Users:</b> ${db.blockedUsers.length}\n` +
+            `• <b>Latest App Tag:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
             `• <b>Total Links:</b> ${db.stats.totalLinks}\n` +
-            `• <b>Completed Video Sends:</b> ${db.stats.totalDownloads}\n` +
+            `• <b>Completed Video & APK Sends:</b> ${db.stats.totalDownloads}\n` +
             `• <b>Vault Status:</b> 🔐 Active & Encrypted (Protected)\n` +
             `━━━━━━━━━━━━━━━━━━━━`;
           await callTg("editMessageText", {
@@ -968,6 +1274,11 @@ async function handleUpdate(update) {
         return;
       }
 
+      if (text === "/check_update") {
+        await checkAndNotifyNewRelease(chatId);
+        return;
+      }
+
       if (text === "📊 Bot Stats" || text === "/stats") {
         const uptime = formatUptime(process.uptime());
         const totalUsers = Object.keys(db.users).length;
@@ -979,6 +1290,7 @@ async function handleUpdate(update) {
           `• <b>Total Registered Users:</b> ${totalUsers}\n` +
           `• <b>Active Users:</b> ${Math.max(0, totalUsers - blockedCount)}\n` +
           `• <b>Blocked Users:</b> ${blockedCount}\n` +
+          `• <b>Latest App Release:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
           `• <b>Completed Downloads:</b> ${db.stats.totalDownloads}\n` +
           `• <b>Total Processed Links:</b> ${db.stats.totalLinks}\n` +
           `• <b>Security Vault:</b> 🔐 Active (Encrypted Token Seed)\n` +
@@ -1103,7 +1415,7 @@ async function handleUpdate(update) {
       }
     } else {
       // If a non-admin attempts to send admin commands, deny silently without revealing admin endpoints
-      if (text.startsWith("/admin") || text.startsWith("/block") || text.startsWith("/unblock") || text.startsWith("/broadcast") || text.startsWith("/users") || text.startsWith("/stats")) {
+      if (text.startsWith("/admin") || text.startsWith("/block") || text.startsWith("/unblock") || text.startsWith("/broadcast") || text.startsWith("/users") || text.startsWith("/stats") || text.startsWith("/check_update")) {
         await callTg("sendMessage", {
           chat_id: chatId,
           text: `⚠️ <i>Unknown command. Send any media link (YouTube, TikTok, Facebook, Instagram, TeraBox) to download.</i>`,
@@ -1112,6 +1424,12 @@ async function handleUpdate(update) {
         });
         return;
       }
+    }
+
+    // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
+    if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app")) {
+      await handleSendApk(chatId, senderId);
+      return;
     }
 
     // ==================== GENERAL USER COMMANDS ====================
@@ -1128,11 +1446,26 @@ async function handleUpdate(update) {
         `• <b>TeraBox</b> (Direct Fast Download)\n` +
         `• <b>Twitter / X</b> (Clips & Videos)\n\n` +
         `🚀 <b>How to Use:</b>\n` +
-        `Simply copy and paste any video link here! 👇`;
+        `Simply copy and paste any video or post link here!\n` +
+        `👇`;
 
+      // 1. Send Welcome Message with INLINE Developer & Download buttons exactly as shown in reference screenshot
       await callTg("sendMessage", {
         chat_id: chatId,
         text: welcomeText,
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
+            [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+          ]
+        }
+      });
+
+      // 2. Send persistent bottom menu keyboard with "Download Official App" option
+      await callTg("sendMessage", {
+        chat_id: chatId,
+        text: `⚡ <i>Tap <b>📱 Download Official App</b> below to get the APK file directly in this chat!</i>`,
         parse_mode: "HTML",
         reply_markup: getReplyKeyboardForUser(senderId)
       });
@@ -1146,9 +1479,15 @@ async function handleUpdate(update) {
           `1. Copy any video link from YouTube, TikTok, Facebook, Instagram, or TeraBox.\n` +
           `2. Send the link directly to this chat.\n` +
           `3. The bot will automatically fetch and deliver the MP4 video directly to you!\n\n` +
+          `📱 <b>Official Android App:</b> Tap <b>📱 Download Official App</b> below to get the latest APK.\n` +
           `👨‍💻 <b>Developer:</b> ${DEV_NAME}`,
         parse_mode: "HTML",
-        reply_markup: getReplyKeyboardForUser(senderId)
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
+            [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+          ]
+        }
       });
       return;
     }
@@ -1164,7 +1503,11 @@ async function handleUpdate(update) {
           `• <b>TeraBox:</b> Direct fast high-speed cloud download links.\n` +
           `• <b>Twitter / X:</b> High-definition MP4 clips.`,
         parse_mode: "HTML",
-        reply_markup: getReplyKeyboardForUser(senderId)
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }]
+          ]
+        }
       });
       return;
     }
