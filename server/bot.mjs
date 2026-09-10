@@ -256,11 +256,11 @@ async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup
     const res = await fetch(`${TELEGRAM_API}/sendDocument`, {
       method: "POST",
       body: form,
-      signal: AbortSignal.timeout(120000)
+      signal: AbortSignal.timeout(180000)
     });
     return await res.json();
   } catch (err) {
-    console.error("sendTgDocument error:", err.message);
+    console.warn("sendTgDocument notice:", err.message);
     return { ok: false, error: err.message };
   }
 }
@@ -317,8 +317,6 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "start", description: "Start OmniStream Bot" },
-        { command: "menu", description: "📋 Open Menu Bar" },
-        { command: "close", description: "❌ Close Menu Bar" },
         { command: "app", description: "📱 Download Official Android App (APK)" },
         { command: "help", description: "How to download videos & guide" }
       ],
@@ -329,8 +327,6 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "admin", description: "👑 Open Master Admin Panel" },
-        { command: "menu", description: "📋 Open Menu Bar" },
-        { command: "close", description: "❌ Close Menu Bar" },
         { command: "app", description: "📱 Download Official App (APK)" },
         { command: "check_update", description: "🚀 Check GitHub Releases & Notify" },
         { command: "users", description: "👥 View Registered Users" },
@@ -357,14 +353,14 @@ function getReplyKeyboardForUser(userId) {
       keyboard: [
         [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
         [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
-        [{ text: "📱 Download Official App" }, { text: "❌ Close Menu" }]
+        [{ text: "📱 Download Official App" }]
       ],
       resize_keyboard: true
     };
   } else {
     return {
       keyboard: [
-        [{ text: "📱 Download Official App" }, { text: "❌ Close Menu" }],
+        [{ text: "📱 Download Official App" }],
         [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }]
       ],
       resize_keyboard: true
@@ -1601,29 +1597,6 @@ async function handleUpdate(update) {
     // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
     if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app")) {
       await handleSendApk(chatId, senderId);
-      return;
-    }
-
-    // ==================== CLOSE / OPEN MENU TOGGLES ====================
-    if (text === "❌ Close Menu" || text === "/close" || text === "/close_menu" || text === "❌ মেনু বন্ধ করুন" || text === "❌ Hide Menu") {
-      await callTg("sendMessage", {
-        chat_id: chatId,
-        text: "❌ <b>Menu bar closed.</b>\n<i>Tap <b>/menu</b> anytime to reopen the menu bar.</i>",
-        parse_mode: "HTML",
-        reply_markup: {
-          remove_keyboard: true
-        }
-      });
-      return;
-    }
-
-    if (text === "/menu" || text === "📋 Menu" || text === "📋 মেনু খুলুন") {
-      await callTg("sendMessage", {
-        chat_id: chatId,
-        text: "📋 <b>Menu bar opened.</b>\n<i>Select an option below or tap <b>❌ Close Menu</b> to hide it:</i>",
-        parse_mode: "HTML",
-        reply_markup: getReplyKeyboardForUser(senderId)
-      });
       return;
     }
 
