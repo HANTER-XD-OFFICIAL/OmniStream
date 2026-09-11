@@ -323,17 +323,18 @@ function initPlatformsGrid() {
     filtered.forEach(p => {
       const card = document.createElement("div");
       card.className = "platform-card";
+      card.style.setProperty("--card-brand-color", p.color);
       card.innerHTML = `
         <div>
           <div class="platform-card-header">
             <h4 class="platform-card-title">${p.name}</h4>
-            <div class="platform-badge-circle" style="background-color: ${p.color}; box-shadow: 0 0 10px ${p.color};"></div>
+            <div class="platform-badge-circle" style="background-color: ${p.color}; box-shadow: 0 0 8px ${p.color};"></div>
           </div>
           <p class="platform-card-features">${p.features}</p>
         </div>
         <div class="platform-card-footer">
           <span class="platform-card-cat">${p.badge}</span>
-          <button type="button" class="btn-card-try" data-url="${p.sampleUrl}">Try Sample</button>
+          <button type="button" class="btn-card-try" data-url="${p.sampleUrl}">Try</button>
         </div>
       `;
       grid.appendChild(card);
