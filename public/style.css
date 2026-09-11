@@ -783,6 +783,44 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.btn-stream-dl.btn-downloading {
+  opacity: 0.9;
+  cursor: wait;
+  filter: brightness(1.1);
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.5);
+}
+
+.btn-stream-dl.btn-download-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5) !important;
+}
+
+.spinner-icon {
+  animation: spin 0.9s linear infinite;
+  display: inline-block;
+}
+
+.download-hint-bar {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+}
+
+.download-hint-bar svg {
+  color: var(--cyan-bright);
+  flex-shrink: 0;
+}
+
+.download-hint-bar strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 /* Sections General */
 .section-header {
   text-align: center;

@@ -515,33 +515,38 @@ function initFormHandler() {
       // Populate Download Buttons
       downloadButtonsGrid.innerHTML = "";
 
+      const videoFilename = formatOmniStreamFilename(data.platform, data.title, "mp4");
+      const audioFilename = formatOmniStreamFilename(data.platform, data.title, "mp3");
+
       // Primary Video/Media Download
       if (streamUrl) {
-        const dlBtn = document.createElement("a");
-        dlBtn.href = streamUrl;
-        dlBtn.target = "_blank";
-        dlBtn.rel = "noopener noreferrer";
-        dlBtn.setAttribute("download", `${sanitizeFilename(data.title || "OmniStream_Download")}.mp4`);
+        const dlBtn = document.createElement("button");
+        dlBtn.type = "button";
         dlBtn.className = "btn-stream-dl btn-stream-video";
         dlBtn.innerHTML = `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>🎬 Download Video (${data.quality || "HD"})</span>
         `;
+        dlBtn.onclick = (e) => {
+          e.preventDefault();
+          triggerDirectMediaDownload(streamUrl, videoFilename, dlBtn, "Video");
+        };
         downloadButtonsGrid.appendChild(dlBtn);
       }
 
       // Audio Download (if distinct audio stream exists)
       if (audioUrl) {
-        const audioBtn = document.createElement("a");
-        audioBtn.href = audioUrl;
-        audioBtn.target = "_blank";
-        audioBtn.rel = "noopener noreferrer";
-        audioBtn.setAttribute("download", `${sanitizeFilename(data.title || "OmniStream_Audio")}.mp3`);
+        const audioBtn = document.createElement("button");
+        audioBtn.type = "button";
         audioBtn.className = "btn-stream-dl btn-stream-audio";
         audioBtn.innerHTML = `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           <span>🎵 Download MP3 Audio</span>
         `;
+        audioBtn.onclick = (e) => {
+          e.preventDefault();
+          triggerDirectMediaDownload(audioUrl, audioFilename, audioBtn, "Audio");
+        };
         downloadButtonsGrid.appendChild(audioBtn);
       }
 
@@ -573,6 +578,144 @@ function initFormHandler() {
       submitBtn.disabled = false;
     }
   });
+}
+
+// Generates standardized project-branded filename: OmniStream_[Platform]_[Title].[ext]
+function formatOmniStreamFilename(platform, title, ext = "mp4") {
+  const cleanPlatform = (platform || "Media").replace(/[^a-zA-Z0-9]/g, "");
+  let cleanTitle = (title || "Download")
+    .replace(/[^\w\s-]/g, "") // strip emojis, symbols, quotes
+    .trim()
+    .replace(/\s+/g, "_")
+    .substring(0, 45);
+  if (!cleanTitle) cleanTitle = "Media";
+  return `OmniStream_${cleanPlatform}_${cleanTitle}.${ext}`;
+}
+
+// 1-Click Direct File Download (Forces native file save to device with custom filename)
+async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video") {
+  if (btn.classList.contains("btn-downloading")) return;
+  const originalHtml = btn.innerHTML;
+  btn.classList.add("btn-downloading");
+  btn.disabled = true;
+
+  const updateProgress = (label) => {
+    btn.innerHTML = `
+      <svg class="spinner-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+      <span>${label}</span>
+    `;
+  };
+
+  updateProgress(`Downloading ${mediaType}...`);
+
+  try {
+    let blob = null;
+
+    // 1. Direct fetch with CORS and progress stream reading
+    try {
+      const resp = await fetch(url, { mode: 'cors' });
+      if (resp.ok) {
+        const contentLength = resp.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+        if (total > 0 && resp.body && resp.body.getReader) {
+          const reader = resp.body.getReader();
+          let received = 0;
+          const chunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.length;
+            const pct = Math.min(99, Math.round((received / total) * 100));
+            updateProgress(`Downloading ${pct}%...`);
+          }
+          const mimeType = resp.headers.get('content-type') || (filename.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4');
+          blob = new Blob(chunks, { type: mimeType });
+        } else {
+          blob = await resp.blob();
+        }
+      }
+    } catch (directErr) {
+      console.warn("Direct fetch CORS check:", directErr.message);
+    }
+
+    // 2. If direct fetch was restricted by CORS, fallback to proxy
+    if (!blob) {
+      updateProgress(`Connecting Proxy...`);
+      const proxies = [
+        `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+      ];
+
+      for (const proxy of proxies) {
+        try {
+          const pResp = await fetch(proxy);
+          if (pResp.ok) {
+            blob = await pResp.blob();
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 3. Trigger native file download via Object URL
+    if (blob) {
+      updateProgress(`Saving to Device...`);
+      const blobUrl = window.URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.style.display = "none";
+      downloadAnchor.href = blobUrl;
+      downloadAnchor.download = filename;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+
+      setTimeout(() => {
+        document.body.removeChild(downloadAnchor);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 5000);
+
+      btn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>✅ Saved: ${filename.substring(0, 22)}...</span>
+      `;
+      btn.classList.add("btn-download-success");
+
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.classList.remove("btn-downloading", "btn-download-success");
+        btn.disabled = false;
+      }, 4000);
+      return;
+    }
+
+    // 4. Fallback if blob cannot be assembled (avoid target="_blank" so it doesn't open a new player tab)
+    updateProgress(`Starting Download...`);
+    const fallbackLink = document.createElement("a");
+    fallbackLink.href = url;
+    fallbackLink.download = filename;
+    fallbackLink.target = "_self";
+    document.body.appendChild(fallbackLink);
+    fallbackLink.click();
+    setTimeout(() => {
+      document.body.removeChild(fallbackLink);
+    }, 1000);
+
+    btn.innerHTML = `<span>⚡ Download Started</span>`;
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+      btn.classList.remove("btn-downloading");
+      btn.disabled = false;
+    }, 2500);
+
+  } catch (err) {
+    console.error("Download execution error:", err);
+    // Ultimate graceful fallback
+    window.location.assign(url);
+    btn.innerHTML = originalHtml;
+    btn.classList.remove("btn-downloading");
+    btn.disabled = false;
+  }
 }
 
 function sanitizeFilename(name) {
