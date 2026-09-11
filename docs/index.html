@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniStream — Unified Media Downloader & Ecosystem</title>
+  <meta name="description" content="OmniStream: Universal 4K Video & 320kbps MP3 Audio Downloader supporting 21 platforms. Powered by Cloudflare Worker API. Created by MD RASEL.">
+  <link rel="icon" type="image/jpeg" href="./logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <!-- Background Ambient Glows -->
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+  <div class="glow-orb orb-3"></div>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="#" class="brand">
+        <img src="./logo.jpg" alt="OmniStream Logo" class="brand-logo">
+        <div class="brand-text">
+          <span class="brand-name">OMNISTREAM</span>
+          <span class="brand-tag">v1.0.0 PRO</span>
+        </div>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#downloader" class="nav-link active">Downloader</a>
+        <a href="#platforms" class="nav-link">21 Platforms</a>
+        <a href="#android-app" class="nav-link">Android App</a>
+        <a href="#telegram-bot" class="nav-link">Telegram Bot</a>
+        <a href="#developer" class="nav-link">Developer</a>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest/download/OmniStream_v1.0.0.apk" class="btn btn-outline" download>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>APK</span>
+        </a>
+        <a href="https://t.me/OmniStream34_bot" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .37z"/></svg>
+          <span>Telegram Bot</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- Hero Section -->
+    <section class="hero-section" id="downloader">
+      <div class="hero-badge">
+        <span class="pulse-dot"></span>
+        <span>POWERED BY CLOUDFLARE EDGE WORKER API</span>
+      </div>
+
+      <h1 class="hero-title">
+        Universal Media Downloader <br>
+        <span class="gradient-text">21 Serviced Platforms</span>
+      </h1>
+
+      <p class="hero-desc">
+        Direct high-speed media resolution for YouTube, TikTok, Facebook, Instagram, Twitter/X, SoundCloud, TeraBox and 15 more services. Clean, watermark-free, and lightning fast.
+      </p>
+
+      <!-- Downloader Console Card -->
+      <div class="downloader-card">
+        <div class="downloader-header">
+          <div class="detected-platform" id="detectedPlatformBadge">
+            <span class="platform-icon" id="detectedPlatformIcon">⚡</span>
+            <span class="platform-name" id="detectedPlatformName">Ready to Detect</span>
+          </div>
+          <div class="api-status-pill">
+            <span class="status-indicator live"></span>
+            <span>Cloudflare Edge Active</span>
+          </div>
+        </div>
+
+        <form id="downloadForm" class="downloader-form">
+          <div class="input-wrapper">
+            <div class="input-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <input 
+              type="url" 
+              id="mediaUrlInput" 
+              class="url-input" 
+              placeholder="Paste link from YouTube, TikTok, Facebook, Instagram, Twitter/X, Pinterest..." 
+              required
+              autocomplete="off"
+            >
+            <button type="button" class="btn-input-action" id="pasteBtn" title="Paste from clipboard">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              <span>Paste</span>
+            </button>
+            <button type="button" class="btn-input-action btn-clear hidden" id="clearBtn" title="Clear input">
+              ✕
+            </button>
+          </div>
+
+          <div class="form-controls">
+            <div class="control-group">
+              <label for="formatSelect" class="control-label">Download Mode:</label>
+              <select id="formatSelect" class="format-select">
+                <option value="auto">⚡ Auto (Best Available Quality)</option>
+                <option value="1080">🎬 Video — 1080p Full HD</option>
+                <option value="720">🎬 Video — 720p HD</option>
+                <option value="max">💎 Video — Max (4K / 8K Master)</option>
+                <option value="audio">🎵 Audio Only — 320kbps MP3</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-download-main" id="submitBtn">
+              <span class="btn-text">Download Media</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+        </form>
+
+        <!-- Dynamic Loading State -->
+        <div class="status-box hidden" id="statusBox">
+          <div class="spinner"></div>
+          <div class="status-texts">
+            <div class="status-title" id="statusTitle">Resolving media stream...</div>
+            <div class="status-sub" id="statusSub">Connecting to Cloudflare Worker API & multi-gateway mirrors</div>
+          </div>
+        </div>
+
+        <!-- Dynamic Error State -->
+        <div class="error-box hidden" id="errorBox">
+          <div class="error-icon">⚠️</div>
+          <div class="error-content">
+            <div class="error-title" id="errorTitle">Could not resolve media</div>
+            <div class="error-message" id="errorMessage">Please check the link or choose another platform.</div>
+          </div>
+        </div>
+
+        <!-- Result Preview Card -->
+        <div class="result-card hidden" id="resultCard">
+          <div class="result-media-container">
+            <div class="thumbnail-wrapper" id="thumbnailWrapper">
+              <img src="" alt="Media Thumbnail" id="resultThumbnail" class="result-thumbnail">
+              <div class="duration-badge" id="durationBadge">HD</div>
+            </div>
+            
+            <!-- In-browser preview player -->
+            <div class="preview-player-wrapper hidden" id="previewPlayerWrapper">
+              <video id="videoPreview" class="preview-player" controls preload="metadata"></video>
+              <audio id="audioPreview" class="preview-player hidden" controls preload="metadata"></audio>
+            </div>
+          </div>
+
+          <div class="result-details">
+            <div class="result-tags">
+              <span class="tag tag-platform" id="resultPlatformTag">Platform</span>
+              <span class="tag tag-quality" id="resultQualityTag">1080p HD</span>
+              <span class="tag tag-author" id="resultAuthorTag">Creator</span>
+            </div>
+
+            <h3 class="result-title" id="resultTitle">Media Title</h3>
+
+            <div class="player-toggle-bar">
+              <button type="button" class="btn btn-sm btn-preview-toggle" id="togglePreviewBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>Preview in Browser</span>
+              </button>
+            </div>
+
+            <div class="download-action-grid" id="downloadButtonsGrid">
+              <!-- Dynamically populated download buttons -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Platform Chips for 1-click test -->
+        <div class="quick-try-row">
+          <span class="quick-try-label">Try sample:</span>
+          <button type="button" class="sample-chip" data-url="https://www.tiktok.com/@tiktok/video/7106594312292453678">TikTok</button>
+          <button type="button" class="sample-chip" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">YouTube</button>
+          <button type="button" class="sample-chip" data-url="https://www.instagram.com/reel/Cx123456789/">Instagram</button>
+          <button type="button" class="sample-chip" data-url="https://www.facebook.com/watch/?v=1234567890">Facebook</button>
+          <button type="button" class="sample-chip" data-url="https://twitter.com/user/status/1234567890">Twitter/X</button>
+          <button type="button" class="sample-chip" data-url="https://soundcloud.com/artist/sample-track">SoundCloud</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 21 Serviced Platforms Explorer -->
+    <section class="platforms-section" id="platforms">
+      <div class="section-header">
+        <div class="section-badge">SUPPORTED ECOSYSTEM</div>
+        <h2 class="section-title">21 Serviced Platforms</h2>
+        <p class="section-desc">
+          High-performance media resolution with full audio/video muxing, watermark removal, and audio ripping.
+        </p>
+
+        <div class="category-filters">
+          <button class="filter-btn active" data-category="all">All (21 Services)</button>
+          <button class="filter-btn" data-category="social">Social & Reels</button>
+          <button class="filter-btn" data-category="video">Video Portals</button>
+          <button class="filter-btn" data-category="audio">Audio & Music</button>
+          <button class="filter-btn" data-category="live">Live & Clips</button>
+        </div>
+      </div>
+
+      <div class="platforms-grid" id="platformsGrid">
+        <!-- Injected dynamically via app.js -->
+      </div>
+    </section>
+
+    <!-- Unified Ecosystem Integration: Android App & Telegram Bot -->
+    <section class="ecosystem-section" id="android-app">
+      <div class="section-header">
+        <div class="section-badge">UNIFIED ECOSYSTEM</div>
+        <h2 class="section-title">OmniStream Across All Your Devices</h2>
+        <p class="section-desc">
+          Access media downloading power seamlessly via Web, Android Native Application, and 24/7 Telegram Bot.
+        </p>
+      </div>
+
+      <div class="ecosystem-cards-grid">
+        <!-- Android App Card -->
+        <div class="ecosystem-card card-android">
+          <div class="card-glow glow-cyan"></div>
+          <div class="card-top">
+            <div class="icon-bubble">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            </div>
+            <span class="pill-badge pill-cyan">Official Release</span>
+          </div>
+
+          <h3 class="card-title">OmniStream Android App</h3>
+          <p class="card-desc">
+            The full-featured native Android application built with Kotlin and Jetpack Compose. Includes foreground download manager, background music player, and floating PiP player.
+          </p>
+
+          <ul class="feature-list">
+            <li>✓ Multi-threaded 4K download engine</li>
+            <li>✓ Foreground notification service with progress</li>
+            <li>✓ Built-in Media3 / ExoPlayer playback</li>
+            <li>✓ Zero ads, pure speed and privacy</li>
+          </ul>
+
+          <div class="card-footer">
+            <div class="version-meta">
+              <span class="v-tag">v1.0.0 Pro</span>
+              <span class="v-size">24.5 MB APK</span>
+            </div>
+            <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest/download/OmniStream_v1.0.0.apk" class="btn btn-primary btn-full" download>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Official APK</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Telegram Bot Card -->
+        <div class="ecosystem-card card-telegram" id="telegram-bot">
+          <div class="card-glow glow-purple"></div>
+          <div class="card-top">
+            <div class="icon-bubble">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .37z"/></svg>
+            </div>
+            <span class="pill-badge pill-purple" id="tgBotStatusPill">🟢 24/7 Online</span>
+          </div>
+
+          <h3 class="card-title">Telegram Bot Daemon</h3>
+          <p class="card-desc">
+            Direct in-chat downloading via <code>@OmniStream34_bot</code>. Send any link directly in Telegram chat to receive high-definition video files with direct playback.
+          </p>
+
+          <ul class="feature-list">
+            <li>✓ Send link & receive instant playable video</li>
+            <li>✓ 1-to-1 direct messaging & admin support</li>
+            <li>✓ In-chat APK delivery (<code>/app</code>)</li>
+            <li>✓ Uptime-monitored 24/7 daemon</li>
+          </ul>
+
+          <div class="card-footer">
+            <div class="version-meta">
+              <span class="v-tag">@OmniStream34_bot</span>
+              <span class="v-size" id="tgBotUsersCount">Active Bot</span>
+            </div>
+            <a href="https://t.me/OmniStream34_bot" target="_blank" rel="noopener noreferrer" class="btn btn-purple btn-full">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .37z"/></svg>
+              <span>Launch Telegram Bot</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Cloudflare Edge Architecture Card -->
+        <div class="ecosystem-card card-edge">
+          <div class="card-glow glow-emerald"></div>
+          <div class="card-top">
+            <div class="icon-bubble">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            </div>
+            <span class="pill-badge pill-emerald">Edge Powered</span>
+          </div>
+
+          <h3 class="card-title">Cloudflare Worker API</h3>
+          <p class="card-desc">
+            Distributed backend infrastructure running on Cloudflare Edge locations with multi-mirror routing. Handles high concurrent resolution with zero throttling.
+          </p>
+
+          <ul class="feature-list">
+            <li>✓ Custom Edge Worker: <code>muddy-scene-0ff7</code></li>
+            <li>✓ High-speed multi-gateway failover</li>
+            <li>✓ Sub-second stream resolution</li>
+            <li>✓ Direct TeraBox VIP download tunnel</li>
+          </ul>
+
+          <div class="card-footer">
+            <div class="version-meta">
+              <span class="v-tag">Edge Tier 1</span>
+              <span class="v-size">Global Anycast</span>
+            </div>
+            <a href="#platforms" class="btn btn-emerald btn-full">
+              <span>Explore 21 Platforms</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Developer Section -->
+    <section class="developer-section" id="developer">
+      <div class="dev-card">
+        <div class="dev-avatar">
+          <img src="./logo.jpg" alt="MD RASEL">
+        </div>
+        <div class="dev-info">
+          <span class="dev-badge">CORE DEVELOPER & FOUNDER</span>
+          <h3 class="dev-name">MD RASEL</h3>
+          <p class="dev-handle"><code>@HANTER_XD_OFFICIAL</code></p>
+          <p class="dev-bio">
+            Creator of OmniStream — High-Performance Media Downloader ecosystem spanning Android, Telegram Daemon, and Unified Web Platform.
+          </p>
+          <div class="dev-links">
+            <a href="https://t.me/HANTER_XD_OFFICIAL" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline">
+              <span>Telegram Support</span>
+            </a>
+            <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline">
+              <span>GitHub Repository</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <div class="brand">
+          <img src="./logo.jpg" alt="OmniStream" class="brand-logo sm">
+          <span class="brand-name">OMNISTREAM</span>
+        </div>
+        <p class="footer-copy">
+          Designed and engineered by <strong>MD RASEL</strong> (@HANTER_XD_OFFICIAL). All media rights belong to respective platform creators.
+        </p>
+      </div>
+
+      <div class="footer-links">
+        <div class="footer-col">
+          <span class="col-title">Ecosystem</span>
+          <a href="#downloader">Web Downloader</a>
+          <a href="#platforms">21 Platforms</a>
+          <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest/download/OmniStream_v1.0.0.apk" download>Android APK</a>
+          <a href="https://t.me/OmniStream34_bot" target="_blank">Telegram Bot</a>
+        </div>
+        <div class="footer-col">
+          <span class="col-title">Developer</span>
+          <a href="https://t.me/HANTER_XD_OFFICIAL" target="_blank">@HANTER_XD_OFFICIAL</a>
+          <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream" target="_blank">GitHub Project</a>
+          <a href="#downloader">Direct Extraction</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>OmniStream v1.0.0 Pro • 21 Serviced Platforms • Cloudflare Edge Worker API</span>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
