@@ -476,12 +476,24 @@ function initFormHandler() {
       resultQualityTag.textContent = data.quality || "1080p HD";
       resultAuthorTag.textContent = data.author || "Creator";
 
-      // Thumbnail
-      if (data.thumbnail) {
-        resultThumbnail.src = data.thumbnail;
+      // Thumbnail & fallback handling
+      resultThumbnail.referrerPolicy = "no-referrer";
+      resultThumbnail.crossOrigin = "anonymous";
+      
+      const setThumbnailSrc = (src) => {
+        resultThumbnail.onerror = () => {
+          if (resultThumbnail.src.indexOf("logo.jpg") === -1) {
+            resultThumbnail.src = "./logo.jpg";
+          }
+        };
+        resultThumbnail.src = src;
         resultThumbnail.classList.remove("hidden");
+      };
+
+      if (data.thumbnail && typeof data.thumbnail === 'string') {
+        setThumbnailSrc(data.thumbnail);
       } else {
-        resultThumbnail.src = "./logo.jpg";
+        setThumbnailSrc("./logo.jpg");
       }
 
       // Preview setup
@@ -495,13 +507,30 @@ function initFormHandler() {
           if (streamUrl && !streamUrl.endsWith(".mp3")) {
             videoPreview.classList.remove("hidden");
             audioPreview.classList.add("hidden");
-            videoPreview.src = streamUrl;
-            videoPreview.play().catch(() => {});
+            if (videoPreview.src !== streamUrl) {
+              videoPreview.src = streamUrl;
+              videoPreview.load();
+            }
+            const playPromise = videoPreview.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => {
+                console.warn("Autoplay deferred:", err.message);
+              });
+            }
           } else if (audioUrl || (streamUrl && streamUrl.endsWith(".mp3"))) {
             audioPreview.classList.remove("hidden");
             videoPreview.classList.add("hidden");
-            audioPreview.src = audioUrl || streamUrl;
-            audioPreview.play().catch(() => {});
+            const targetAudio = audioUrl || streamUrl;
+            if (audioPreview.src !== targetAudio) {
+              audioPreview.src = targetAudio;
+              audioPreview.load();
+            }
+            const playPromise = audioPreview.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => {
+                console.warn("Autoplay deferred:", err.message);
+              });
+            }
           }
           togglePreviewBtn.querySelector("span").textContent = "Hide Preview";
         } else {
@@ -722,6 +751,85 @@ function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9_\-]/g, "_").substring(0, 50);
 }
 
+// Dedicated Platform Metadata and Thumbnail Resolver (oEmbed / ID extraction)
+async function fetchPlatformMetadata(url) {
+  const lower = url.toLowerCase();
+  let title = null;
+  let author = null;
+  let thumbnail = null;
+
+  // YouTube
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    let videoId = null;
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=)([^#&?]*)/);
+    if (m1 && m1[1] && m1[1].length >= 11) {
+      videoId = m1[1].substring(0, 11);
+    }
+    if (videoId) {
+      thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+    }
+    try {
+      const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Instagram
+  else if (lower.includes('instagram.com')) {
+    try {
+      const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || 'Instagram Post';
+        author = j.author_name || 'Instagram Creator';
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Vimeo
+  else if (lower.includes('vimeo.com')) {
+    try {
+      const oe = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // SoundCloud
+  else if (lower.includes('soundcloud.com')) {
+    try {
+      const oe = await fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Dailymotion
+  else if (lower.includes('dailymotion.com') || lower.includes('dai.ly')) {
+    try {
+      const oe = await fetch(`https://www.dailymotion.com/services/oembed?url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+
+  return { title, author, thumbnail };
+}
+
 // Client-side media extraction engine (runs serverlessly on GitHub Pages)
 async function resolveMediaClientSide(rawUrl, mode = 'auto') {
   let url = rawUrl.trim();
@@ -779,11 +887,16 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
     } catch (_) {}
   }
 
+  // Pre-fetch platform rich metadata & thumbnail in parallel
+  const metaPromise = fetchPlatformMetadata(url);
+
   // 3. Cloudflare Edge Worker API & Multi-Gateway Cobalt Engine
   const gateways = [
     "https://muddy-scene-0ff7.alexraselchodhury.workers.dev",
     "https://cobalt-latest-a04h.onrender.com",
-    "https://co.wuk.sh"
+    "https://co.wuk.sh",
+    "https://cobalt.xy2401.com",
+    "https://cobalt.api.redstream.org"
   ];
 
   for (const gw of gateways) {
@@ -819,13 +932,21 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
           else if (lower.includes('pinterest.com') || lower.includes('pin.it')) pName = 'Pinterest';
           else if (lower.includes('reddit.com')) pName = 'Reddit';
           else if (lower.includes('soundcloud.com')) pName = 'SoundCloud';
+          else if (lower.includes('vimeo.com')) pName = 'Vimeo';
+          else if (lower.includes('dailymotion.com')) pName = 'Dailymotion';
+          else if (lower.includes('bilibili.com')) pName = 'Bilibili';
+
+          const meta = await metaPromise.catch(() => ({}));
+          const finalThumb = json.thumbnail || meta.thumbnail || null;
+          const finalTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
+          const finalAuthor = meta.author || 'Creator';
 
           return {
             success: true,
             platform: pName,
-            title: json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream',
-            author: 'Creator',
-            thumbnail: json.thumbnail || null,
+            title: finalTitle,
+            author: finalAuthor,
+            thumbnail: finalThumb,
             videoUrl: isAudio ? null : streamUrl,
             audioUrl: isAudio ? streamUrl : (json.audio || null),
             quality: isAudio ? '320kbps MP3' : '1080p HD'
@@ -835,13 +956,61 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
     } catch (_) {}
   }
 
-  // Fallback: Direct stream link
+  // 4. Dedicated YouTube Fallback Engine
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    try {
+      const meta = await metaPromise.catch(() => ({}));
+      const encUrl = encodeURIComponent(url);
+      const ytRes = await fetch(`https://loader.to/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`);
+      if (ytRes.ok) {
+        const ytJson = await ytRes.json();
+        let dlUrl = ytJson.download_url;
+        if (!dlUrl && ytJson.progress_url) {
+          for (let i = 0; i < 8; i++) {
+            await new Promise(r => setTimeout(r, 1500));
+            const pRes = await fetch(ytJson.progress_url);
+            if (pRes.ok) {
+              const pJson = await pRes.json();
+              if (pJson.download_url) {
+                dlUrl = pJson.download_url;
+                break;
+              }
+            }
+          }
+        }
+        if (dlUrl && dlUrl.startsWith('http')) {
+          return {
+            success: true,
+            platform: 'YouTube',
+            title: meta.title || 'YouTube Video',
+            author: meta.author || 'YouTube Creator',
+            thumbnail: meta.thumbnail || './logo.jpg',
+            videoUrl: dlUrl,
+            audioUrl: null,
+            quality: '720p HD'
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
+  const meta = await metaPromise.catch(() => ({}));
+  let fallbackPlatform = 'Universal Media';
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) fallbackPlatform = 'YouTube';
+  else if (lower.includes('instagram.com')) fallbackPlatform = 'Instagram';
+  else if (lower.includes('facebook.com') || lower.includes('fb.watch')) fallbackPlatform = 'Facebook';
+  else if (lower.includes('twitter.com') || lower.includes('x.com')) fallbackPlatform = 'Twitter / X';
+  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) fallbackPlatform = 'Pinterest';
+  else if (lower.includes('reddit.com')) fallbackPlatform = 'Reddit';
+  else if (lower.includes('soundcloud.com')) fallbackPlatform = 'SoundCloud';
+
+  // Fallback: Direct stream link with resolved platform metadata and thumbnail
   return {
     success: true,
-    platform: 'Direct Stream Proxy',
-    title: 'OmniStream Direct Media',
-    author: 'Source Media',
-    thumbnail: './logo.jpg',
+    platform: fallbackPlatform,
+    title: meta.title || 'OmniStream Direct Media',
+    author: meta.author || 'Source Media',
+    thumbnail: meta.thumbnail || './logo.jpg',
     videoUrl: url,
     audioUrl: null,
     quality: 'Direct Stream'

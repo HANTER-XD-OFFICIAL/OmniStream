@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="no-referrer">
   <title>OmniStream — Unified Media Downloader & Ecosystem</title>
   <meta name="description" content="OmniStream: Universal 4K Video & 320kbps MP3 Audio Downloader supporting 21 platforms. Powered by Cloudflare Worker API. Created by MD RASEL.">
   <link rel="icon" type="image/jpeg" href="./logo.jpg">
@@ -144,13 +145,13 @@
         <div class="result-card hidden" id="resultCard">
           <div class="result-media-container">
             <div class="thumbnail-wrapper" id="thumbnailWrapper">
-              <img src="" alt="Media Thumbnail" id="resultThumbnail" class="result-thumbnail">
+              <img src="" alt="Media Thumbnail" id="resultThumbnail" class="result-thumbnail" referrerpolicy="no-referrer" crossorigin="anonymous">
               <div class="duration-badge" id="durationBadge">HD</div>
             </div>
             
             <!-- In-browser preview player -->
             <div class="preview-player-wrapper hidden" id="previewPlayerWrapper">
-              <video id="videoPreview" class="preview-player" controls preload="metadata"></video>
+              <video id="videoPreview" class="preview-player" controls playsinline webkit-playsinline preload="metadata"></video>
               <audio id="audioPreview" class="preview-player hidden" controls preload="metadata"></audio>
             </div>
           </div>

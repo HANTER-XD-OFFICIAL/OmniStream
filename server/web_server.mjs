@@ -138,9 +138,99 @@ async function resolveTeraBox(url) {
   return null;
 }
 
-// 4. Primary Cloudflare Edge Worker API & Multi-Gateway Cobalt Resolver
+// 4. Dedicated Platform Metadata & Thumbnail Resolver (oEmbed / YouTube ID)
+async function fetchPlatformMetadata(url) {
+  const lower = url.toLowerCase();
+  let title = null;
+  let author = null;
+  let thumbnail = null;
+
+  // YouTube
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    let videoId = null;
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=)([^#&?]*)/);
+    if (m1 && m1[1] && m1[1].length >= 11) {
+      videoId = m1[1].substring(0, 11);
+    }
+    if (videoId) {
+      thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+    }
+    try {
+      const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Instagram
+  else if (lower.includes('instagram.com')) {
+    try {
+      const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || 'Instagram Post';
+        author = j.author_name || 'Instagram Creator';
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Vimeo
+  else if (lower.includes('vimeo.com')) {
+    try {
+      const oe = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // SoundCloud
+  else if (lower.includes('soundcloud.com')) {
+    try {
+      const oe = await fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Dailymotion
+  else if (lower.includes('dailymotion.com') || lower.includes('dai.ly')) {
+    try {
+      const oe = await fetch(`https://www.dailymotion.com/services/oembed?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+
+  return { title, author, thumbnail };
+}
+
+// 5. Primary Cloudflare Edge Worker API & Multi-Gateway Cobalt Resolver
 async function resolveCobalt(url, mode = 'auto', quality = '1080') {
   const isAudio = mode === 'audio';
+  const metaPromise = fetchPlatformMetadata(url);
 
   for (const host of COBALT_MIRRORS) {
     try {
@@ -174,13 +264,17 @@ async function resolveCobalt(url, mode = 'auto', quality = '1080') {
         }
 
         if (streamUrl && streamUrl.startsWith('http')) {
-          const cleanTitle = json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream';
+          const meta = await metaPromise.catch(() => ({}));
+          const cleanTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
+          const finalThumb = json.thumbnail || meta.thumbnail || null;
+          const finalAuthor = meta.author || 'Creator';
+
           return {
             success: true,
             platform: 'OmniStream Engine',
             title: cleanTitle,
-            author: 'Creator',
-            thumbnail: json.thumbnail || null,
+            author: finalAuthor,
+            thumbnail: finalThumb,
             videoUrl: isAudio ? null : streamUrl,
             audioUrl: isAudio ? streamUrl : (json.audio || null),
             quality: isAudio ? '320kbps MP3' : `${quality}p HD`
