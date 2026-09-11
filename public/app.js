@@ -872,9 +872,32 @@ function initGlassTouchFeedback() {
   });
 }
 
+// Direct Support Form Handler
+function initSupportForm() {
+  const form = document.getElementById("direct-support-form");
+  if (!form) return;
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = document.getElementById("support-sender-name")?.value.trim() || "User";
+    const subject = document.getElementById("support-sender-subject")?.value.trim() || "OmniStream Support Inquiry";
+    const message = document.getElementById("support-sender-message")?.value.trim() || "";
+
+    const emailBody = `Hi MD RASEL,\n\nName: ${name}\n\nMessage:\n${message}\n\n---\nSent via OmniStream Support Hub`;
+    const mailtoUrl = `mailto:alexraselchodhury@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+
+    // Feedback notification toast
+    showToast("Launching your email client...", "info");
+    
+    // Open default mail app
+    window.location.href = mailtoUrl;
+  });
+}
+
 // Initialize on DOM Ready
 document.addEventListener("DOMContentLoaded", () => {
   initGlassTouchFeedback();
+  initSupportForm();
 });
 
 // Live Statistics Polling
