@@ -2130,6 +2130,15 @@ body {
     margin: 14px 0 22px;
     border-radius: 14px;
   }
+  .mail-box-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .mail-box-hint {
+    font-size: 11px;
+  }
   .mail-form-row {
     grid-template-columns: 1fr;
     gap: 10px;

@@ -887,10 +887,18 @@ function initSupportForm() {
     const mailtoUrl = `mailto:alexraselchodhury@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
 
     // Feedback notification toast
-    showToast("Launching your email client...", "info");
+    showToast("Opening your Email app...", "info");
     
-    // Open default mail app
-    window.location.href = mailtoUrl;
+    // Robust mobile mail app launcher
+    const tempLink = document.createElement("a");
+    tempLink.href = mailtoUrl;
+    tempLink.target = "_blank";
+    tempLink.rel = "noopener noreferrer";
+    document.body.appendChild(tempLink);
+    tempLink.click();
+    setTimeout(() => {
+      tempLink.remove();
+    }, 500);
   });
 }
 
