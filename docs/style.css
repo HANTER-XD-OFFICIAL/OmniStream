@@ -1764,44 +1764,58 @@ body {
 /* Mobile Phones (<= 640px) - Precision Measurement for Native Mobile View */
 @media (max-width: 640px) {
   .navbar {
-    padding: 10px 14px;
+    padding: 8px 10px;
     width: 100%;
     box-sizing: border-box;
   }
   .nav-container {
-    gap: 8px;
+    gap: 6px;
     width: 100%;
     box-sizing: border-box;
     justify-content: space-between;
+    align-items: center;
   }
   .brand {
-    gap: 8px;
-    flex-shrink: 0;
+    gap: 6px;
+    flex-shrink: 1;
+    min-width: 0;
   }
   .brand-logo {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    flex-shrink: 0;
+  }
+  .brand-text {
+    gap: 5px;
+    min-width: 0;
   }
   .brand-name {
-    font-size: 15px;
+    font-size: 13.5px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
   }
   .brand-tag {
-    font-size: 8.5px;
-    padding: 2px 6px;
+    font-size: 7.5px;
+    padding: 1px 4px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
   }
   .nav-actions {
-    gap: 8px;
+    gap: 5px;
     flex-shrink: 0;
   }
   .nav-actions .btn {
-    padding: 6px 12px;
-    font-size: 12px;
-    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 11px;
+    border-radius: 7px;
+    gap: 4px;
+    white-space: nowrap;
   }
   .nav-actions .btn svg {
-    width: 15px;
-    height: 15px;
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
   }
 
   /* Main Layout & Hero */
