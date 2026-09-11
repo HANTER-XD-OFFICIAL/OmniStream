@@ -848,6 +848,35 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
   };
 }
 
+// Touch Glass Interactive Haptic Ripple Effect
+function initGlassTouchFeedback() {
+  const touchElements = document.querySelectorAll(".glass-touch, .btn-touch-glass, .btn-glass-nav, .platform-card, .sample-chip");
+  touchElements.forEach((el) => {
+    el.addEventListener("pointerdown", function (e) {
+      const rect = this.getBoundingClientRect();
+      const ripple = document.createElement("span");
+      ripple.className = "glass-ripple-wave";
+      const size = Math.max(rect.width, rect.height) * 1.5;
+      ripple.style.width = ripple.style.height = `${size}px`;
+      ripple.style.left = `${e.clientX - rect.left - size / 2}px`;
+      ripple.style.top = `${e.clientY - rect.top - size / 2}px`;
+      
+      const existingRipple = this.querySelector(".glass-ripple-wave");
+      if (existingRipple) existingRipple.remove();
+      
+      this.appendChild(ripple);
+      setTimeout(() => {
+        if (ripple.parentElement) ripple.remove();
+      }, 650);
+    });
+  });
+}
+
+// Initialize on DOM Ready
+document.addEventListener("DOMContentLoaded", () => {
+  initGlassTouchFeedback();
+});
+
 // Live Statistics Polling
 async function pollLiveStats() {
   try {
