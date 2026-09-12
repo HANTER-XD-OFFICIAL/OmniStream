@@ -153,11 +153,14 @@
               <div class="duration-badge" id="durationBadge">HD</div>
             </div>
             
-            <!-- In-browser preview player (Stream player below thumbnail) -->
-            <div class="preview-player-wrapper" id="previewPlayerWrapper">
+            <!-- In-browser preview player (Stream player shown only after clicking Play in Browser) -->
+            <div class="preview-player-wrapper hidden" id="previewPlayerWrapper">
               <div class="player-header-bar" id="playerHeaderBar">
                 <span class="player-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Stream Player</span>
-                <span class="player-stream-status" id="playerStreamStatus">● Ready to Play</span>
+                <div class="player-header-actions">
+                  <span class="player-stream-status" id="playerStreamStatus">● Ready to Play</span>
+                  <button type="button" class="btn-close-player" id="closePlayerBtn" title="Hide Video Player" aria-label="Hide Video Player">✕</button>
+                </div>
               </div>
               <video id="videoPreview" class="preview-player" controls playsinline webkit-playsinline preload="metadata"></video>
               <audio id="audioPreview" class="preview-player hidden" controls preload="metadata"></audio>

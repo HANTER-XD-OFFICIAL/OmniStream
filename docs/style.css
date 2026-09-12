@@ -767,6 +767,12 @@ body {
   gap: 5px;
 }
 
+.player-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .player-stream-status {
   color: var(--emerald-success);
   font-family: var(--font-mono);
@@ -777,6 +783,31 @@ body {
 .player-stream-status.playing {
   color: #38f9d7;
   animation: pulseStatus 1.5s infinite;
+}
+
+.btn-close-player {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #94a3b8;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.btn-close-player:hover {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fff;
+  transform: scale(1.05);
 }
 
 @keyframes pulseStatus {

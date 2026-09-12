@@ -407,6 +407,7 @@ function initFormHandler() {
   const thumbnailWrapper = document.getElementById("thumbnailWrapper");
   const playOverlayBtn = document.getElementById("playOverlayBtn");
   const playerStreamStatus = document.getElementById("playerStreamStatus");
+  const closePlayerBtn = document.getElementById("closePlayerBtn");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -416,7 +417,7 @@ function initFormHandler() {
     // Reset views
     errorBox.classList.add("hidden");
     resultCard.classList.add("hidden");
-    if (previewPlayerWrapper) previewPlayerWrapper.classList.remove("hidden");
+    if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
     videoPreview.pause();
     audioPreview.pause();
     videoPreview.src = "";
@@ -502,9 +503,7 @@ function initFormHandler() {
 
       if (isValidThumbnail) {
         resultThumbnail.onerror = () => {
-          // If external thumbnail fails (CORS or hotlink protection), do NOT show logo.jpg!
-          // Instead, hide the static thumbnail box so the real video stream player takes visual focus!
-          if (thumbnailWrapper) thumbnailWrapper.classList.add("hidden");
+          resultThumbnail.classList.add("hidden");
         };
         resultThumbnail.onload = () => {
           if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
@@ -516,18 +515,18 @@ function initFormHandler() {
         resultThumbnail.classList.remove("hidden");
         thumbnailAssigned = true;
       } else {
-        // No static image thumbnail provided from API (e.g. FB/IG/X video stream)
-        // Never show logo.jpg! The video stream player itself natively displays the first frame of the video
-        if (thumbnailWrapper) thumbnailWrapper.classList.add("hidden");
+        // Fallback: keep thumbnail wrapper visible with dark gradient card & play overlay
+        if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
+        resultThumbnail.classList.add("hidden");
         resultThumbnail.src = "";
       }
 
-      // Stream Player Setup (Positioned directly below thumbnail)
+      // Stream Player Setup (Initially hidden; revealed when user clicks Play in Browser)
       const streamUrl = data.videoUrl || data.streamUrl || data.downloadUrl;
       const audioUrl = data.audioUrl;
       const isAudioOnly = formatSelect.value === "audio" || (!streamUrl && audioUrl) || (streamUrl && streamUrl.endsWith(".mp3"));
 
-      if (previewPlayerWrapper) previewPlayerWrapper.classList.remove("hidden");
+      if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
 
       if (isAudioOnly) {
         audioPreview.classList.remove("hidden");
@@ -586,8 +585,20 @@ function initFormHandler() {
 
       // Universal Play / Pause Control
       const togglePlayback = () => {
+        const isCurrentlyHidden = previewPlayerWrapper && previewPlayerWrapper.classList.contains("hidden");
+
         if (isAudioOnly) {
-          if (audioPreview.paused) {
+          if (isCurrentlyHidden) {
+            previewPlayerWrapper.classList.remove("hidden");
+            audioPreview.play().catch(() => {});
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Audio";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing Audio";
+              playerStreamStatus.classList.add("playing");
+            }
+            previewPlayerWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else if (audioPreview.paused) {
             audioPreview.play().catch(() => {});
             if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Audio";
             if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
@@ -605,7 +616,9 @@ function initFormHandler() {
             }
           }
         } else if (streamUrl) {
-          if (videoPreview.paused) {
+          if (isCurrentlyHidden) {
+            // Reveal player only after user clicks Play in Browser!
+            previewPlayerWrapper.classList.remove("hidden");
             const playPromise = videoPreview.play();
             if (playPromise !== undefined) {
               playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
@@ -617,7 +630,18 @@ function initFormHandler() {
               playerStreamStatus.classList.add("playing");
             }
             // Smoothly bring video into view
-            videoPreview.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            previewPlayerWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else if (videoPreview.paused) {
+            const playPromise = videoPreview.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
+            }
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing Video";
+              playerStreamStatus.classList.add("playing");
+            }
           } else {
             videoPreview.pause();
             if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
@@ -636,6 +660,21 @@ function initFormHandler() {
         thumbnailWrapper.onclick = (e) => {
           if (e.target.closest("#playOverlayBtn")) return;
           togglePlayback();
+        };
+      }
+
+      if (closePlayerBtn) {
+        closePlayerBtn.onclick = (e) => {
+          e.stopPropagation();
+          videoPreview.pause();
+          audioPreview.pause();
+          if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
+          if (togglePreviewBtnText) togglePreviewBtnText.textContent = isAudioOnly ? "Play Audio in Browser" : "Play Video in Browser";
+          if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+          if (playerStreamStatus) {
+            playerStreamStatus.textContent = "● Ready to Play";
+            playerStreamStatus.classList.remove("playing");
+          }
         };
       }
 
