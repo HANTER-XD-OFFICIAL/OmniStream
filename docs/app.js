@@ -491,26 +491,46 @@ function initFormHandler() {
 
       // Thumbnail & fallback handling (Never show logo.jpg as video thumbnail!)
       resultThumbnail.referrerPolicy = "no-referrer";
-      resultThumbnail.crossOrigin = "anonymous";
+      resultThumbnail.removeAttribute("crossorigin");
       
       let thumbnailAssigned = false;
 
-      // Validate thumbnail (ignore dummy 1x1 tracking pixels like data:image/gif;base64,R0lGODlhAQABA...)
-      const isValidThumbnail = data.thumbnail && 
-        typeof data.thumbnail === 'string' && 
-        data.thumbnail.length > 200 && 
-        !data.thumbnail.includes('data:image/gif;base64,R0lGODlhAQABA');
+      // Extract high quality YouTube thumbnail immediately if it is YouTube
+      let resolvedThumb = data.thumbnail;
+      if (!resolvedThumb && (url.includes('youtube.com') || url.includes('youtu.be'))) {
+        const ytIdMatch = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
+        if (ytIdMatch && ytIdMatch[1] && ytIdMatch[1].length >= 11) {
+          resolvedThumb = `https://i.ytimg.com/vi/${ytIdMatch[1].substring(0, 11)}/hqdefault.jpg`;
+        }
+      }
+
+      // Validate thumbnail (accept real image URLs, reject dummy 1x1 pixels)
+      const isValidThumbnail = Boolean(
+        resolvedThumb && 
+        typeof resolvedThumb === 'string' && 
+        resolvedThumb.trim().length > 10 && 
+        !resolvedThumb.includes('data:image/gif;base64,R0lGODlhAQABA') &&
+        !resolvedThumb.includes('data:image/svg+xml')
+      );
 
       if (isValidThumbnail) {
         resultThumbnail.onerror = () => {
+          if (resultThumbnail.src.includes('maxresdefault.jpg')) {
+            resultThumbnail.src = resultThumbnail.src.replace('maxresdefault.jpg', 'hqdefault.jpg');
+            return;
+          }
+          if (resultThumbnail.src.includes('hqdefault.jpg')) {
+            resultThumbnail.src = resultThumbnail.src.replace('hqdefault.jpg', 'mqdefault.jpg');
+            return;
+          }
           resultThumbnail.classList.add("hidden");
         };
         resultThumbnail.onload = () => {
           if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
           resultThumbnail.classList.remove("hidden");
         };
-        resultThumbnail.src = data.thumbnail;
-        videoPreview.poster = data.thumbnail;
+        resultThumbnail.src = resolvedThumb;
+        videoPreview.poster = resolvedThumb;
         if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
         resultThumbnail.classList.remove("hidden");
         thumbnailAssigned = true;
@@ -788,6 +808,18 @@ function formatOmniStreamFilename(platform, title, ext = "mp4") {
 async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video") {
   if (btn.classList.contains("btn-downloading")) return;
   const originalHtml = btn.innerHTML;
+
+  // Strict safety check: Never treat social or video webpage URLs as direct media files!
+  const isWebPageUrl = url.includes("youtube.com") || url.includes("youtu.be") || 
+                       url.includes("twitter.com") || url.includes("x.com") || 
+                       url.includes("instagram.com") || url.includes("facebook.com") || 
+                       url.includes("pinterest.com") || url.includes("tiktok.com/@");
+  if (isWebPageUrl) {
+    console.error("Direct video file stream is missing, refusing to open webpage:", url);
+    alert("Direct video stream is still processing or unavailable for this video. Please try another quality or link.");
+    return;
+  }
+
   btn.classList.add("btn-downloading");
   btn.disabled = true;
 
@@ -881,7 +913,7 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
       return;
     }
 
-    // 4. Fallback if blob cannot be assembled (avoid target="_blank" so it doesn't open a new player tab)
+    // 4. Fallback if blob cannot be assembled (native anchor click)
     updateProgress(`Starting Download...`);
     const fallbackLink = document.createElement("a");
     fallbackLink.href = url;
@@ -902,11 +934,12 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
 
   } catch (err) {
     console.error("Download execution error:", err);
-    // Ultimate graceful fallback
-    window.location.assign(url);
-    btn.innerHTML = originalHtml;
-    btn.classList.remove("btn-downloading");
-    btn.disabled = false;
+    updateProgress("Download Error");
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+      btn.classList.remove("btn-downloading");
+      btn.disabled = false;
+    }, 2000);
   }
 }
 
@@ -924,7 +957,7 @@ async function fetchPlatformMetadata(url) {
   // YouTube
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
     let videoId = null;
-    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=)([^#&?]*)/);
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
     if (m1 && m1[1] && m1[1].length >= 11) {
       videoId = m1[1].substring(0, 11);
     }
@@ -989,24 +1022,71 @@ async function fetchPlatformMetadata(url) {
       }
     } catch (_) {}
   }
-
-  // Pinterest
-  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) {
+  // Twitter / X
+  else if (lower.includes('twitter.com') || lower.includes('x.com')) {
     try {
-      const resp = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-        signal: AbortSignal.timeout(5000)
+      const ml = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(6000)
       });
-      if (resp.ok) {
-        const text = await resp.text();
-        const m = text.match(/https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[a-f0-9\/]+\.(?:jpg|png|jpeg|webp)/i);
-        if (m) {
-          thumbnail = m[0];
-          title = 'Pinterest Video';
-          author = 'Pinterest Creator';
+      if (ml.ok) {
+        const j = await ml.json();
+        if (j.data) {
+          title = j.data.title || 'X Video';
+          author = j.data.author || 'X Creator';
+          const img = j.data.image?.url || j.data.image;
+          if (img && typeof img === 'string' && img.length > 10) {
+            thumbnail = img;
+          }
         }
       }
     } catch (_) {}
+    if (!title) {
+      try {
+        const oe = await fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}`, {
+          signal: AbortSignal.timeout(4000)
+        });
+        if (oe.ok) {
+          const j = await oe.json();
+          title = j.author_name ? `${j.author_name} on X` : 'X Post';
+          author = j.author_name || author;
+        }
+      } catch (_) {}
+    }
+  }
+  // Pinterest
+  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) {
+    try {
+      const ml = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(6000)
+      });
+      if (ml.ok) {
+        const j = await ml.json();
+        if (j.data) {
+          title = j.data.title || 'Pinterest Video';
+          author = j.data.author || 'Pinterest Creator';
+          const img = j.data.image?.url || j.data.image;
+          if (img && typeof img === 'string' && img.length > 10) {
+            thumbnail = img;
+          }
+        }
+      }
+    } catch (_) {}
+    if (!thumbnail) {
+      try {
+        const resp = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(4000)
+        });
+        if (resp.ok) {
+          const text = await resp.text();
+          const m = text.match(/https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[a-f0-9\/]+\.(?:jpg|png|jpeg|webp)/i);
+          if (m) {
+            thumbnail = m[0];
+            title = title || 'Pinterest Video';
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   // Universal Rich Preview Fallback (Microlink API for Instagram, Facebook, X, Pinterest)
@@ -1021,7 +1101,7 @@ async function fetchPlatformMetadata(url) {
           if (!title && j.data.title) title = j.data.title;
           if (!author && j.data.author) author = j.data.author;
           const imgCandidate = j.data.image?.url || j.data.image;
-          if (imgCandidate && typeof imgCandidate === 'string' && imgCandidate.length > 200 && !imgCandidate.includes('data:image/gif;base64,R0lGODlhAQABA')) {
+          if (imgCandidate && typeof imgCandidate === 'string' && imgCandidate.length > 10 && !imgCandidate.includes('data:image/gif;base64,R0lGODlhAQABA')) {
             thumbnail = imgCandidate;
           }
         }
@@ -1120,11 +1200,18 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
       });
       if (resp.ok) {
         const json = await resp.json();
-        let streamUrl = json.url;
-        if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
+        let streamUrl = null;
+        if (json.status === 'tunnel' || json.status === 'redirect') {
+          streamUrl = json.url;
+        } else if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
           const item = json.picker.find(p => p.type === 'video') || json.picker[0];
           streamUrl = item.url;
+        } else if (json.status === 'local-processing' && Array.isArray(json.tunnel) && json.tunnel.length > 0) {
+          streamUrl = json.tunnel[0];
+        } else if (json.url && typeof json.url === 'string') {
+          streamUrl = json.url;
         }
+
         if (streamUrl && streamUrl.startsWith('http')) {
           let pName = 'OmniStream Engine';
           if (lower.includes('youtube.com') || lower.includes('youtu.be')) pName = 'YouTube';
@@ -1167,55 +1254,45 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
       if (ytRes.ok) {
         const ytJson = await ytRes.json();
         let dlUrl = ytJson.download_url;
-        if (!dlUrl && ytJson.progress_url) {
-          for (let i = 0; i < 8; i++) {
+        const progressUrl = ytJson.progress_url;
+        const ytTitle = ytJson.info?.title || ytJson.title || meta.title || 'YouTube Video';
+        const ytThumb = ytJson.thumbnail_url || ytJson.info?.image || meta.thumbnail;
+
+        if (!dlUrl && progressUrl) {
+          for (let i = 0; i < 12; i++) {
             await new Promise(r => setTimeout(r, 1500));
-            const pRes = await fetch(ytJson.progress_url);
-            if (pRes.ok) {
-              const pJson = await pRes.json();
-              if (pJson.download_url) {
-                dlUrl = pJson.download_url;
-                break;
+            try {
+              const pRes = await fetch(progressUrl);
+              if (pRes.ok) {
+                const pJson = await pRes.json();
+                if (pJson.download_url) {
+                  dlUrl = pJson.download_url;
+                  break;
+                }
               }
-            }
+            } catch (_) {}
           }
         }
         if (dlUrl && dlUrl.startsWith('http')) {
           return {
             success: true,
             platform: 'YouTube',
-            title: meta.title || 'YouTube Video',
+            title: ytTitle,
             author: meta.author || 'YouTube Creator',
-            thumbnail: meta.thumbnail || null,
-            videoUrl: dlUrl,
-            audioUrl: null,
-            quality: '720p HD'
+            thumbnail: ytThumb,
+            videoUrl: isAudio ? null : dlUrl,
+            audioUrl: isAudio ? dlUrl : null,
+            quality: isAudio ? '320kbps MP3' : '720p HD'
           };
         }
       }
     } catch (_) {}
   }
 
-  const meta = await metaPromise.catch(() => ({}));
-  let fallbackPlatform = 'Universal Media';
-  if (lower.includes('youtube.com') || lower.includes('youtu.be')) fallbackPlatform = 'YouTube';
-  else if (lower.includes('instagram.com')) fallbackPlatform = 'Instagram';
-  else if (lower.includes('facebook.com') || lower.includes('fb.watch')) fallbackPlatform = 'Facebook';
-  else if (lower.includes('twitter.com') || lower.includes('x.com')) fallbackPlatform = 'Twitter / X';
-  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) fallbackPlatform = 'Pinterest';
-  else if (lower.includes('reddit.com')) fallbackPlatform = 'Reddit';
-  else if (lower.includes('soundcloud.com')) fallbackPlatform = 'SoundCloud';
-
-  // Fallback: Direct stream link with resolved platform metadata and thumbnail
+  // Return explicit failure status instead of feeding raw webpage URL as a downloadable media file
   return {
-    success: true,
-    platform: fallbackPlatform,
-    title: meta.title || 'OmniStream Direct Media',
-    author: meta.author || 'Source Media',
-    thumbnail: meta.thumbnail || null,
-    videoUrl: url,
-    audioUrl: null,
-    quality: 'Direct Stream'
+    success: false,
+    message: 'Could not extract direct media stream from this link. Please check if the video is publicly accessible or try another quality.'
   };
 }
 

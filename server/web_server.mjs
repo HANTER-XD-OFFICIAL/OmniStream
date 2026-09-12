@@ -148,7 +148,7 @@ async function fetchPlatformMetadata(url) {
   // YouTube
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
     let videoId = null;
-    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=)([^#&?]*)/);
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
     if (m1 && m1[1] && m1[1].length >= 11) {
       videoId = m1[1].substring(0, 11);
     }
@@ -280,61 +280,128 @@ async function fetchPlatformMetadata(url) {
 }
 
 // 5. Primary Cloudflare Edge Worker API & Multi-Gateway Cobalt Resolver
-async function resolveCobalt(url, mode = 'auto', quality = '1080') {
+async function resolveSingleCobalt(host, url, mode = 'auto', quality = '1080', timeoutMs = 4500) {
   const isAudio = mode === 'audio';
-  const metaPromise = fetchPlatformMetadata(url);
+  try {
+    const payload = {
+      url: url,
+      videoQuality: quality === 'max' ? 'max' : (quality === '720' ? '720' : '1080'),
+      downloadMode: isAudio ? 'audio' : 'auto',
+      youtubeVideoCodec: 'h264',
+      audioFormat: 'mp3',
+      alwaysProxy: true
+    };
 
+    const res = await fetch(host, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      let streamUrl = null;
+
+      if (json.status === 'tunnel' || json.status === 'redirect') {
+        streamUrl = json.url;
+      } else if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
+        const item = json.picker.find(p => p.type === 'video') || json.picker[0];
+        streamUrl = item.url;
+      } else if (json.status === 'local-processing' && Array.isArray(json.tunnel) && json.tunnel.length > 0) {
+        streamUrl = json.tunnel[0];
+      } else if (json.url && typeof json.url === 'string') {
+        streamUrl = json.url;
+      }
+
+      if (streamUrl && streamUrl.startsWith('http')) {
+        const meta = await fetchPlatformMetadata(url).catch(() => ({}));
+        const cleanTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
+        const finalThumb = json.thumbnail || meta.thumbnail || null;
+        const finalAuthor = meta.author || 'Creator';
+
+        return {
+          success: true,
+          platform: 'OmniStream Engine',
+          title: cleanTitle,
+          author: finalAuthor,
+          thumbnail: finalThumb,
+          videoUrl: isAudio ? null : streamUrl,
+          audioUrl: isAudio ? streamUrl : (json.audio || null),
+          quality: isAudio ? '320kbps MP3' : `${quality}p HD`
+        };
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function resolveCobalt(url, mode = 'auto', quality = '1080') {
   for (const host of COBALT_MIRRORS) {
-    try {
-      const payload = {
-        url: url,
-        videoQuality: quality === 'max' ? 'max' : (quality === '720' ? '720' : '1080'),
-        downloadMode: isAudio ? 'audio' : 'auto',
-        youtubeVideoCodec: 'h264',
-        audioFormat: 'mp3',
-        alwaysProxy: true
-      };
+    const res = await resolveSingleCobalt(host, url, mode, quality, 4000);
+    if (res) return res;
+  }
+  return null;
+}
 
-      const res = await fetch(host, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(9000)
-      });
+// Dedicated High-Speed YouTube Resolver (Loader.to engine with polling)
+async function resolveYouTube(url, mode = 'auto') {
+  try {
+    const isAudio = mode === 'audio';
+    const encUrl = encodeURIComponent(url);
+    const metaPromise = fetchPlatformMetadata(url);
+    const format = isAudio ? 'mp3' : '720';
+    const res = await fetch(`https://loader.to/ajax/download.php?button=1&start=1&end=1&format=${format}&url=${encUrl}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      let dlUrl = json.download_url;
+      const progressUrl = json.progress_url;
+      const meta = await metaPromise.catch(() => ({}));
+      const title = json.info?.title || json.title || meta.title || 'YouTube Video';
+      const thumbnail = json.thumbnail_url || json.info?.image || meta.thumbnail;
 
-      if (res.ok) {
-        const json = await res.json();
-        let streamUrl = json.url;
-
-        if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
-          const item = json.picker.find(p => p.type === 'video') || json.picker[0];
-          streamUrl = item.url;
-        }
-
-        if (streamUrl && streamUrl.startsWith('http')) {
-          const meta = await metaPromise.catch(() => ({}));
-          const cleanTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
-          const finalThumb = json.thumbnail || meta.thumbnail || null;
-          const finalAuthor = meta.author || 'Creator';
-
-          return {
-            success: true,
-            platform: 'OmniStream Engine',
-            title: cleanTitle,
-            author: finalAuthor,
-            thumbnail: finalThumb,
-            videoUrl: isAudio ? null : streamUrl,
-            audioUrl: isAudio ? streamUrl : (json.audio || null),
-            quality: isAudio ? '320kbps MP3' : `${quality}p HD`
-          };
+      if (!dlUrl && progressUrl) {
+        for (let i = 0; i < 12; i++) {
+          await new Promise(r => setTimeout(r, 1500));
+          try {
+            const pRes = await fetch(progressUrl, {
+              headers: { 'User-Agent': 'Mozilla/5.0' },
+              signal: AbortSignal.timeout(5000)
+            });
+            if (pRes.ok) {
+              const pJson = await pRes.json();
+              if (pJson.download_url && pJson.download_url.startsWith('http')) {
+                dlUrl = pJson.download_url;
+                break;
+              }
+            }
+          } catch (_) {}
         }
       }
-    } catch (_) {}
-  }
+
+      if (dlUrl && dlUrl.startsWith('http')) {
+        return {
+          success: true,
+          platform: 'YouTube',
+          title: title,
+          author: meta.author || 'YouTube Channel',
+          thumbnail: thumbnail,
+          videoUrl: isAudio ? null : dlUrl,
+          audioUrl: isAudio ? dlUrl : null,
+          quality: isAudio ? '320kbps MP3' : '720p HD'
+        };
+      }
+    }
+  } catch (_) {}
   return null;
 }
 
@@ -349,22 +416,9 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
 
   const lower = url.toLowerCase();
 
-  // Route 1: TikTok Dedicated Engine
-  if (lower.includes('tiktok.com') || lower.includes('douyin.com')) {
-    const ttRes = await resolveTikTok(url);
-    if (ttRes) return ttRes;
-  }
-
-  // Route 2: TeraBox Cloud
-  if (lower.includes('terabox') || lower.includes('1024tera')) {
-    const tbRes = await resolveTeraBox(url);
-    if (tbRes) return tbRes;
-  }
-
-  // Route 3: Cloudflare Worker API & Multi-Gateway Cobalt Mirrors
-  const cobaltRes = await resolveCobalt(url, mode, quality);
-  if (cobaltRes) {
-    // Detect platform name from URL
+  // Route 1: ALWAYS try user's Main Custom Edge Worker API FIRST
+  const mainWorkerRes = await resolveSingleCobalt(CLOUDFLARE_WORKER_API, url, mode, quality, 4000);
+  if (mainWorkerRes) {
     let platformName = 'Universal Media';
     if (lower.includes('youtube.com') || lower.includes('youtu.be')) platformName = 'YouTube';
     else if (lower.includes('instagram.com')) platformName = 'Instagram';
@@ -376,32 +430,53 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
     else if (lower.includes('bilibili.com')) platformName = 'Bilibili';
     else if (lower.includes('vimeo.com')) platformName = 'Vimeo';
     else if (lower.includes('dailymotion.com')) platformName = 'Dailymotion';
-    else if (lower.includes('snapchat.com')) platformName = 'Snapchat';
-    else if (lower.includes('bluesky.app') || lower.includes('bsky.app')) platformName = 'Bluesky';
-    else if (lower.includes('loom.com')) platformName = 'Loom';
-    else if (lower.includes('ok.ru')) platformName = 'OK.ru';
-    else if (lower.includes('newgrounds.com')) platformName = 'Newgrounds';
-    else if (lower.includes('rutube.ru')) platformName = 'Rutube';
-    else if (lower.includes('streamable.com')) platformName = 'Streamable';
-    else if (lower.includes('tumblr.com')) platformName = 'Tumblr';
-    else if (lower.includes('twitch.tv')) platformName = 'Twitch Clips';
-    else if (lower.includes('vk.com')) platformName = 'VK';
 
-    cobaltRes.platform = platformName;
-    return cobaltRes;
+    mainWorkerRes.platform = platformName;
+    return mainWorkerRes;
   }
 
-  // Fallback: If live API was blocked or rate limited by the external host, provide direct actionable fallback
+  // Route 2: Dedicated YouTube Engine (Direct, reliable, no redirect)
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    const ytRes = await resolveYouTube(url, mode);
+    if (ytRes) return ytRes;
+  }
+
+  // Route 3: Multi-Gateway Cobalt Mirrors for other platforms (Twitter, Pinterest, Instagram, etc.)
+  for (const mirror of COBALT_MIRRORS.slice(1)) {
+    const mirrorRes = await resolveSingleCobalt(mirror, url, mode, quality, 3500);
+    if (mirrorRes) {
+      let platformName = 'Universal Media';
+      if (lower.includes('instagram.com')) platformName = 'Instagram';
+      else if (lower.includes('facebook.com') || lower.includes('fb.watch')) platformName = 'Facebook';
+      else if (lower.includes('twitter.com') || lower.includes('x.com')) platformName = 'Twitter / X';
+      else if (lower.includes('pinterest.com') || lower.includes('pin.it')) platformName = 'Pinterest';
+      else if (lower.includes('reddit.com')) platformName = 'Reddit';
+      else if (lower.includes('soundcloud.com')) platformName = 'SoundCloud';
+      else if (lower.includes('bilibili.com')) platformName = 'Bilibili';
+      else if (lower.includes('vimeo.com')) platformName = 'Vimeo';
+      else if (lower.includes('dailymotion.com')) platformName = 'Dailymotion';
+
+      mirrorRes.platform = platformName;
+      return mirrorRes;
+    }
+  }
+
+  // Route 3: TikTok Dedicated Engine
+  if (lower.includes('tiktok.com') || lower.includes('douyin.com')) {
+    const ttRes = await resolveTikTok(url);
+    if (ttRes) return ttRes;
+  }
+
+  // Route 4: TeraBox Cloud
+  if (lower.includes('terabox') || lower.includes('1024tera')) {
+    const tbRes = await resolveTeraBox(url);
+    if (tbRes) return tbRes;
+  }
+
+  // Error: Return clear failed status instead of feeding raw webpage URL as video stream
   return {
-    success: true,
-    platform: 'Direct Stream Proxy',
-    title: 'OmniStream Direct Stream Asset',
-    author: 'Official Service',
-    thumbnail: null,
-    videoUrl: url,
-    audioUrl: null,
-    quality: 'Source Direct',
-    fallback: true
+    success: false,
+    message: 'Could not extract direct media stream from this link. Please check if the video is publicly accessible or try another quality.'
   };
 }
 
@@ -523,6 +598,18 @@ const server = http.createServer(async (req, res) => {
   // 404
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('Not Found');
+});
+
+server.on('error', (err) => {
+  console.error('Server network error:', err.message);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception caught:', err.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection caught:', reason);
 });
 
 server.listen(PORT, '0.0.0.0', () => {
