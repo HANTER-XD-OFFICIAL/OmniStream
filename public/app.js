@@ -400,9 +400,13 @@ function initFormHandler() {
   const downloadButtonsGrid = document.getElementById("downloadButtonsGrid");
 
   const togglePreviewBtn = document.getElementById("togglePreviewBtn");
+  const togglePreviewBtnText = document.getElementById("togglePreviewBtnText");
   const previewPlayerWrapper = document.getElementById("previewPlayerWrapper");
   const videoPreview = document.getElementById("videoPreview");
   const audioPreview = document.getElementById("audioPreview");
+  const thumbnailWrapper = document.getElementById("thumbnailWrapper");
+  const playOverlayBtn = document.getElementById("playOverlayBtn");
+  const playerStreamStatus = document.getElementById("playerStreamStatus");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -412,11 +416,19 @@ function initFormHandler() {
     // Reset views
     errorBox.classList.add("hidden");
     resultCard.classList.add("hidden");
-    previewPlayerWrapper.classList.add("hidden");
+    if (previewPlayerWrapper) previewPlayerWrapper.classList.remove("hidden");
     videoPreview.pause();
     audioPreview.pause();
     videoPreview.src = "";
     audioPreview.src = "";
+    videoPreview.poster = "";
+    resultThumbnail.src = "";
+    if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
+    if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+    if (playerStreamStatus) {
+      playerStreamStatus.textContent = "● Ready";
+      playerStreamStatus.classList.remove("playing");
+    }
 
     // Show loading
     statusBox.classList.remove("hidden");
@@ -476,39 +488,180 @@ function initFormHandler() {
       resultQualityTag.textContent = data.quality || "1080p HD";
       resultAuthorTag.textContent = data.author || "Creator";
 
-      // Thumbnail
-      if (data.thumbnail) {
+      // Thumbnail & fallback handling (Never show logo.jpg as video thumbnail!)
+      resultThumbnail.referrerPolicy = "no-referrer";
+      resultThumbnail.crossOrigin = "anonymous";
+      
+      let thumbnailAssigned = false;
+
+      // Validate thumbnail (ignore dummy 1x1 tracking pixels like data:image/gif;base64,R0lGODlhAQABA...)
+      const isValidThumbnail = data.thumbnail && 
+        typeof data.thumbnail === 'string' && 
+        data.thumbnail.length > 200 && 
+        !data.thumbnail.includes('data:image/gif;base64,R0lGODlhAQABA');
+
+      if (isValidThumbnail) {
+        resultThumbnail.onerror = () => {
+          // If external thumbnail fails (CORS or hotlink protection), do NOT show logo.jpg!
+          // Instead, hide the static thumbnail box so the real video stream player takes visual focus!
+          if (thumbnailWrapper) thumbnailWrapper.classList.add("hidden");
+        };
+        resultThumbnail.onload = () => {
+          if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
+          resultThumbnail.classList.remove("hidden");
+        };
         resultThumbnail.src = data.thumbnail;
+        videoPreview.poster = data.thumbnail;
+        if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
         resultThumbnail.classList.remove("hidden");
+        thumbnailAssigned = true;
       } else {
-        resultThumbnail.src = "./logo.jpg";
+        // No static image thumbnail provided from API (e.g. FB/IG/X video stream)
+        // Never show logo.jpg! The video stream player itself natively displays the first frame of the video
+        if (thumbnailWrapper) thumbnailWrapper.classList.add("hidden");
+        resultThumbnail.src = "";
       }
 
-      // Preview setup
+      // Stream Player Setup (Positioned directly below thumbnail)
       const streamUrl = data.videoUrl || data.streamUrl || data.downloadUrl;
       const audioUrl = data.audioUrl;
+      const isAudioOnly = formatSelect.value === "audio" || (!streamUrl && audioUrl) || (streamUrl && streamUrl.endsWith(".mp3"));
 
-      togglePreviewBtn.onclick = () => {
-        const isCurrentlyHidden = previewPlayerWrapper.classList.contains("hidden");
-        if (isCurrentlyHidden) {
-          previewPlayerWrapper.classList.remove("hidden");
-          if (streamUrl && !streamUrl.endsWith(".mp3")) {
-            videoPreview.classList.remove("hidden");
-            audioPreview.classList.add("hidden");
-            videoPreview.src = streamUrl;
-            videoPreview.play().catch(() => {});
-          } else if (audioUrl || (streamUrl && streamUrl.endsWith(".mp3"))) {
-            audioPreview.classList.remove("hidden");
-            videoPreview.classList.add("hidden");
-            audioPreview.src = audioUrl || streamUrl;
-            audioPreview.play().catch(() => {});
+      if (previewPlayerWrapper) previewPlayerWrapper.classList.remove("hidden");
+
+      if (isAudioOnly) {
+        audioPreview.classList.remove("hidden");
+        videoPreview.classList.add("hidden");
+        const targetAudio = audioUrl || streamUrl;
+        if (audioPreview.src !== targetAudio) {
+          audioPreview.src = targetAudio;
+          audioPreview.load();
+        }
+        if (playerStreamStatus) playerStreamStatus.textContent = "● Audio Stream Ready";
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Audio in Browser";
+      } else if (streamUrl) {
+        videoPreview.classList.remove("hidden");
+        audioPreview.classList.add("hidden");
+        if (videoPreview.src !== streamUrl) {
+          videoPreview.src = streamUrl;
+          videoPreview.load();
+        }
+
+        // When video metadata and first frame are decoded by browser:
+        videoPreview.onloadeddata = () => {
+          if (playerStreamStatus && videoPreview.paused) {
+            playerStreamStatus.textContent = "● Ready to Play";
           }
-          togglePreviewBtn.querySelector("span").textContent = "Hide Preview";
-        } else {
-          previewPlayerWrapper.classList.add("hidden");
-          videoPreview.pause();
-          audioPreview.pause();
-          togglePreviewBtn.querySelector("span").textContent = "Preview in Browser";
+          // If no external thumbnail image was found, capture the actual video first frame!
+          if (!thumbnailAssigned) {
+            try {
+              const canvas = document.createElement("canvas");
+              canvas.width = videoPreview.videoWidth || 640;
+              canvas.height = videoPreview.videoHeight || 360;
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
+              const snap = canvas.toDataURL("image/jpeg", 0.85);
+              if (snap && snap.length > 500) {
+                resultThumbnail.src = snap;
+                videoPreview.poster = snap;
+                if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
+                resultThumbnail.classList.remove("hidden");
+                thumbnailAssigned = true;
+              }
+            } catch (_) {
+              // Even if canvas CORS restrictions apply, videoPreview natively displays the video frame!
+            }
+          }
+        };
+
+        if (playerStreamStatus) {
+          playerStreamStatus.textContent = "● Ready to Play";
+          playerStreamStatus.classList.remove("playing");
+        }
+        if (togglePreviewBtnText) {
+          togglePreviewBtnText.textContent = "Play Video in Browser";
+        }
+        if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+      }
+
+      // Universal Play / Pause Control
+      const togglePlayback = () => {
+        if (isAudioOnly) {
+          if (audioPreview.paused) {
+            audioPreview.play().catch(() => {});
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Audio";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing Audio";
+              playerStreamStatus.classList.add("playing");
+            }
+          } else {
+            audioPreview.pause();
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Audio in Browser";
+            if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Paused";
+              playerStreamStatus.classList.remove("playing");
+            }
+          }
+        } else if (streamUrl) {
+          if (videoPreview.paused) {
+            const playPromise = videoPreview.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
+            }
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing Video";
+              playerStreamStatus.classList.add("playing");
+            }
+            // Smoothly bring video into view
+            videoPreview.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else {
+            videoPreview.pause();
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
+            if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Paused";
+              playerStreamStatus.classList.remove("playing");
+            }
+          }
+        }
+      };
+
+      togglePreviewBtn.onclick = togglePlayback;
+      if (playOverlayBtn) playOverlayBtn.onclick = togglePlayback;
+      if (thumbnailWrapper) {
+        thumbnailWrapper.onclick = (e) => {
+          if (e.target.closest("#playOverlayBtn")) return;
+          togglePlayback();
+        };
+      }
+
+      // Keep play/pause status synchronized with native player controls
+      videoPreview.onplay = () => {
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
+        if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+        if (playerStreamStatus) {
+          playerStreamStatus.textContent = "● Playing Video";
+          playerStreamStatus.classList.add("playing");
+        }
+      };
+      videoPreview.onpause = () => {
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
+        if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+        if (playerStreamStatus) {
+          playerStreamStatus.textContent = "● Paused";
+          playerStreamStatus.classList.remove("playing");
+        }
+      };
+      videoPreview.onended = () => {
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Replay Video";
+        if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+        if (playerStreamStatus) {
+          playerStreamStatus.textContent = "● Finished";
+          playerStreamStatus.classList.remove("playing");
         }
       };
 
@@ -722,6 +875,124 @@ function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9_\-]/g, "_").substring(0, 50);
 }
 
+// Dedicated Platform Metadata and Thumbnail Resolver (oEmbed / ID extraction)
+async function fetchPlatformMetadata(url) {
+  const lower = url.toLowerCase();
+  let title = null;
+  let author = null;
+  let thumbnail = null;
+
+  // YouTube
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    let videoId = null;
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=)([^#&?]*)/);
+    if (m1 && m1[1] && m1[1].length >= 11) {
+      videoId = m1[1].substring(0, 11);
+    }
+    if (videoId) {
+      thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+    }
+    try {
+      const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Instagram
+  else if (lower.includes('instagram.com')) {
+    try {
+      const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || 'Instagram Post';
+        author = j.author_name || 'Instagram Creator';
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Vimeo
+  else if (lower.includes('vimeo.com')) {
+    try {
+      const oe = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // SoundCloud
+  else if (lower.includes('soundcloud.com')) {
+    try {
+      const oe = await fetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+  // Dailymotion
+  else if (lower.includes('dailymotion.com') || lower.includes('dai.ly')) {
+    try {
+      const oe = await fetch(`https://www.dailymotion.com/services/oembed?url=${encodeURIComponent(url)}`);
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || title;
+        author = j.author_name || author;
+        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      }
+    } catch (_) {}
+  }
+
+  // Pinterest
+  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) {
+    try {
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(5000)
+      });
+      if (resp.ok) {
+        const text = await resp.text();
+        const m = text.match(/https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[a-f0-9\/]+\.(?:jpg|png|jpeg|webp)/i);
+        if (m) {
+          thumbnail = m[0];
+          title = 'Pinterest Video';
+          author = 'Pinterest Creator';
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Universal Rich Preview Fallback (Microlink API for Instagram, Facebook, X, Pinterest)
+  if (!thumbnail && (lower.includes('instagram.com') || lower.includes('facebook.com') || lower.includes('fb.watch') || lower.includes('twitter.com') || lower.includes('x.com') || lower.includes('pinterest.com') || lower.includes('pin.it'))) {
+    try {
+      const ml = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(6000)
+      });
+      if (ml.ok) {
+        const j = await ml.json();
+        if (j.data) {
+          if (!title && j.data.title) title = j.data.title;
+          if (!author && j.data.author) author = j.data.author;
+          const imgCandidate = j.data.image?.url || j.data.image;
+          if (imgCandidate && typeof imgCandidate === 'string' && imgCandidate.length > 200 && !imgCandidate.includes('data:image/gif;base64,R0lGODlhAQABA')) {
+            thumbnail = imgCandidate;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return { title, author, thumbnail };
+}
+
 // Client-side media extraction engine (runs serverlessly on GitHub Pages)
 async function resolveMediaClientSide(rawUrl, mode = 'auto') {
   let url = rawUrl.trim();
@@ -779,11 +1050,16 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
     } catch (_) {}
   }
 
+  // Pre-fetch platform rich metadata & thumbnail in parallel
+  const metaPromise = fetchPlatformMetadata(url);
+
   // 3. Cloudflare Edge Worker API & Multi-Gateway Cobalt Engine
   const gateways = [
     "https://muddy-scene-0ff7.alexraselchodhury.workers.dev",
     "https://cobalt-latest-a04h.onrender.com",
-    "https://co.wuk.sh"
+    "https://co.wuk.sh",
+    "https://cobalt.xy2401.com",
+    "https://cobalt.api.redstream.org"
   ];
 
   for (const gw of gateways) {
@@ -819,13 +1095,21 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
           else if (lower.includes('pinterest.com') || lower.includes('pin.it')) pName = 'Pinterest';
           else if (lower.includes('reddit.com')) pName = 'Reddit';
           else if (lower.includes('soundcloud.com')) pName = 'SoundCloud';
+          else if (lower.includes('vimeo.com')) pName = 'Vimeo';
+          else if (lower.includes('dailymotion.com')) pName = 'Dailymotion';
+          else if (lower.includes('bilibili.com')) pName = 'Bilibili';
+
+          const meta = await metaPromise.catch(() => ({}));
+          const finalThumb = json.thumbnail || meta.thumbnail || null;
+          const finalTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
+          const finalAuthor = meta.author || 'Creator';
 
           return {
             success: true,
             platform: pName,
-            title: json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream',
-            author: 'Creator',
-            thumbnail: json.thumbnail || null,
+            title: finalTitle,
+            author: finalAuthor,
+            thumbnail: finalThumb,
             videoUrl: isAudio ? null : streamUrl,
             audioUrl: isAudio ? streamUrl : (json.audio || null),
             quality: isAudio ? '320kbps MP3' : '1080p HD'
@@ -835,13 +1119,61 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
     } catch (_) {}
   }
 
-  // Fallback: Direct stream link
+  // 4. Dedicated YouTube Fallback Engine
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    try {
+      const meta = await metaPromise.catch(() => ({}));
+      const encUrl = encodeURIComponent(url);
+      const ytRes = await fetch(`https://loader.to/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`);
+      if (ytRes.ok) {
+        const ytJson = await ytRes.json();
+        let dlUrl = ytJson.download_url;
+        if (!dlUrl && ytJson.progress_url) {
+          for (let i = 0; i < 8; i++) {
+            await new Promise(r => setTimeout(r, 1500));
+            const pRes = await fetch(ytJson.progress_url);
+            if (pRes.ok) {
+              const pJson = await pRes.json();
+              if (pJson.download_url) {
+                dlUrl = pJson.download_url;
+                break;
+              }
+            }
+          }
+        }
+        if (dlUrl && dlUrl.startsWith('http')) {
+          return {
+            success: true,
+            platform: 'YouTube',
+            title: meta.title || 'YouTube Video',
+            author: meta.author || 'YouTube Creator',
+            thumbnail: meta.thumbnail || null,
+            videoUrl: dlUrl,
+            audioUrl: null,
+            quality: '720p HD'
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
+  const meta = await metaPromise.catch(() => ({}));
+  let fallbackPlatform = 'Universal Media';
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) fallbackPlatform = 'YouTube';
+  else if (lower.includes('instagram.com')) fallbackPlatform = 'Instagram';
+  else if (lower.includes('facebook.com') || lower.includes('fb.watch')) fallbackPlatform = 'Facebook';
+  else if (lower.includes('twitter.com') || lower.includes('x.com')) fallbackPlatform = 'Twitter / X';
+  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) fallbackPlatform = 'Pinterest';
+  else if (lower.includes('reddit.com')) fallbackPlatform = 'Reddit';
+  else if (lower.includes('soundcloud.com')) fallbackPlatform = 'SoundCloud';
+
+  // Fallback: Direct stream link with resolved platform metadata and thumbnail
   return {
     success: true,
-    platform: 'Direct Stream Proxy',
-    title: 'OmniStream Direct Media',
-    author: 'Source Media',
-    thumbnail: './logo.jpg',
+    platform: fallbackPlatform,
+    title: meta.title || 'OmniStream Direct Media',
+    author: meta.author || 'Source Media',
+    thumbnail: meta.thumbnail || null,
     videoUrl: url,
     audioUrl: null,
     quality: 'Direct Stream'

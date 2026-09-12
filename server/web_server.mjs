@@ -224,6 +224,58 @@ async function fetchPlatformMetadata(url) {
     } catch (_) {}
   }
 
+  // Pinterest
+  else if (lower.includes('pinterest.com') || lower.includes('pin.it')) {
+    try {
+      const oe = await fetch(`https://www.pinterest.com/oembed.json?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.title || 'Pinterest Video';
+        author = j.author_name || 'Pinterest Creator';
+        if (j.thumbnail_url) {
+          thumbnail = j.thumbnail_url.replace('/236x/', '/736x/');
+        }
+      }
+    } catch (_) {}
+  }
+  // Twitter / X
+  else if (lower.includes('twitter.com') || lower.includes('x.com')) {
+    try {
+      const oe = await fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(4000)
+      });
+      if (oe.ok) {
+        const j = await oe.json();
+        title = j.author_name ? `${j.author_name} on X` : 'X Video';
+        author = j.author_name || 'X Creator';
+      }
+    } catch (_) {}
+  }
+
+  // Universal Rich Preview Resolver (Microlink API for Facebook, Instagram, X, Pinterest)
+  if (!thumbnail && (lower.includes('instagram.com') || lower.includes('facebook.com') || lower.includes('fb.watch') || lower.includes('twitter.com') || lower.includes('x.com') || lower.includes('pinterest.com') || lower.includes('pin.it'))) {
+    try {
+      const ml = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (ml.ok) {
+        const j = await ml.json();
+        if (j.data) {
+          if (!title && j.data.title) title = j.data.title;
+          if (!author && j.data.author) author = j.data.author;
+          if (j.data.image?.url) {
+            thumbnail = j.data.image.url;
+          } else if (typeof j.data.image === 'string' && j.data.image.startsWith('http')) {
+            thumbnail = j.data.image;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   return { title, author, thumbnail };
 }
 
@@ -345,7 +397,7 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
     platform: 'Direct Stream Proxy',
     title: 'OmniStream Direct Stream Asset',
     author: 'Official Service',
-    thumbnail: '/static/logo.jpg',
+    thumbnail: null,
     videoUrl: url,
     audioUrl: null,
     quality: 'Source Direct',

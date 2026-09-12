@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="no-referrer">
   <title>OmniStream — Unified Media Downloader & Ecosystem</title>
   <meta name="description" content="OmniStream: Universal 4K Video & 320kbps MP3 Audio Downloader supporting 21 platforms. Powered by Cloudflare Worker API. Created by MD RASEL.">
   <link rel="icon" type="image/jpeg" href="./logo.jpg">
@@ -143,14 +144,22 @@
         <!-- Result Preview Card -->
         <div class="result-card hidden" id="resultCard">
           <div class="result-media-container">
+            <!-- Thumbnail Visual (With Play Overlay) -->
             <div class="thumbnail-wrapper" id="thumbnailWrapper">
-              <img src="" alt="Media Thumbnail" id="resultThumbnail" class="result-thumbnail">
+              <img src="" alt="Media Thumbnail" id="resultThumbnail" class="result-thumbnail" referrerpolicy="no-referrer" crossorigin="anonymous">
+              <button type="button" class="play-overlay-btn" id="playOverlayBtn" aria-label="Play Video Preview">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </button>
               <div class="duration-badge" id="durationBadge">HD</div>
             </div>
             
-            <!-- In-browser preview player -->
-            <div class="preview-player-wrapper hidden" id="previewPlayerWrapper">
-              <video id="videoPreview" class="preview-player" controls preload="metadata"></video>
+            <!-- In-browser preview player (Stream player below thumbnail) -->
+            <div class="preview-player-wrapper" id="previewPlayerWrapper">
+              <div class="player-header-bar" id="playerHeaderBar">
+                <span class="player-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Stream Player</span>
+                <span class="player-stream-status" id="playerStreamStatus">● Ready to Play</span>
+              </div>
+              <video id="videoPreview" class="preview-player" controls playsinline webkit-playsinline preload="metadata"></video>
               <audio id="audioPreview" class="preview-player hidden" controls preload="metadata"></audio>
             </div>
           </div>
@@ -164,10 +173,10 @@
 
             <h3 class="result-title" id="resultTitle">Media Title</h3>
 
-            <div class="player-toggle-bar">
-              <button type="button" class="btn btn-sm btn-preview-toggle" id="togglePreviewBtn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <span>Preview in Browser</span>
+            <div class="player-action-box" id="playerActionBox">
+              <button type="button" class="btn-play-stream" id="togglePreviewBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span id="togglePreviewBtnText">Play Video in Browser</span>
               </button>
             </div>
 

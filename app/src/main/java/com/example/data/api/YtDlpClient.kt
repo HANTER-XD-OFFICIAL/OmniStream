@@ -532,19 +532,18 @@ class YtDlpClient(
         // 6. Pinterest
         else if ("pinterest." in lower || "pin.it" in lower) {
             try {
-                val oembedUrl = "https://www.pinterest.com/oembed.json?url=" + Uri.encode(trimmed)
-                val req = Request.Builder().url(oembedUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val req = Request.Builder()
+                    .url(trimmed)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .build()
                 val resp = okHttpClient.newCall(req).execute()
                 if (resp.isSuccessful) {
-                    val body = resp.body?.string() ?: ""
-                    if (body.startsWith("{")) {
-                        val json = JSONObject(body)
-                        val t = json.optString("title", "")
-                        if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
-                        val a = json.optString("author_name", "")
-                        if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
-                        val thumb = json.optString("thumbnail_url", "")
-                        if (thumb.isNotBlank()) resolvedThumbnail = thumb
+                    val html = resp.body?.string() ?: ""
+                    val m = Regex("""https:\/\/i\.pinimg\.com\/(?:originals|\d+x)\/[a-f0-9\/]+\.(?:jpg|png|jpeg|webp)""", RegexOption.IGNORE_CASE).find(html)
+                    if (m != null) {
+                        resolvedThumbnail = m.value
+                        resolvedTitle = "Pinterest Video / Pin"
+                        resolvedAuthor = "Pinterest Creator"
                     }
                 }
             } catch (_: Exception) {}
@@ -619,6 +618,37 @@ class YtDlpClient(
                             ?: extractHtmlTitle(html)
                         if (!ogTitle.isNullOrBlank()) {
                             resolvedTitle = cleanHtmlEntities(ogTitle)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 10. Universal Microlink API fallback for Instagram, Facebook, X, Pinterest
+        if (resolvedThumbnail.isNullOrBlank() && ("instagram.com" in lower || "facebook.com" in lower || "fb.watch" in lower || "twitter.com" in lower || "x.com" in lower || "pinterest." in lower || "pin.it" in lower)) {
+            try {
+                val mlUrl = "https://api.microlink.io?url=" + Uri.encode(trimmed)
+                val req = Request.Builder().url(mlUrl).addHeader("User-Agent", "Mozilla/5.0").build()
+                val resp = okHttpClient.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.startsWith("{")) {
+                        val json = JSONObject(body)
+                        val data = json.optJSONObject("data")
+                        if (data != null) {
+                            if (resolvedTitle.isNullOrBlank()) {
+                                val t = data.optString("title", "")
+                                if (t.isNotBlank()) resolvedTitle = cleanHtmlEntities(t)
+                            }
+                            if (resolvedAuthor.isBlank() || resolvedAuthor.contains("Video")) {
+                                val a = data.optString("author", "")
+                                if (a.isNotBlank()) resolvedAuthor = cleanHtmlEntities(a)
+                            }
+                            val imgObj = data.optJSONObject("image")
+                            val imgUrl = imgObj?.optString("url", "") ?: data.optString("image", "")
+                            if (imgUrl.isNotBlank() && imgUrl.length > 200 && !imgUrl.contains("data:image/gif;base64,R0lGODlhAQABA")) {
+                                resolvedThumbnail = imgUrl
+                            }
                         }
                     }
                 }
