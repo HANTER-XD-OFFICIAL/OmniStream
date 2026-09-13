@@ -778,73 +778,47 @@ function initFormHandler() {
       const audioFilename = formatOmniStreamFilename(data.platform, data.title, "mp3");
       const downloadHintBar = document.getElementById("downloadHintBar");
 
-      if (data.isYouTube && Array.isArray(data.youtubeDownloadActions)) {
-        data.youtubeDownloadActions.forEach((action) => {
-          const dlBtn = document.createElement("button");
-          dlBtn.type = "button";
-          dlBtn.className = `btn-stream-dl ${action.type === 'audio' ? 'btn-stream-audio' : 'btn-stream-video'}`;
-          dlBtn.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>${action.label}</span>
-          `;
-          dlBtn.onclick = (e) => {
-            e.preventDefault();
-            const span = dlBtn.querySelector("span");
-            const orig = span ? span.textContent : action.label;
-            if (span) span.textContent = "⚡ Opening Downloader...";
-            window.open(action.url, "_blank", "noopener,noreferrer");
-            setTimeout(() => {
-              if (span) span.textContent = orig;
-            }, 2500);
-          };
-          downloadButtonsGrid.appendChild(dlBtn);
-        });
-
-        if (downloadHintBar) {
-          downloadHintBar.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>⚡ YouTube ready &bull; Click your desired video or audio format to download directly</span>
-          `;
-        }
-      } else {
-        // Primary Video/Media Download
+      // Primary Video/Media Download (1-Click Direct Save to Device)
+      const dlBtn = document.createElement("button");
+      dlBtn.type = "button";
+      dlBtn.className = "btn-stream-dl btn-stream-video";
+      dlBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>🎬 Download Video (${data.quality || "HD"})</span>
+      `;
+      dlBtn.onclick = (e) => {
+        e.preventDefault();
         if (streamUrl) {
-          const dlBtn = document.createElement("button");
-          dlBtn.type = "button";
-          dlBtn.className = "btn-stream-dl btn-stream-video";
-          dlBtn.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>🎬 Download Video (${data.quality || "HD"})</span>
-          `;
-          dlBtn.onclick = (e) => {
-            e.preventDefault();
-            triggerDirectMediaDownload(streamUrl, videoFilename, dlBtn, "Video");
-          };
-          downloadButtonsGrid.appendChild(dlBtn);
+          triggerDirectMediaDownload(streamUrl, videoFilename, dlBtn, "Video");
+        } else {
+          resolveAndDownloadMedia(data.originalUrl || originalUrl || url, "auto", videoFilename, dlBtn, "Video");
         }
+      };
+      downloadButtonsGrid.appendChild(dlBtn);
 
-        // Audio Download (if distinct audio stream exists)
+      // Audio Download (1-Click Direct MP3 Audio)
+      const audioBtn = document.createElement("button");
+      audioBtn.type = "button";
+      audioBtn.className = "btn-stream-dl btn-stream-audio";
+      audioBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <span>🎵 Download MP3 Audio</span>
+      `;
+      audioBtn.onclick = (e) => {
+        e.preventDefault();
         if (audioUrl) {
-          const audioBtn = document.createElement("button");
-          audioBtn.type = "button";
-          audioBtn.className = "btn-stream-dl btn-stream-audio";
-          audioBtn.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            <span>🎵 Download MP3 Audio</span>
-          `;
-          audioBtn.onclick = (e) => {
-            e.preventDefault();
-            triggerDirectMediaDownload(audioUrl, audioFilename, audioBtn, "Audio");
-          };
-          downloadButtonsGrid.appendChild(audioBtn);
+          triggerDirectMediaDownload(audioUrl, audioFilename, audioBtn, "Audio");
+        } else {
+          resolveAndDownloadMedia(data.originalUrl || originalUrl || url, "audio", audioFilename, audioBtn, "Audio");
         }
+      };
+      downloadButtonsGrid.appendChild(audioBtn);
 
-        if (downloadHintBar) {
-          downloadHintBar.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>1-Click direct save to device &bull; Saved as <strong>OmniStream_[Media]</strong></span>
-          `;
-        }
+      if (downloadHintBar) {
+        downloadHintBar.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+        `;
       }
 
       // Copy Stream Link Button
@@ -889,19 +863,102 @@ function formatOmniStreamFilename(platform, title, ext = "mp4") {
   return `OmniStream_${cleanPlatform}_${cleanTitle}.${ext}`;
 }
 
+// On-Demand Stream Resolver & Direct 1-Click Downloader
+async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel = "Video") {
+  if (btn.classList.contains("btn-downloading")) return;
+  btn.classList.add("btn-downloading");
+  btn.disabled = true;
+
+  const originalHtml = btn.innerHTML;
+  const updateStatus = (text) => {
+    btn.innerHTML = `
+      <svg class="spinner-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+      <span>${text}</span>
+    `;
+  };
+
+  updateStatus("Connecting Worker API...");
+
+  try {
+    let directStream = null;
+
+    // 1. Primary: Cloudflare Edge Worker API (User's Default API)
+    try {
+      const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          url: mediaUrl,
+          videoQuality: mode === "audio" ? "auto" : "720",
+          downloadMode: mode === "audio" ? "audio" : "auto",
+          youtubeVideoCodec: "h264",
+          audioFormat: "mp3",
+          alwaysProxy: true
+        })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
+          directStream = json.url;
+        } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
+          directStream = json.picker[0]?.url;
+        } else if (json.url && typeof json.url === "string") {
+          directStream = json.url;
+        }
+        if (mode === "audio" && json.audio) {
+          directStream = json.audio;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Server API fallback if available
+    if (!directStream) {
+      updateStatus("Querying Server Stream...");
+      try {
+        const srvRes = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: mediaUrl, mode: mode, quality: "720" })
+        });
+        if (srvRes.ok) {
+          const sJson = await srvRes.json();
+          if (sJson.success) {
+            directStream = mode === "audio" ? (sJson.audioUrl || sJson.videoUrl) : (sJson.videoUrl || sJson.audioUrl);
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (directStream && directStream.startsWith("http")) {
+      btn.classList.remove("btn-downloading");
+      btn.disabled = false;
+      await triggerDirectMediaDownload(directStream, filename, btn, typeLabel);
+      return;
+    }
+
+    updateStatus("Preparing Download...");
+    // Fallback: trigger download with media URL
+    await triggerDirectMediaDownload(mediaUrl, filename, btn, typeLabel);
+  } catch (err) {
+    console.error("Direct download error:", err);
+    btn.innerHTML = originalHtml;
+    btn.classList.remove("btn-downloading");
+    btn.disabled = false;
+  }
+}
+
 // 1-Click Direct File Download (Forces native file save to device with custom filename)
 async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video") {
   if (btn.classList.contains("btn-downloading")) return;
   const originalHtml = btn.innerHTML;
 
-  // Strict safety check: Never treat social or video webpage URLs as direct media files!
+  // If a webpage URL is passed, seamlessly resolve stream through user's API first
   const isWebPageUrl = url.includes("youtube.com") || url.includes("youtu.be") || 
                        url.includes("twitter.com") || url.includes("x.com") || 
                        url.includes("instagram.com") || url.includes("facebook.com") || 
                        url.includes("pinterest.com") || url.includes("tiktok.com/@");
   if (isWebPageUrl) {
-    console.error("Direct video file stream is missing, refusing to open webpage:", url);
-    alert("Direct video stream is still processing or unavailable for this video. Please try another quality or link.");
+    await resolveAndDownloadMedia(url, mediaType === "Audio" ? "audio" : "auto", filename, btn, mediaType);
     return;
   }
 
@@ -1354,31 +1411,7 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
       videoUrl: null,
       audioUrl: null,
       quality: isAudio ? '320kbps MP3' : (mode === '1080' ? '1080p Full HD' : (mode === 'max' ? '4K / 8K Master' : '720p HD')),
-      youtubeDownloadActions: [
-        {
-          label: '🎬 Download 720p HD Video',
-          format: '720',
-          type: 'video',
-          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=720`
-        },
-        {
-          label: '💎 Download 1080p FHD Video',
-          format: '1080',
-          type: 'video',
-          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=1080`
-        },
-        {
-          label: '🎵 Download 320kbps MP3 Audio',
-          format: 'mp3',
-          type: 'audio',
-          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=mp3`
-        },
-        {
-          label: '⚡ 1-Click Fast Downloader',
-          type: 'fast',
-          url: `https://10downloader.com/download?v=${encodeURIComponent(url)}`
-        }
-      ]
+      readyToDownload: true
     };
   }
 

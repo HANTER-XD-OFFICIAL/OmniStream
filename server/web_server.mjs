@@ -457,31 +457,7 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
       videoUrl: null,
       audioUrl: null,
       quality: isAudio ? '320kbps MP3' : (quality === 'max' ? '4K / 8K Master' : (quality === '1080' ? '1080p Full HD' : '720p HD')),
-      youtubeDownloadActions: [
-        {
-          label: '🎬 Download 720p HD Video',
-          format: '720',
-          type: 'video',
-          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=720`
-        },
-        {
-          label: '💎 Download 1080p FHD Video',
-          format: '1080',
-          type: 'video',
-          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=1080`
-        },
-        {
-          label: '🎵 Download 320kbps MP3 Audio',
-          format: 'mp3',
-          type: 'audio',
-          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=mp3`
-        },
-        {
-          label: '⚡ 1-Click Fast Downloader',
-          type: 'fast',
-          url: `https://10downloader.com/download?v=${encodeURIComponent(url)}`
-        }
-      ]
+      readyToDownload: true
     };
   }
 
