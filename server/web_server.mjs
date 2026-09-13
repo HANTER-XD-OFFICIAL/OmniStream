@@ -439,6 +439,50 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
     const ytRes = await resolveYouTube(url, mode);
     if (ytRes) return ytRes;
+
+    const meta = await fetchPlatformMetadata(url).catch(() => ({}));
+    let videoId = null;
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/(?:v|e(?:mbed)?)\/|.*[?&]v=)([a-zA-Z0-9_-]{11})/i);
+    if (m1 && m1[1]) videoId = m1[1];
+    const isAudio = mode === 'audio';
+
+    return {
+      success: true,
+      platform: 'YouTube',
+      title: meta.title && meta.title !== 'YouTube Video' ? meta.title : (videoId ? `YouTube Video (${videoId})` : 'YouTube Video'),
+      author: meta.author || 'YouTube Channel',
+      thumbnail: meta.thumbnail || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null),
+      videoId: videoId,
+      isYouTube: true,
+      videoUrl: null,
+      audioUrl: null,
+      quality: isAudio ? '320kbps MP3' : (quality === 'max' ? '4K / 8K Master' : (quality === '1080' ? '1080p Full HD' : '720p HD')),
+      youtubeDownloadActions: [
+        {
+          label: '🎬 Download 720p HD Video',
+          format: '720',
+          type: 'video',
+          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=720`
+        },
+        {
+          label: '💎 Download 1080p FHD Video',
+          format: '1080',
+          type: 'video',
+          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=1080`
+        },
+        {
+          label: '🎵 Download 320kbps MP3 Audio',
+          format: 'mp3',
+          type: 'audio',
+          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=mp3`
+        },
+        {
+          label: '⚡ 1-Click Fast Downloader',
+          type: 'fast',
+          url: `https://10downloader.com/download?v=${encodeURIComponent(url)}`
+        }
+      ]
+    };
   }
 
   // Route 3: Multi-Gateway Cobalt Mirrors for other platforms (Twitter, Pinterest, Instagram, etc.)

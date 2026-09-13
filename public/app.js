@@ -266,13 +266,13 @@ function initUrlDetection() {
       badge.style.borderColor = platform.color;
       badge.style.boxShadow = `0 0 16px ${platform.color}40`;
       icon.textContent = "✓";
-      name.textContent = `${platform.name} (${platform.badge})`;
+      name.textContent = platform.name;
     } else if (val.startsWith("http://") || val.startsWith("https://")) {
       badge.classList.add("detected");
       badge.style.borderColor = "var(--cyan-bright)";
       badge.style.boxShadow = "0 0 16px var(--cyan-glow)";
       icon.textContent = "⚡";
-      name.textContent = "Universal Media URL";
+      name.textContent = "Web Media";
     } else {
       badge.classList.remove("detected");
       badge.style.borderColor = "";
@@ -542,13 +542,24 @@ function initFormHandler() {
       }
 
       // Stream Player Setup (Initially hidden; revealed when user clicks Play in Browser)
+      const ytEmbedPreview = document.getElementById("ytEmbedPreview");
       const streamUrl = data.videoUrl || data.streamUrl || data.downloadUrl;
       const audioUrl = data.audioUrl;
       const isAudioOnly = formatSelect.value === "audio" || (!streamUrl && audioUrl) || (streamUrl && streamUrl.endsWith(".mp3"));
 
       if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
+      if (ytEmbedPreview) {
+        ytEmbedPreview.src = "";
+        ytEmbedPreview.classList.add("hidden");
+      }
 
-      if (isAudioOnly) {
+      if (data.isYouTube && data.videoId) {
+        videoPreview.classList.add("hidden");
+        audioPreview.classList.add("hidden");
+        if (playerStreamStatus) playerStreamStatus.textContent = "● YouTube Video Ready";
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
+        if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+      } else if (isAudioOnly) {
         audioPreview.classList.remove("hidden");
         videoPreview.classList.add("hidden");
         const targetAudio = audioUrl || streamUrl;
@@ -606,6 +617,38 @@ function initFormHandler() {
       // Universal Play / Pause Control
       const togglePlayback = () => {
         const isCurrentlyHidden = previewPlayerWrapper && previewPlayerWrapper.classList.contains("hidden");
+
+        if (data.isYouTube && data.videoId) {
+          if (isCurrentlyHidden) {
+            previewPlayerWrapper.classList.remove("hidden");
+            videoPreview.classList.add("hidden");
+            audioPreview.classList.add("hidden");
+            if (ytEmbedPreview) {
+              ytEmbedPreview.classList.remove("hidden");
+              ytEmbedPreview.src = `https://www.youtube.com/embed/${data.videoId}?autoplay=1&rel=0`;
+            }
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Close Player";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing in Embedded Player";
+              playerStreamStatus.classList.add("playing");
+            }
+            previewPlayerWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else {
+            if (ytEmbedPreview) {
+              ytEmbedPreview.src = "";
+              ytEmbedPreview.classList.add("hidden");
+            }
+            previewPlayerWrapper.classList.add("hidden");
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
+            if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● YouTube Video Ready";
+              playerStreamStatus.classList.remove("playing");
+            }
+          }
+          return;
+        }
 
         if (isAudioOnly) {
           if (isCurrentlyHidden) {
@@ -688,11 +731,15 @@ function initFormHandler() {
           e.stopPropagation();
           videoPreview.pause();
           audioPreview.pause();
+          if (ytEmbedPreview) {
+            ytEmbedPreview.src = "";
+            ytEmbedPreview.classList.add("hidden");
+          }
           if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
           if (togglePreviewBtnText) togglePreviewBtnText.textContent = isAudioOnly ? "Play Audio in Browser" : "Play Video in Browser";
           if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
           if (playerStreamStatus) {
-            playerStreamStatus.textContent = "● Ready to Play";
+            playerStreamStatus.textContent = data.isYouTube ? "● YouTube Video Ready" : "● Ready to Play";
             playerStreamStatus.classList.remove("playing");
           }
         };
@@ -729,37 +776,75 @@ function initFormHandler() {
 
       const videoFilename = formatOmniStreamFilename(data.platform, data.title, "mp4");
       const audioFilename = formatOmniStreamFilename(data.platform, data.title, "mp3");
+      const downloadHintBar = document.getElementById("downloadHintBar");
 
-      // Primary Video/Media Download
-      if (streamUrl) {
-        const dlBtn = document.createElement("button");
-        dlBtn.type = "button";
-        dlBtn.className = "btn-stream-dl btn-stream-video";
-        dlBtn.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span>🎬 Download Video (${data.quality || "HD"})</span>
-        `;
-        dlBtn.onclick = (e) => {
-          e.preventDefault();
-          triggerDirectMediaDownload(streamUrl, videoFilename, dlBtn, "Video");
-        };
-        downloadButtonsGrid.appendChild(dlBtn);
-      }
+      if (data.isYouTube && Array.isArray(data.youtubeDownloadActions)) {
+        data.youtubeDownloadActions.forEach((action) => {
+          const dlBtn = document.createElement("button");
+          dlBtn.type = "button";
+          dlBtn.className = `btn-stream-dl ${action.type === 'audio' ? 'btn-stream-audio' : 'btn-stream-video'}`;
+          dlBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>${action.label}</span>
+          `;
+          dlBtn.onclick = (e) => {
+            e.preventDefault();
+            const span = dlBtn.querySelector("span");
+            const orig = span ? span.textContent : action.label;
+            if (span) span.textContent = "⚡ Opening Downloader...";
+            window.open(action.url, "_blank", "noopener,noreferrer");
+            setTimeout(() => {
+              if (span) span.textContent = orig;
+            }, 2500);
+          };
+          downloadButtonsGrid.appendChild(dlBtn);
+        });
 
-      // Audio Download (if distinct audio stream exists)
-      if (audioUrl) {
-        const audioBtn = document.createElement("button");
-        audioBtn.type = "button";
-        audioBtn.className = "btn-stream-dl btn-stream-audio";
-        audioBtn.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <span>🎵 Download MP3 Audio</span>
-        `;
-        audioBtn.onclick = (e) => {
-          e.preventDefault();
-          triggerDirectMediaDownload(audioUrl, audioFilename, audioBtn, "Audio");
-        };
-        downloadButtonsGrid.appendChild(audioBtn);
+        if (downloadHintBar) {
+          downloadHintBar.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>⚡ YouTube ready &bull; Click your desired video or audio format to download directly</span>
+          `;
+        }
+      } else {
+        // Primary Video/Media Download
+        if (streamUrl) {
+          const dlBtn = document.createElement("button");
+          dlBtn.type = "button";
+          dlBtn.className = "btn-stream-dl btn-stream-video";
+          dlBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>🎬 Download Video (${data.quality || "HD"})</span>
+          `;
+          dlBtn.onclick = (e) => {
+            e.preventDefault();
+            triggerDirectMediaDownload(streamUrl, videoFilename, dlBtn, "Video");
+          };
+          downloadButtonsGrid.appendChild(dlBtn);
+        }
+
+        // Audio Download (if distinct audio stream exists)
+        if (audioUrl) {
+          const audioBtn = document.createElement("button");
+          audioBtn.type = "button";
+          audioBtn.className = "btn-stream-dl btn-stream-audio";
+          audioBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>🎵 Download MP3 Audio</span>
+          `;
+          audioBtn.onclick = (e) => {
+            e.preventDefault();
+            triggerDirectMediaDownload(audioUrl, audioFilename, audioBtn, "Audio");
+          };
+          downloadButtonsGrid.appendChild(audioBtn);
+        }
+
+        if (downloadHintBar) {
+          downloadHintBar.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>1-Click direct save to device &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+          `;
+        }
       }
 
       // Copy Stream Link Button
@@ -768,13 +853,13 @@ function initFormHandler() {
       copyBtn.className = "btn-stream-dl btn-stream-copy";
       copyBtn.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        <span>Copy Direct Link</span>
+        <span>Copy Link</span>
       `;
       copyBtn.onclick = () => {
-        navigator.clipboard.writeText(streamUrl || audioUrl || url);
+        navigator.clipboard.writeText(streamUrl || audioUrl || originalUrl || url);
         copyBtn.querySelector("span").textContent = "Copied to Clipboard!";
         setTimeout(() => {
-          copyBtn.querySelector("span").textContent = "Copy Direct Link";
+          copyBtn.querySelector("span").textContent = "Copy Link";
         }, 2000);
       };
       downloadButtonsGrid.appendChild(copyBtn);
@@ -957,9 +1042,9 @@ async function fetchPlatformMetadata(url) {
   // YouTube
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
     let videoId = null;
-    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
-    if (m1 && m1[1] && m1[1].length >= 11) {
-      videoId = m1[1].substring(0, 11);
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/(?:v|e(?:mbed)?)\/|.*[?&]v=)([a-zA-Z0-9_-]{11})/i);
+    if (m1 && m1[1]) {
+      videoId = m1[1];
     }
     if (videoId) {
       thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
@@ -1247,46 +1332,54 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
 
   // 4. Dedicated YouTube Fallback Engine
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
-    try {
-      const meta = await metaPromise.catch(() => ({}));
-      const encUrl = encodeURIComponent(url);
-      const ytRes = await fetch(`https://loader.to/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`);
-      if (ytRes.ok) {
-        const ytJson = await ytRes.json();
-        let dlUrl = ytJson.download_url;
-        const progressUrl = ytJson.progress_url;
-        const ytTitle = ytJson.info?.title || ytJson.title || meta.title || 'YouTube Video';
-        const ytThumb = ytJson.thumbnail_url || ytJson.info?.image || meta.thumbnail;
+    const meta = await metaPromise.catch(() => ({}));
+    let videoId = null;
+    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/(?:v|e(?:mbed)?)\/|.*[?&]v=)([a-zA-Z0-9_-]{11})/i);
+    if (m1 && m1[1]) {
+      videoId = m1[1];
+    }
+    const ytTitle = meta.title && meta.title !== 'YouTube Video' ? meta.title : (videoId ? `YouTube Video (${videoId})` : 'YouTube Video');
+    const ytAuthor = meta.author || 'YouTube Creator';
+    const ytThumb = meta.thumbnail || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
 
-        if (!dlUrl && progressUrl) {
-          for (let i = 0; i < 12; i++) {
-            await new Promise(r => setTimeout(r, 1500));
-            try {
-              const pRes = await fetch(progressUrl);
-              if (pRes.ok) {
-                const pJson = await pRes.json();
-                if (pJson.download_url) {
-                  dlUrl = pJson.download_url;
-                  break;
-                }
-              }
-            } catch (_) {}
-          }
+    return {
+      success: true,
+      platform: 'YouTube',
+      title: ytTitle,
+      author: ytAuthor,
+      thumbnail: ytThumb,
+      videoId: videoId,
+      originalUrl: url,
+      isYouTube: true,
+      videoUrl: null,
+      audioUrl: null,
+      quality: isAudio ? '320kbps MP3' : (mode === '1080' ? '1080p Full HD' : (mode === 'max' ? '4K / 8K Master' : '720p HD')),
+      youtubeDownloadActions: [
+        {
+          label: '🎬 Download 720p HD Video',
+          format: '720',
+          type: 'video',
+          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=720`
+        },
+        {
+          label: '💎 Download 1080p FHD Video',
+          format: '1080',
+          type: 'video',
+          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=1080`
+        },
+        {
+          label: '🎵 Download 320kbps MP3 Audio',
+          format: 'mp3',
+          type: 'audio',
+          url: `https://en.loader.to/api/button/?url=${encodeURIComponent(url)}&f=mp3`
+        },
+        {
+          label: '⚡ 1-Click Fast Downloader',
+          type: 'fast',
+          url: `https://10downloader.com/download?v=${encodeURIComponent(url)}`
         }
-        if (dlUrl && dlUrl.startsWith('http')) {
-          return {
-            success: true,
-            platform: 'YouTube',
-            title: ytTitle,
-            author: meta.author || 'YouTube Creator',
-            thumbnail: ytThumb,
-            videoUrl: isAudio ? null : dlUrl,
-            audioUrl: isAudio ? dlUrl : null,
-            quality: isAudio ? '320kbps MP3' : '720p HD'
-          };
-        }
-      }
-    } catch (_) {}
+      ]
+    };
   }
 
   // Return explicit failure status instead of feeding raw webpage URL as a downloadable media file
