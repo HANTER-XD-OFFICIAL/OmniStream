@@ -814,34 +814,11 @@ function initFormHandler() {
       };
       downloadButtonsGrid.appendChild(audioBtn);
 
-      // If YouTube, add specialized Fast 1-Click Resolution button
-      if (data.isYouTube && data.videoId) {
-        const fastYtBtn = document.createElement("button");
-        fastYtBtn.type = "button";
-        fastYtBtn.className = "btn-stream-dl btn-stream-action";
-        fastYtBtn.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          <span>⚡ Fast 1-Click Save (720p / MP3)</span>
-        `;
-        fastYtBtn.onclick = (e) => {
-          e.preventDefault();
-          window.open(`https://ssyoutube.com/watch?v=${data.videoId}`, "_blank", "noopener,noreferrer");
-        };
-        downloadButtonsGrid.appendChild(fastYtBtn);
-      }
-
       if (downloadHintBar) {
-        if (data.isYouTube) {
-          downloadHintBar.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>⚡ High-speed direct YouTube download &bull; Zero delay &bull; Saved as <strong>OmniStream_[Media]</strong></span>
-          `;
-        } else {
-          downloadHintBar.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API &bull; Saved as <strong>OmniStream_[Media]</strong></span>
-          `;
-        }
+        downloadHintBar.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API (muddy-scene-0ff7) &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+        `;
       }
 
       // Copy Stream Link Button
@@ -905,20 +882,20 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
   try {
     let directStream = null;
 
-    // 1. Primary: Cloudflare Edge Worker API (User's Default API) with 3.5s timeout
+    // 1. Primary: User's Official Cloudflare Edge Worker API (muddy-scene-0ff7) with Best Quality
     try {
       const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
           url: mediaUrl,
-          videoQuality: mode === "audio" ? "auto" : "720",
+          videoQuality: mode === "audio" ? "auto" : "max",
           downloadMode: mode === "audio" ? "audio" : "auto",
           youtubeVideoCodec: "h264",
           audioFormat: "mp3",
           alwaysProxy: true
         }),
-        signal: AbortSignal.timeout(3500)
+        signal: AbortSignal.timeout(6000)
       });
       if (resp.ok) {
         const json = await resp.json();
@@ -935,15 +912,47 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       }
     } catch (_) {}
 
-    // 2. Server API fallback if available (2.5s timeout)
+    // 2. Secondary: Cobalt Mirror Gateways
     if (!directStream) {
-      updateStatus("Querying Server Stream...");
+      const mirrorGateways = [
+        "https://cobalt-latest-a04h.onrender.com",
+        "https://cobalt.api.redstream.org"
+      ];
+      for (const gw of mirrorGateways) {
+        if (directStream) break;
+        try {
+          const mResp = await fetch(gw, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({
+              url: mediaUrl,
+              videoQuality: mode === "audio" ? "auto" : "max",
+              downloadMode: mode === "audio" ? "audio" : "auto",
+              youtubeVideoCodec: "h264",
+              audioFormat: "mp3",
+              alwaysProxy: true
+            }),
+            signal: AbortSignal.timeout(4000)
+          });
+          if (mResp.ok) {
+            const mJson = await mResp.json();
+            if (mJson.status === "tunnel" || mJson.status === "redirect" || mJson.status === "stream" || mJson.url) {
+              directStream = mJson.url;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 3. Server API fallback if available
+    if (!directStream) {
+      updateStatus("Querying Stream...");
       try {
         const srvRes = await fetch("/api/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: mediaUrl, mode: mode, quality: "720" }),
-          signal: AbortSignal.timeout(2500)
+          body: JSON.stringify({ url: mediaUrl, mode: mode, quality: "1080" }),
+          signal: AbortSignal.timeout(3000)
         });
         if (srvRes.ok) {
           const sJson = await srvRes.json();
@@ -961,40 +970,23 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       return;
     }
 
-    // 3. YouTube specific fast direct download gateway (avoids Cobalt rate-limit hanging)
+    // Never redirect to external websites - show clean in-app status
+    updateStatus("⚠️ API Stream Unavailable");
     const isYouTube = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
-    if (isYouTube) {
-      updateStatus("Starting YouTube Download...");
-      const ytIdMatch = mediaUrl.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
-      const videoId = ytIdMatch && ytIdMatch[1] ? ytIdMatch[1].substring(0, 11) : "";
-      
-      const fastUrl = videoId 
-        ? `https://ssyoutube.com/watch?v=${videoId}` 
-        : `https://en.savefrom.net/1-youtube-video-downloader-719.html?url=${encodeURIComponent(mediaUrl)}`;
-
-      const downloadLink = document.createElement("a");
-      downloadLink.href = fastUrl;
-      downloadLink.target = "_blank";
-      downloadLink.rel = "noopener noreferrer";
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      setTimeout(() => {
-        try { document.body.removeChild(downloadLink); } catch(_) {}
-      }, 1000);
-
-      btn.innerHTML = `<span>⚡ Opening Download...</span>`;
-      setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        btn.classList.remove("btn-downloading");
-        btn.disabled = false;
-      }, 2000);
-      return;
+    if (isYouTube && errorBox && errorMessage) {
+      errorBox.classList.remove("hidden");
+      errorMessage.innerHTML = `
+        <strong>YouTube Stream Blocked by Bot Protection:</strong><br>
+        Your main API <code>muddy-scene-0ff7.alexraselchodhury.workers.dev</code> returned a YouTube fetch failure because YouTube blocks datacenter IP addresses on Cobalt.<br>
+        <em>Solution: Add cookies.json or a residential proxy to your Cobalt instance on Render.</em>
+      `;
     }
 
-    updateStatus("Preparing Download...");
-    btn.classList.remove("btn-downloading");
-    btn.disabled = false;
-    await triggerDirectMediaDownload(mediaUrl, filename, btn, typeLabel);
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+      btn.classList.remove("btn-downloading");
+      btn.disabled = false;
+    }, 3500);
   } catch (err) {
     console.error("Direct download error:", err);
     btn.innerHTML = originalHtml;
