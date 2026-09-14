@@ -814,11 +814,34 @@ function initFormHandler() {
       };
       downloadButtonsGrid.appendChild(audioBtn);
 
-      if (downloadHintBar) {
-        downloadHintBar.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+      // If YouTube, add specialized Fast 1-Click Resolution button
+      if (data.isYouTube && data.videoId) {
+        const fastYtBtn = document.createElement("button");
+        fastYtBtn.type = "button";
+        fastYtBtn.className = "btn-stream-dl btn-stream-action";
+        fastYtBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>⚡ Fast 1-Click Save (720p / MP3)</span>
         `;
+        fastYtBtn.onclick = (e) => {
+          e.preventDefault();
+          window.open(`https://ssyoutube.com/watch?v=${data.videoId}`, "_blank", "noopener,noreferrer");
+        };
+        downloadButtonsGrid.appendChild(fastYtBtn);
+      }
+
+      if (downloadHintBar) {
+        if (data.isYouTube) {
+          downloadHintBar.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>⚡ High-speed direct YouTube download &bull; Zero delay &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+          `;
+        } else {
+          downloadHintBar.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+          `;
+        }
       }
 
       // Copy Stream Link Button
@@ -877,12 +900,12 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
     `;
   };
 
-  updateStatus("Connecting Worker API...");
+  updateStatus("Connecting Engine...");
 
   try {
     let directStream = null;
 
-    // 1. Primary: Cloudflare Edge Worker API (User's Default API)
+    // 1. Primary: Cloudflare Edge Worker API (User's Default API) with 3.5s timeout
     try {
       const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
         method: "POST",
@@ -894,7 +917,8 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
           youtubeVideoCodec: "h264",
           audioFormat: "mp3",
           alwaysProxy: true
-        })
+        }),
+        signal: AbortSignal.timeout(3500)
       });
       if (resp.ok) {
         const json = await resp.json();
@@ -911,14 +935,15 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       }
     } catch (_) {}
 
-    // 2. Server API fallback if available
+    // 2. Server API fallback if available (2.5s timeout)
     if (!directStream) {
       updateStatus("Querying Server Stream...");
       try {
         const srvRes = await fetch("/api/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: mediaUrl, mode: mode, quality: "720" })
+          body: JSON.stringify({ url: mediaUrl, mode: mode, quality: "720" }),
+          signal: AbortSignal.timeout(2500)
         });
         if (srvRes.ok) {
           const sJson = await srvRes.json();
@@ -936,20 +961,59 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       return;
     }
 
+    // 3. YouTube specific fast direct download gateway (avoids Cobalt rate-limit hanging)
+    const isYouTube = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
+    if (isYouTube) {
+      updateStatus("Starting YouTube Download...");
+      const ytIdMatch = mediaUrl.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
+      const videoId = ytIdMatch && ytIdMatch[1] ? ytIdMatch[1].substring(0, 11) : "";
+      
+      const fastUrl = videoId 
+        ? `https://ssyoutube.com/watch?v=${videoId}` 
+        : `https://en.savefrom.net/1-youtube-video-downloader-719.html?url=${encodeURIComponent(mediaUrl)}`;
+
+      const downloadLink = document.createElement("a");
+      downloadLink.href = fastUrl;
+      downloadLink.target = "_blank";
+      downloadLink.rel = "noopener noreferrer";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      setTimeout(() => {
+        try { document.body.removeChild(downloadLink); } catch(_) {}
+      }, 1000);
+
+      btn.innerHTML = `<span>⚡ Opening Download...</span>`;
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.classList.remove("btn-downloading");
+        btn.disabled = false;
+      }, 2000);
+      return;
+    }
+
     updateStatus("Preparing Download...");
-    // Fallback: trigger download with media URL
+    btn.classList.remove("btn-downloading");
+    btn.disabled = false;
     await triggerDirectMediaDownload(mediaUrl, filename, btn, typeLabel);
   } catch (err) {
     console.error("Direct download error:", err);
     btn.innerHTML = originalHtml;
     btn.classList.remove("btn-downloading");
     btn.disabled = false;
+  } finally {
+    // Safety guarantee: Ensure the button is never permanently locked
+    setTimeout(() => {
+      if (btn && btn.classList.contains("btn-downloading")) {
+        btn.innerHTML = originalHtml;
+        btn.classList.remove("btn-downloading");
+        btn.disabled = false;
+      }
+    }, 4000);
   }
 }
 
 // 1-Click Direct File Download (Forces native file save to device with custom filename)
 async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video") {
-  if (btn.classList.contains("btn-downloading")) return;
   const originalHtml = btn.innerHTML;
 
   // If a webpage URL is passed, seamlessly resolve stream through user's API first
@@ -958,10 +1022,13 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
                        url.includes("instagram.com") || url.includes("facebook.com") || 
                        url.includes("pinterest.com") || url.includes("tiktok.com/@");
   if (isWebPageUrl) {
+    btn.classList.remove("btn-downloading");
+    btn.disabled = false;
     await resolveAndDownloadMedia(url, mediaType === "Audio" ? "audio" : "auto", filename, btn, mediaType);
     return;
   }
 
+  if (btn.classList.contains("btn-downloading")) return;
   btn.classList.add("btn-downloading");
   btn.disabled = true;
 
@@ -979,7 +1046,7 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
 
     // 1. Direct fetch with CORS and progress stream reading
     try {
-      const resp = await fetch(url, { mode: 'cors' });
+      const resp = await fetch(url, { mode: 'cors', signal: AbortSignal.timeout(10000) });
       if (resp.ok) {
         const contentLength = resp.headers.get('content-length');
         const total = contentLength ? parseInt(contentLength, 10) : 0;
