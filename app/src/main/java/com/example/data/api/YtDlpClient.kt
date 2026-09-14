@@ -1250,6 +1250,33 @@ class YtDlpClient(
                         val dUrl = json.optString("download_url", "")
                         if (dUrl.isNotBlank() && dUrl.startsWith("http")) {
                             direct720Url = dUrl
+                        } else {
+                            val progressUrl = json.optString("progress_url", "")
+                            if (progressUrl.isNotBlank() && progressUrl.startsWith("http")) {
+                                for (p in 0 until 3) {
+                                    try { Thread.sleep(1000) } catch (_: Exception) {}
+                                    try {
+                                        val pReq = Request.Builder()
+                                            .url(progressUrl)
+                                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                                            .addHeader("Accept", "application/json")
+                                            .addHeader("Referer", "$host/")
+                                            .build()
+                                        val pResp = okHttpClient.newCall(pReq).execute()
+                                        if (pResp.isSuccessful) {
+                                            val pBody = pResp.body?.string() ?: ""
+                                            if (pBody.startsWith("{")) {
+                                                val pJson = JSONObject(pBody)
+                                                val pDl = pJson.optString("download_url", "")
+                                                if (pDl.isNotBlank() && pDl.startsWith("http")) {
+                                                    direct720Url = pDl
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+                            }
                         }
                     }
                 }
@@ -1420,7 +1447,7 @@ class YtDlpClient(
         val videoId = extractYouTubeId(rawInput) ?: (if (!sourceUrl.isNullOrBlank()) extractYouTubeId(sourceUrl) else null)
         if (videoId == null) return@withContext null
 
-        val fmt = when {
+        val requestedFmt = when {
             rawInput.contains(":1080") || formatPreference.contains("1080") -> "1080"
             rawInput.contains(":480") || formatPreference.contains("480") -> "480"
             rawInput.contains(":360") || formatPreference.contains("360") -> "360"
@@ -1428,52 +1455,64 @@ class YtDlpClient(
             else -> "720"
         }
 
-        // 1. Primary Resolver: Loader.to API
-        for (host in LOADER_TO_HOSTS) {
-            try {
-                val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
-                val startUrl = "$host/ajax/download.php?button=1&start=1&end=1&format=$fmt&url=$encYtUrl"
-                val req = Request.Builder()
-                    .url(startUrl)
-                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-                    .addHeader("Accept", "application/json")
-                    .addHeader("Referer", "$host/")
-                    .build()
-                val resp = okHttpClient.newCall(req).execute()
-                if (resp.isSuccessful) {
-                    val body = resp.body?.string() ?: ""
-                    if (body.startsWith("{")) {
-                        val json = JSONObject(body)
-                        val directDl = json.optString("download_url", "")
-                        if (directDl.isNotBlank() && directDl.startsWith("http")) {
-                            return@withContext directDl
-                        }
-                        val progressUrl = json.optString("progress_url", "")
-                        if (progressUrl.isNotBlank() && progressUrl.startsWith("http")) {
-                            for (p in 0 until 12) {
-                                kotlinx.coroutines.delay(1000)
-                                val pReq = Request.Builder()
-                                    .url(progressUrl)
-                                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                                    .addHeader("Accept", "application/json")
-                                    .addHeader("Referer", "$host/")
-                                    .build()
-                                val pResp = okHttpClient.newCall(pReq).execute()
-                                if (pResp.isSuccessful) {
-                                    val pBody = pResp.body?.string() ?: ""
-                                    if (pBody.startsWith("{")) {
-                                        val pJson = JSONObject(pBody)
-                                        val pDl = pJson.optString("download_url", "")
-                                        if (pDl.isNotBlank() && pDl.startsWith("http")) {
-                                            return@withContext pDl
+        // Try requested format first, then auto-fallback to 720 if requested high-res takes too long or fails
+        val formatsToTry = if (requestedFmt != "720" && requestedFmt != "mp3") {
+            listOf(requestedFmt, "720")
+        } else {
+            listOf(requestedFmt)
+        }
+
+        // 1. Primary Resolver: Loader.to API with progressive polling
+        for (fmt in formatsToTry) {
+            val maxAttempts = if (fmt == "1080") 20 else 15
+            for (host in LOADER_TO_HOSTS) {
+                try {
+                    val encYtUrl = java.net.URLEncoder.encode("https://www.youtube.com/watch?v=$videoId", "UTF-8")
+                    val startUrl = "$host/ajax/download.php?button=1&start=1&end=1&format=$fmt&url=$encYtUrl"
+                    val req = Request.Builder()
+                        .url(startUrl)
+                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                        .addHeader("Accept", "application/json")
+                        .addHeader("Referer", "$host/")
+                        .build()
+                    val resp = okHttpClient.newCall(req).execute()
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string() ?: ""
+                        if (body.startsWith("{")) {
+                            val json = JSONObject(body)
+                            val directDl = json.optString("download_url", "")
+                            if (directDl.isNotBlank() && directDl.startsWith("http")) {
+                                return@withContext directDl
+                            }
+                            val progressUrl = json.optString("progress_url", "")
+                            if (progressUrl.isNotBlank() && progressUrl.startsWith("http")) {
+                                for (p in 0 until maxAttempts) {
+                                    kotlinx.coroutines.delay(1400)
+                                    try {
+                                        val pReq = Request.Builder()
+                                            .url(progressUrl)
+                                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                                            .addHeader("Accept", "application/json")
+                                            .addHeader("Referer", "$host/")
+                                            .build()
+                                        val pResp = okHttpClient.newCall(pReq).execute()
+                                        if (pResp.isSuccessful) {
+                                            val pBody = pResp.body?.string() ?: ""
+                                            if (pBody.startsWith("{")) {
+                                                val pJson = JSONObject(pBody)
+                                                val pDl = pJson.optString("download_url", "")
+                                                if (pDl.isNotBlank() && pDl.startsWith("http")) {
+                                                    return@withContext pDl
+                                                }
+                                            }
                                         }
-                                    }
+                                    } catch (_: Exception) {}
                                 }
                             }
                         }
                     }
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
+            }
         }
 
         // 2. Fallback: Piped private coffee

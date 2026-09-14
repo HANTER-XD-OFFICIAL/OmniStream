@@ -885,6 +885,8 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
 
     // 1. Primary: User's Official Cloudflare Edge Worker API (muddy-scene-0ff7) with Best Quality
     try {
+      const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
+      if (isYtUrl) updateStatus("Resolving Stream...");
       const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
@@ -896,7 +898,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
           audioFormat: "mp3",
           alwaysProxy: true
         }),
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(isYtUrl ? 28000 : 8000)
       });
       if (resp.ok) {
         const json = await resp.json();

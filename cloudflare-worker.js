@@ -69,7 +69,18 @@ export default {
       // 3. YouTube Specialized Resolver
       if (isYouTube) {
         try {
-          const ytResult = await resolveYouTube(rawUrl, isAudio ? "mp3" : (quality === "max" || quality === "1080" ? "1080" : "720"));
+          const reqFormat = isAudio ? "mp3" : (quality === "max" || quality === "1080" ? "1080" : "720");
+          let ytResult = null;
+          try {
+            ytResult = await resolveYouTube(rawUrl, reqFormat);
+          } catch (firstErr) {
+            if (reqFormat === "1080") {
+              ytResult = await resolveYouTube(rawUrl, "720");
+            } else {
+              throw firstErr;
+            }
+          }
+
           if (ytResult && ytResult.url) {
             return new Response(JSON.stringify({
               status: "tunnel",

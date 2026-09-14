@@ -172,10 +172,63 @@ let adminPendingMsgTarget = null;
 
 // ==================== RENDER / UPTIMEROBOT HTTP SERVER ====================
 const PORT = process.env.BOT_PORT || (process.env.PORT && process.env.PORT !== '8080' ? process.env.PORT : 10000);
-const uptimeServer = http.createServer((req, res) => {
+const uptimeServer = http.createServer(async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    return res.end();
+  }
+
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+  if (parsedUrl.pathname === '/api/resolve' || parsedUrl.pathname === '/api/youtube') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        let queryUrl = parsedUrl.searchParams.get('url');
+        let quality = parsedUrl.searchParams.get('format') || '720';
+        if (!queryUrl && body) {
+          try {
+            const j = JSON.parse(body);
+            queryUrl = j.url;
+            quality = j.videoQuality || j.format || quality;
+          } catch (_) {}
+        }
+        if (!queryUrl) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Missing url' }));
+        }
+
+        const isAudio = quality === 'mp3' || quality === 'audio';
+        const ytData = await resolveYouTube(queryUrl);
+        if (ytData && ytData.videoUrl && ytData.directStream) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({
+            status: 'tunnel',
+            url: ytData.videoUrl,
+            title: ytData.title,
+            author: ytData.author,
+            cover: ytData.cover,
+            filename: (ytData.title ? ytData.title.replace(/[^a-zA-Z0-9_-]/g, '_') : 'YouTube_Video') + (isAudio ? '.mp3' : '.mp4')
+          }));
+        } else {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Failed to resolve stream' }));
+        }
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(200, { 
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
+    'Content-Type': 'application/json'
   });
   res.end(JSON.stringify({
     status: 'online',
