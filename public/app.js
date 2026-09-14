@@ -432,6 +432,7 @@ function initFormHandler() {
     }
 
     // Show loading
+    if (errorBox) errorBox.classList.add("hidden");
     statusBox.classList.remove("hidden");
     statusTitle.textContent = "Connecting to Cloudflare Worker API...";
     statusSub.textContent = "Dispatching request to muddy-scene-0ff7.alexraselchodhury.workers.dev...";
@@ -970,23 +971,13 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       return;
     }
 
-    // Never redirect to external websites - show clean in-app status
-    updateStatus("⚠️ API Stream Unavailable");
-    const isYouTube = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
-    if (isYouTube && errorBox && errorMessage) {
-      errorBox.classList.remove("hidden");
-      errorMessage.innerHTML = `
-        <strong>YouTube Stream Blocked by Bot Protection:</strong><br>
-        Your main API <code>muddy-scene-0ff7.alexraselchodhury.workers.dev</code> returned a YouTube fetch failure because YouTube blocks datacenter IP addresses on Cobalt.<br>
-        <em>Solution: Add cookies.json or a residential proxy to your Cobalt instance on Render.</em>
-      `;
-    }
-
+    // Never redirect to external websites - clean status feedback
+    updateStatus("⚠️ Stream Offline");
     setTimeout(() => {
       btn.innerHTML = originalHtml;
       btn.classList.remove("btn-downloading");
       btn.disabled = false;
-    }, 3500);
+    }, 2500);
   } catch (err) {
     console.error("Direct download error:", err);
     btn.innerHTML = originalHtml;
