@@ -62,6 +62,7 @@ let db = {
   blockedUsers: [],
   lastReleaseTag: "v1.0.0.OmniStreamPro",
   cachedApkFileId: null,
+  cachedWelcomeAudioFileId: null,
   stats: {
     totalDownloads: 0,
     totalLinks: 0,
@@ -79,6 +80,7 @@ function loadDatabase() {
         blockedUsers: Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [],
         lastReleaseTag: parsed.lastReleaseTag || "v1.0.0.OmniStreamPro",
         cachedApkFileId: parsed.cachedApkFileId || null,
+        cachedWelcomeAudioFileId: parsed.cachedWelcomeAudioFileId || null,
         stats: {
           totalDownloads: parsed.stats?.totalDownloads || 0,
           totalLinks: parsed.stats?.totalLinks || 0,
@@ -319,6 +321,83 @@ async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup
   } catch (err) {
     console.warn("sendTgDocument notice:", err.message);
     return { ok: false, error: err.message };
+  }
+}
+
+async function sendTgAudio(chatId, fileBuffer, filename, caption, title = "OmniStream Pro Official Sound", performer = "OmniStream") {
+  try {
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    form.append("caption", caption || "");
+    form.append("parse_mode", "HTML");
+    form.append("title", title);
+    form.append("performer", performer);
+    form.append("audio", new Blob([fileBuffer], { type: "audio/wav" }), filename || "OmniStream Pro.wav");
+
+    const res = await fetch(`${TELEGRAM_API}/sendAudio`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(120000)
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn("sendTgAudio notice:", err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+async function sendWelcomeAudio(chatId) {
+  try {
+    // 1. Fast path: Use cached Telegram file_id if available
+    if (db.cachedWelcomeAudioFileId) {
+      const fastRes = await callTg("sendAudio", {
+        chat_id: chatId,
+        audio: db.cachedWelcomeAudioFileId,
+        caption: "🎵 <b>OmniStream Pro Official Sound Theme</b>\n<i>Welcome to OmniStream Downloader!</i>",
+        parse_mode: "HTML",
+        title: "OmniStream Pro Official Sound",
+        performer: "OmniStream"
+      });
+      if (fastRes && fastRes.ok) return;
+    }
+
+    // 2. Locate local audio file in Music directory
+    const audioCandidates = [
+      path.resolve(__dirname, '../Music/OmniStream Pro.wav'),
+      path.resolve(__dirname, 'Music/OmniStream Pro.wav'),
+      path.resolve(process.cwd(), 'Music/OmniStream Pro.wav')
+    ];
+
+    let foundPath = null;
+    for (const cand of audioCandidates) {
+      if (fs.existsSync(cand)) {
+        foundPath = cand;
+        break;
+      }
+    }
+
+    if (!foundPath) {
+      console.warn("[WELCOME AUDIO] Music/OmniStream Pro.wav not found on disk");
+      return;
+    }
+
+    const buffer = fs.readFileSync(foundPath);
+    const tgRes = await sendTgAudio(
+      chatId,
+      buffer,
+      "OmniStream Pro.wav",
+      "🎵 <b>OmniStream Pro Official Sound Theme</b>\n<i>Welcome to OmniStream Downloader!</i>",
+      "OmniStream Pro Official Sound",
+      "OmniStream"
+    );
+
+    if (tgRes && tgRes.ok && tgRes.result?.audio?.file_id) {
+      db.cachedWelcomeAudioFileId = tgRes.result.audio.file_id;
+      saveDatabase();
+      console.log(`[WELCOME AUDIO] Cached audio file_id: ${db.cachedWelcomeAudioFileId}`);
+    }
+  } catch (err) {
+    console.warn("[WELCOME AUDIO] Error sending welcome audio:", err.message);
   }
 }
 
@@ -1837,6 +1916,7 @@ async function handleUpdate(update) {
       const welcomeText = `👋 <b>Welcome, ${escapeHtml(senderName)}!</b>\n\n` +
         `🤖 I am <b>OmniStream Official Bot</b> (@OmniStream34_bot).\n` +
         `Download any social media video and audio in Full HD without watermarks!\n\n` +
+        `🌐 <b>Official Website:</b> <a href="https://hanter-xd-official.github.io/OmniStream/">OmniStream Web Downloader</a>\n\n` +
         `🌟 <b>Supported Platforms:</b>\n` +
         `• <b>YouTube</b> (Shorts, HD Videos, Audio)\n` +
         `• <b>TikTok</b> (HD No-Watermark MP4 & MP3)\n` +
@@ -1848,20 +1928,25 @@ async function handleUpdate(update) {
         `Simply copy and paste any video or post link here!\n` +
         `👇`;
 
-      // 1. Send Welcome Message with INLINE Developer & Download buttons exactly as shown in reference screenshot
+      // 1. Send Welcome Message with Website, APK & Developer buttons
       await callTg("sendMessage", {
         chat_id: chatId,
         text: welcomeText,
         parse_mode: "HTML",
+        disable_web_page_preview: false,
         reply_markup: {
           inline_keyboard: [
+            [{ text: "🌐 Visit Official Website", url: "https://hanter-xd-official.github.io/OmniStream/" }],
             [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
             [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
         }
       });
 
-      // 2. Send persistent bottom menu keyboard with "Download Official App" option
+      // 2. Send Official Welcome Sound Theme from Music/OmniStream Pro.wav
+      await sendWelcomeAudio(chatId);
+
+      // 3. Send persistent bottom menu keyboard with "Download Official App" option
       await callTg("sendMessage", {
         chat_id: chatId,
         text: `⚡ <i>Tap <b>📱 Download Official App</b> below to get the APK file directly in this chat!</i>`,

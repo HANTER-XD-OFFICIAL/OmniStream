@@ -15,46 +15,29 @@
 
 <br/>
 
-### 🚀 Official Access & Download Portals (অফিসিয়াল এক্সেস পোর্টালসমূহ)
+### 🚀 Official Access Portals & Direct Links
 
-<p align="center">যেকোনো ডিভাইসে OmniStream ব্যবহার করতে আপনার পছন্দের মাধ্যমে ১-ক্লিক করুন:</p>
+<p align="center">
+  <a href="https://hanter-xd-official.github.io/OmniStream/" target="_blank">
+    <img src="https://img.shields.io/badge/🌐_OFFICIAL_WEBSITE-Launch_Live_Web_App-6366f1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App" height="42" />
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://t.me/OmniStream34_bot" target="_blank">
+    <img src="https://img.shields.io/badge/🤖_TELEGRAM_BOT-@OmniStream34__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot" height="42" />
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro" target="_blank">
+    <img src="https://img.shields.io/badge/⬇️_ANDROID_APK-Download_Direct_Build-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Android App" height="42" />
+  </a>
+</p>
 
-<table align="center" width="100%" style="border: none; border-collapse: separate; border-spacing: 16px;">
-  <tr>
-    <td align="center" width="33%" style="background: #0d1117; border: 1px solid #30363d; border-radius: 14px; padding: 22px 16px; vertical-align: top;">
-      <a href="https://hanter-xd-official.github.io/OmniStream/" target="_blank">
-        <img src="https://img.shields.io/badge/🌐_OFFICIAL_WEBSITE-1--Click_Direct_Web-6366f1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App" height="40" />
-      </a>
-      <br/><br/>
-      <h4 style="margin: 8px 0 4px 0; color: #58a6ff;">🌐 লাইভ ওয়েব ডাউনলোডার</h4>
-      <p style="font-size: 13px; color: #8b949e; line-height: 1.5; margin: 0;">
-        <strong>কাজের বিবরণ:</strong> কোনো প্রকার অ্যাপ বা সফটওয়্যার ইন্সটল ছাড়াই সরাসরি মোবাইল বা পিসি ব্রাউজার থেকে নিমেষেই ১-ক্লিকে ফুল এইচডি ভিডিও এবং এমপি৩ অডিও ডাউনলোড করার জন্য।
-      </p>
-    </td>
-    <td align="center" width="33%" style="background: #0d1117; border: 1px solid #30363d; border-radius: 14px; padding: 22px 16px; vertical-align: top;">
-      <a href="https://t.me/OmniStream34_bot" target="_blank">
-        <img src="https://img.shields.io/badge/🤖_TELEGRAM_BOT-@OmniStream34__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot" height="40" />
-      </a>
-      <br/><br/>
-      <h4 style="margin: 8px 0 4px 0; color: #229ED9;">🤖 ইনস্ট্যান্ট টেলিগ্রাম বট</h4>
-      <p style="font-size: 13px; color: #8b949e; line-height: 1.5; margin: 0;">
-        <strong>কাজের বিবরণ:</strong> টেলিগ্রামে যেকোনো YouTube, Facebook, Instagram বা TikTok ভিডিওর লিঙ্ক শেয়ার করলেই বট সরাসরি অরিজিনাল ভিডিও ও অডিও ফাইল চ্যাটে পাঠিয়ে দেয়।
-      </p>
-    </td>
-    <td align="center" width="33%" style="background: #0d1117; border: 1px solid #30363d; border-radius: 14px; padding: 22px 16px; vertical-align: top;">
-      <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro" target="_blank">
-        <img src="https://img.shields.io/badge/⬇️_ANDROID_APK-Direct_Build_(v1.0)-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Android App" height="40" />
-      </a>
-      <br/><br/>
-      <h4 style="margin: 8px 0 4px 0; color: #3ddc84;">📱 নেটিভ অ্যান্ড্রয়েড অ্যাপ</h4>
-      <p style="font-size: 13px; color: #8b949e; line-height: 1.5; margin: 0;">
-        <strong>কাজের বিবরণ:</strong> অ্যান্ড্রয়েড স্মার্টফোনের জন্য পূর্ণাঙ্গ নেটিভ অ্যাপ—উন্নত ব্যাকগ্রাউন্ড ডাউনলোড নোটিফিকেশন, অফলাইন হিস্ট্রি ডাটাবেস এবং বিল্ট-ইন মিডিয়া প্লেয়ার সুবিধাসহ।
-      </p>
-    </td>
-  </tr>
-</table>
+| Portal | Access Link | Purpose & Capabilities |
+| :--- | :--- | :--- |
+| **🌐 Official Web App** | [**Open Web Downloader**](https://hanter-xd-official.github.io/OmniStream/) | Instant browser media downloader for PC & Mobile — 1-click Full HD video & 320kbps MP3 audio with no software installation required. |
+| **🤖 Fast Telegram Bot** | [**Launch @OmniStream34_bot**](https://t.me/OmniStream34_bot) | Ultra-fast media downloader on Telegram — simply send any video or audio URL into the chat to receive direct media files instantly. |
+| **📱 Native Android App** | [**Download APK (v1.0)**](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro) | High-performance Android application with background download notifications, encrypted offline vault, and built-in media player. |
 
-[🌐 **Open Web App**](https://hanter-xd-official.github.io/OmniStream/) • [🤖 Open Telegram Bot (@OmniStream34_bot)](https://t.me/OmniStream34_bot) • [📥 Download Android APK](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro) • [🚀 Live Dev App](https://ais-dev-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app)
+<br/>
 
 </div>
 
