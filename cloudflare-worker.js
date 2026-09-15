@@ -125,9 +125,53 @@ export default {
 };
 
 /**
- * High-speed YouTube resolver using RapidAPI rotation with loader.to fallback
+ * High-speed YouTube resolver using direct stream encoder (loader.to) with RapidAPI failover
  */
 async function resolveYouTube(targetUrl, format = "720") {
+  const isAudio = format === "mp3" || format === "audio";
+  const reqFmt = isAudio ? "mp3" : (format === "1080" || format === "max" ? "1080" : "720");
+
+  // 1. Direct Loader.to stream resolver
+  try {
+    const encUrl = encodeURIComponent(targetUrl);
+    const startUrl = `https://loader.to/ajax/download.php?button=1&start=1&end=1&format=${reqFmt}&url=${encUrl}`;
+
+    const res = await fetch(startUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://loader.to/"
+      }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.download_url && data.download_url.startsWith("http")) {
+        return { url: data.download_url, title: data.title || "YouTube_Media" };
+      }
+
+      if (data.progress_url) {
+        // Poll progress URL up to 20 times (every 1.2s)
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          try {
+            const pRes = await fetch(data.progress_url, {
+              headers: { "Referer": "https://loader.to/" }
+            });
+            if (pRes.ok) {
+              const pData = await pRes.json();
+              if (pData.download_url && pData.download_url.startsWith("http")) {
+                return { url: pData.download_url, title: pData.title || data.title || "YouTube_Media" };
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (loaderErr) {
+    console.warn("Loader.to direct resolver error:", loaderErr.message);
+  }
+
+  // 2. RapidAPI pool failover
   const ytMatch = targetUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|live\/|watch\?.+&v=))([\w-]{11})/i);
   const videoId = ytMatch ? ytMatch[1] : null;
 
@@ -140,38 +184,10 @@ async function resolveYouTube(targetUrl, format = "720") {
       "864eb7ae38msh28947dcfcf5ffbbp1f39eejsne5a966599b84",
       "5ab5420addmshc469dee4edfb688p1d11dbjsn1ff8ff1ea86a"
     ];
-    // Randomize keys for load balancing
     const shuffledKeys = [...rapidKeys].sort(() => Math.random() - 0.5);
 
     for (const key of shuffledKeys) {
       try {
-        // Try Host A: youtube-media-downloader.p.rapidapi.com
-        const resA = await fetch(`https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${videoId}`, {
-          headers: {
-            "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com",
-            "x-rapidapi-key": key
-          }
-        });
-        if (resA.ok) {
-          const jA = await resA.json();
-          const fmts = jA.streamingData?.formats || jA.formats || jA.videos?.items || [];
-          const adps = jA.streamingData?.adaptiveFormats || jA.audios?.items || [];
-          const isAudio = format === "mp3" || format === "audio";
-          if (isAudio) {
-            const targetAudio = adps.find(a => (a.mimeType && a.mimeType.includes("audio")) || a.hasAudio) || fmts.find(f => f.hasAudio);
-            const dl = targetAudio?.url || targetAudio?.downloadUrl || targetAudio?.link;
-            if (dl) return { url: dl, title: jA.title || "YouTube_Audio" };
-          } else {
-            const targetVideo = fmts.find(v => v.url && (!v.mimeType || v.mimeType.includes("mp4"))) || fmts[0] || adps.find(v => v.url);
-            const dl = targetVideo?.url || targetVideo?.downloadUrl || targetVideo?.link;
-            if (dl) return { url: dl, title: jA.title || "YouTube_Video" };
-          }
-        }
-      } catch (_) {}
-
-      try {
-        // Try Host B: youtube-mp3-audio-video-downloader.p.rapidapi.com
-        const isAudio = format === "mp3" || format === "audio";
         const epB = isAudio
           ? `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${videoId}?response_mode=default`
           : `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${videoId}?format=720`;
@@ -192,45 +208,5 @@ async function resolveYouTube(targetUrl, format = "720") {
     }
   }
 
-  // Fallback: loader.to
-  const encUrl = encodeURIComponent(targetUrl);
-  const startUrl = `https://loader.to/ajax/download.php?button=1&start=1&end=1&format=${format}&url=${encUrl}`;
-
-  const res = await fetch(startUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "Referer": "https://loader.to/"
-    }
-  });
-
-  if (!res.ok) {
-    throw new Error(`Stream init failed with HTTP ${res.status}`);
-  }
-
-  const data = await res.json();
-  if (data.download_url && data.download_url.startsWith("http")) {
-    return { url: data.download_url, title: data.title || "YouTube_Media" };
-  }
-
-  if (!data.progress_url) {
-    throw new Error("No progress URL received");
-  }
-
-  // Poll progress URL
-  for (let i = 0; i < 18; i++) {
-    await new Promise(r => setTimeout(r, 1200));
-    try {
-      const pRes = await fetch(data.progress_url, {
-        headers: { "Referer": "https://loader.to/" }
-      });
-      if (pRes.ok) {
-        const pData = await pRes.json();
-        if (pData.download_url && pData.download_url.startsWith("http")) {
-          return { url: pData.download_url, title: data.title || "YouTube_Media" };
-        }
-      }
-    } catch (_) {}
-  }
-
-  throw new Error("Stream conversion timeout");
+  throw new Error("YouTube stream could not be converted at this time");
 }

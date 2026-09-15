@@ -885,123 +885,51 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
 
     const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
 
-    // 1. YouTube-Dedicated: RapidAPI Pool (Randomized Rotation specifically for Website)
-    if (isYtUrl) {
-      updateStatus("⚡ RapidAPI Engine...");
-      try {
-        const rapidKeys = [
-          "032d76f1d5mshb4bec8c6a6bde50p145398jsn592ea147dc00",
-          "daf7c2c2admsh4f57b66f003a149p127d27jsna9e0929c2f69",
-          "ec3254c06amsh15d2ab52a9f83a0p181ae1jsn797161360aa4",
-          "813fcad230mshf097ffbb0308a63p1e972bjsnd0227bcac6bf",
-          "864eb7ae38msh28947dcfcf5ffbbp1f39eejsne5a966599b84",
-          "5ab5420addmshc469dee4edfb688p1d11dbjsn1ff8ff1ea86a"
-        ];
-        // Shuffle keys randomly for every download attempt
-        const shuffledKeys = [...rapidKeys].sort(() => Math.random() - 0.5);
-        const ytIdMatch = mediaUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|live\/|watch\?.+&v=))([\w-]{11})/i);
-        const ytid = ytIdMatch ? ytIdMatch[1] : null;
-
-        if (ytid) {
-          for (const key of shuffledKeys) {
-            if (directStream) break;
-
-            // Try Host A: youtube-media-downloader.p.rapidapi.com
-            try {
-              const resA = await fetch(`https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${ytid}`, {
-                headers: {
-                  "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com",
-                  "x-rapidapi-key": key
-                },
-                signal: AbortSignal.timeout(6000)
-              });
-              if (resA.ok) {
-                const jA = await resA.json();
-                const fmts = jA.streamingData?.formats || jA.formats || jA.videos?.items || [];
-                const adps = jA.streamingData?.adaptiveFormats || jA.audios?.items || [];
-                if (mode === "audio") {
-                  const targetAudio = adps.find(a => (a.mimeType && a.mimeType.includes("audio")) || a.hasAudio) ||
-                                      fmts.find(f => f.hasAudio);
-                  if (targetAudio && (targetAudio.url || targetAudio.downloadUrl || targetAudio.link)) {
-                    directStream = targetAudio.url || targetAudio.downloadUrl || targetAudio.link;
-                    break;
-                  }
-                } else {
-                  const targetVideo = fmts.find(v => v.url && (!v.mimeType || v.mimeType.includes("mp4"))) ||
-                                      fmts[0] ||
-                                      adps.find(v => v.url);
-                  if (targetVideo && (targetVideo.url || targetVideo.downloadUrl || targetVideo.link)) {
-                    directStream = targetVideo.url || targetVideo.downloadUrl || targetVideo.link;
-                    break;
-                  }
-                }
-              }
-            } catch (_) {}
-
-            // Try Host B: youtube-mp3-audio-video-downloader.p.rapidapi.com
-            if (!directStream) {
-              try {
-                const epB = mode === "audio"
-                  ? `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${ytid}?response_mode=default`
-                  : `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${ytid}?format=720`;
-                const resB = await fetch(epB, {
-                  headers: {
-                    "x-rapidapi-host": "youtube-mp3-audio-video-downloader.p.rapidapi.com",
-                    "x-rapidapi-key": key
-                  },
-                  signal: AbortSignal.timeout(6000)
-                });
-                if (resB.ok) {
-                  const jB = await resB.json();
-                  const candidate = jB.download_url || jB.url || jB.link || jB.result?.url || jB.data?.downloadUrl;
-                  if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
-                    directStream = candidate;
-                    break;
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (rapidErr) {
-        console.warn("RapidAPI pool error:", rapidErr.message);
+    // 1. Primary: Official Cloudflare Edge Worker API (muddy-scene-0ff7)
+    try {
+      if (isYtUrl) {
+        updateStatus("⚡ Merging Stream (10-20s)...");
+      } else {
+        updateStatus("Resolving Stream...");
       }
-    }
 
-    // 2. Primary / Edge Worker API (muddy-scene-0ff7) with Best Quality
-    if (!directStream) {
-      try {
-        if (isYtUrl) updateStatus("Resolving Stream...");
-        const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify({
-            url: mediaUrl,
-            videoQuality: mode === "audio" ? "auto" : "max",
-            downloadMode: mode === "audio" ? "audio" : "auto",
-            youtubeVideoCodec: "h264",
-            audioFormat: "mp3",
-            alwaysProxy: true
-          }),
-          signal: AbortSignal.timeout(isYtUrl ? 28000 : 8000)
-        });
-        if (resp.ok) {
-          const json = await resp.json();
-          if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
-            directStream = json.url;
-          } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
-            directStream = json.picker[0]?.url;
-          } else if (json.url && typeof json.url === "string") {
-            directStream = json.url;
-          }
-          if (mode === "audio" && json.audio) {
-            directStream = json.audio;
-          }
+      const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          url: mediaUrl,
+          videoQuality: mode === "audio" ? "auto" : "max",
+          downloadMode: mode === "audio" ? "audio" : "auto",
+          youtubeVideoCodec: "h264",
+          audioFormat: "mp3",
+          alwaysProxy: true
+        }),
+        // YouTube requires up to 45s for video+audio merging on backend
+        signal: AbortSignal.timeout(isYtUrl ? 45000 : 12000)
+      });
+
+      if (resp.ok) {
+        const json = await resp.json();
+        // Standard Cobalt & Custom Worker Payload Parsing
+        if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
+          directStream = json.url;
+        } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
+          const item = json.picker.find(p => p.type === "video") || json.picker[0];
+          directStream = item?.url;
+        } else if (json.download_url || json.downloadUrl) {
+          directStream = json.download_url || json.downloadUrl;
+        } else if (json.url && typeof json.url === "string") {
+          directStream = json.url;
         }
-      } catch (_) {}
+        if (mode === "audio" && json.audio) {
+          directStream = json.audio;
+        }
+      }
+    } catch (edgeErr) {
+      console.warn("Primary Edge Worker API warning:", edgeErr.message);
     }
 
-    // 3. Cobalt Mirror Gateways
+    // 2. Secondary: Cobalt Mirror Gateways Fallback
     if (!directStream) {
       const mirrorGateways = [
         "https://cobalt-latest-a04h.onrender.com",
@@ -1021,7 +949,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
               audioFormat: "mp3",
               alwaysProxy: true
             }),
-            signal: AbortSignal.timeout(4000)
+            signal: AbortSignal.timeout(isYtUrl ? 15000 : 5000)
           });
           if (mResp.ok) {
             const mJson = await mResp.json();
@@ -1035,18 +963,33 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
 
     // 3. Server API fallback if available
     if (!directStream) {
-      updateStatus("Querying Stream...");
+      updateStatus("Querying Engine...");
       try {
         const srvRes = await fetch("/api/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: mediaUrl, mode: mode, quality: "1080" }),
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(6000)
         });
         if (srvRes.ok) {
           const sJson = await srvRes.json();
           if (sJson.success) {
             directStream = mode === "audio" ? (sJson.audioUrl || sJson.videoUrl) : (sJson.videoUrl || sJson.audioUrl);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 4. Dedicated Server YouTube endpoint fallback
+    if (!directStream && isYtUrl) {
+      try {
+        const ytRes = await fetch(`/api/youtube?url=${encodeURIComponent(mediaUrl)}&format=${mode === 'audio' ? 'mp3' : '720'}`, {
+          signal: AbortSignal.timeout(8000)
+        });
+        if (ytRes.ok) {
+          const yJson = await ytRes.json();
+          if (yJson && yJson.url) {
+            directStream = yJson.url;
           }
         }
       } catch (_) {}
@@ -1115,14 +1058,15 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
   try {
     let blob = null;
 
-    // 1. Direct fetch with CORS and progress stream reading
+    // 1. Attempt fast direct stream fetch if same-origin or CORS-enabled (< 5MB quick check or 3s timeout)
     try {
-      const resp = await fetch(url, { mode: 'cors', signal: AbortSignal.timeout(10000) });
+      const resp = await fetch(url, { mode: 'cors', signal: AbortSignal.timeout(3500) });
       if (resp.ok) {
         const contentLength = resp.headers.get('content-length');
         const total = contentLength ? parseInt(contentLength, 10) : 0;
 
-        if (total > 0 && resp.body && resp.body.getReader) {
+        // If file is reasonable in size (< 40MB), stream directly into blob
+        if (total > 0 && total < 45 * 1024 * 1024 && resp.body && resp.body.getReader) {
           const reader = resp.body.getReader();
           let received = 0;
           const chunks = [];
@@ -1136,34 +1080,15 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
           }
           const mimeType = resp.headers.get('content-type') || (filename.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4');
           blob = new Blob(chunks, { type: mimeType });
-        } else {
+        } else if (total > 0 && total < 20 * 1024 * 1024) {
           blob = await resp.blob();
         }
       }
     } catch (directErr) {
-      console.warn("Direct fetch CORS check:", directErr.message);
+      // Cross-origin restriction is normal for media CDNs - proceed immediately to native download
     }
 
-    // 2. If direct fetch was restricted by CORS, fallback to proxy
-    if (!blob) {
-      updateProgress(`Connecting Proxy...`);
-      const proxies = [
-        `https://corsproxy.io/?${encodeURIComponent(url)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-      ];
-
-      for (const proxy of proxies) {
-        try {
-          const pResp = await fetch(proxy);
-          if (pResp.ok) {
-            blob = await pResp.blob();
-            break;
-          }
-        } catch (_) {}
-      }
-    }
-
-    // 3. Trigger native file download via Object URL
+    // 2. Trigger native file download via Object URL if blob is available
     if (blob) {
       updateProgress(`Saving to Device...`);
       const blobUrl = window.URL.createObjectURL(blob);
@@ -1175,13 +1100,13 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
       downloadAnchor.click();
 
       setTimeout(() => {
-        document.body.removeChild(downloadAnchor);
+        if (downloadAnchor.parentNode) document.body.removeChild(downloadAnchor);
         window.URL.revokeObjectURL(blobUrl);
       }, 5000);
 
       btn.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>✅ Saved: ${filename.substring(0, 22)}...</span>
+        <span>✅ Saved: ${filename.substring(0, 20)}...</span>
       `;
       btn.classList.add("btn-download-success");
 
@@ -1189,37 +1114,52 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
         btn.innerHTML = originalHtml;
         btn.classList.remove("btn-downloading", "btn-download-success");
         btn.disabled = false;
-      }, 4000);
+      }, 3500);
       return;
     }
 
-    // 4. Fallback if blob cannot be assembled (native anchor click)
+    // 3. Direct Native Browser Download (Zero CORS block, high-speed multi-threaded browser download manager)
     updateProgress(`Starting Download...`);
     const fallbackLink = document.createElement("a");
     fallbackLink.href = url;
-    fallbackLink.download = filename;
-    fallbackLink.target = "_self";
+    fallbackLink.setAttribute("download", filename);
+    fallbackLink.target = "_blank";
+    fallbackLink.rel = "noopener noreferrer";
     document.body.appendChild(fallbackLink);
     fallbackLink.click();
     setTimeout(() => {
-      document.body.removeChild(fallbackLink);
-    }, 1000);
+      if (fallbackLink.parentNode) document.body.removeChild(fallbackLink);
+    }, 2000);
 
-    btn.innerHTML = `<span>⚡ Download Started</span>`;
+    btn.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      <span>✅ Download Started</span>
+    `;
+    btn.classList.add("btn-download-success");
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+      btn.classList.remove("btn-downloading", "btn-download-success");
+      btn.disabled = false;
+    }, 3500);
+
+  } catch (err) {
+    console.error("Download execution error:", err);
+    updateProgress("Download Triggered");
+    window.open(url, "_blank");
     setTimeout(() => {
       btn.innerHTML = originalHtml;
       btn.classList.remove("btn-downloading");
       btn.disabled = false;
     }, 2500);
-
-  } catch (err) {
-    console.error("Download execution error:", err);
-    updateProgress("Download Error");
+  } finally {
+    // Guaranteed safety timeout: Never leave button in a permanently spinning state
     setTimeout(() => {
-      btn.innerHTML = originalHtml;
-      btn.classList.remove("btn-downloading");
-      btn.disabled = false;
-    }, 2000);
+      if (btn && btn.classList.contains("btn-downloading")) {
+        btn.innerHTML = originalHtml;
+        btn.classList.remove("btn-downloading", "btn-download-success");
+        btn.disabled = false;
+      }
+    }, 4500);
   }
 }
 
