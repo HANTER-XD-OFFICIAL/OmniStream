@@ -842,13 +842,14 @@ function initFormHandler() {
       // Dedicated Telegram Bot Download for YouTube
       if (data.isYouTube) {
         const botBtn = document.createElement("a");
+        botBtn.id = "btn-youtube-fast-bot";
         botBtn.href = "https://t.me/OmniStream34_bot";
         botBtn.target = "_blank";
         botBtn.rel = "noopener noreferrer";
         botBtn.className = "btn-stream-dl btn-stream-bot";
-        botBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg, #229ED9 0%, #1778A8 100%);color:#fff;font-weight:600;";
+        botBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg, #0088cc 0%, #005f8d 100%);color:#fff;font-weight:700;font-size:14px;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 4px 15px rgba(0,136,204,0.4);margin-top:4px;";
         botBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 6.75a2.25 2.25 0 0 0 .126 4.19l4.57 1.48 1.83 5.48a1.5 1.5 0 0 0 2.66.38l2.76-3.23 4.9 3.68a2.25 2.25 0 0 0 3.53-1.42l3-15a2.25 2.25 0 0 0-2.854-2.525z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 6.75a2.25 2.25 0 0 0 .126 4.19l4.57 1.48 1.83 5.48a1.5 1.5 0 0 0 2.66.38l2.76-3.23 4.9 3.68a2.25 2.25 0 0 0 3.53-1.42l3-15a2.25 2.25 0 0 0-2.854-2.525z"/></svg>
           <span>🤖 Fast Bot Download (@OmniStream34_bot)</span>
         `;
         downloadButtonsGrid.appendChild(botBtn);
@@ -1017,9 +1018,18 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       return;
     }
 
-    // Never redirect to external websites - clean status feedback
+    // Clean fallback feedback
     if (isYtUrl) {
-      updateStatus("⚠️ Click Bot Button Below");
+      updateStatus("🚀 Opening Telegram Bot for 1-Click Download...");
+      const botEl = document.getElementById("btn-youtube-fast-bot");
+      if (botEl) {
+        botEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        botEl.style.outline = "2px solid #fff";
+        setTimeout(() => { if (botEl) botEl.style.outline = "none"; }, 3000);
+      }
+      setTimeout(() => {
+        window.open("https://t.me/OmniStream34_bot", "_blank");
+      }, 400);
     } else {
       updateStatus("⚠️ Stream Offline");
     }
