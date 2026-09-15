@@ -839,6 +839,21 @@ function initFormHandler() {
       };
       downloadButtonsGrid.appendChild(copyBtn);
 
+      // Dedicated Telegram Bot Download for YouTube
+      if (data.isYouTube) {
+        const botBtn = document.createElement("a");
+        botBtn.href = "https://t.me/OmniStream34_bot";
+        botBtn.target = "_blank";
+        botBtn.rel = "noopener noreferrer";
+        botBtn.className = "btn-stream-dl btn-stream-bot";
+        botBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg, #229ED9 0%, #1778A8 100%);color:#fff;font-weight:600;";
+        botBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 6.75a2.25 2.25 0 0 0 .126 4.19l4.57 1.48 1.83 5.48a1.5 1.5 0 0 0 2.66.38l2.76-3.23 4.9 3.68a2.25 2.25 0 0 0 3.53-1.42l3-15a2.25 2.25 0 0 0-2.854-2.525z"/></svg>
+          <span>🤖 Fast Bot Download (@OmniStream34_bot)</span>
+        `;
+        downloadButtonsGrid.appendChild(botBtn);
+      }
+
       // Scroll smoothly to result
       resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
@@ -898,7 +913,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
           url: mediaUrl,
-          videoQuality: mode === "audio" ? "auto" : "max",
+          videoQuality: mode === "audio" ? "auto" : "720",
           downloadMode: mode === "audio" ? "audio" : "auto",
           youtubeVideoCodec: "h264",
           audioFormat: "mp3",
@@ -1003,7 +1018,11 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
     }
 
     // Never redirect to external websites - clean status feedback
-    updateStatus("⚠️ Stream Offline");
+    if (isYtUrl) {
+      updateStatus("⚠️ Click Bot Button Below");
+    } else {
+      updateStatus("⚠️ Stream Offline");
+    }
     setTimeout(() => {
       btn.innerHTML = originalHtml;
       btn.classList.remove("btn-downloading");

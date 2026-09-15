@@ -15,13 +15,21 @@
 
 <br/>
 
-### 📲 Download, Telegram Bot & Web Access
+### 🌐 Direct 1-Click Access & Live Downloads
 
-[![Direct APK Download](https://img.shields.io/badge/⬇️_DOWNLOAD_LATEST_APK-Direct_Build_(v1.0)-00C853?style=for-the-badge&logo=android&logoColor=white)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
-[![Open Telegram Bot](https://img.shields.io/badge/🤖_OPEN_BOT-@OmniStream34__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/OmniStream34_bot)
-[![Live Web Preview](https://img.shields.io/badge/🌐_OPEN_LIVE_APPLET-Streaming_Emulator-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
+<p align="center">
+  <a href="https://hanter-xd-official.github.io/OmniStream/" target="_blank">
+    <img src="https://img.shields.io/badge/🌐_VISIT_OFFICIAL_WEBSITE-1--Click_Direct_Web_App-6366f1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Visit Official Web Downloader" height="38" />
+  </a>
+  <a href="https://t.me/OmniStream34_bot" target="_blank">
+    <img src="https://img.shields.io/badge/🤖_OPEN_TELEGRAM_BOT-@OmniStream34__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Open Telegram Bot" height="38" />
+  </a>
+  <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro" target="_blank">
+    <img src="https://img.shields.io/badge/⬇️_DOWNLOAD_ANDROID_APK-Direct_Build_(v1.0)-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Direct APK Download" height="38" />
+  </a>
+</p>
 
-[📥 Download APK](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro) • [🤖 Open Telegram Bot (@OmniStream34_bot)](https://t.me/OmniStream34_bot) • [🚀 Live Dev App](https://ais-dev-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app) • [📱 Live Emulator Preview](https://ais-pre-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app)
+[🌐 **Open Web App (hanter-xd-official.github.io/OmniStream)**](https://hanter-xd-official.github.io/OmniStream/) • [📥 Download Android APK](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro) • [🤖 Open Telegram Bot (@OmniStream34_bot)](https://t.me/OmniStream34_bot) • [🚀 Live Dev App](https://ais-dev-46xzg4fw3qe4hhbegdfkri-562526124447.asia-southeast1.run.app)
 
 </div>
 

@@ -125,50 +125,53 @@ export default {
 };
 
 /**
- * High-speed YouTube resolver using direct stream encoder (loader.to) with RapidAPI failover
+ * High-speed YouTube resolver using direct stream encoder (loader.to / en.loader.to) with RapidAPI failover
  */
 async function resolveYouTube(targetUrl, format = "720") {
   const isAudio = format === "mp3" || format === "audio";
   const reqFmt = isAudio ? "mp3" : (format === "1080" || format === "max" ? "1080" : "720");
 
-  // 1. Direct Loader.to stream resolver
-  try {
-    const encUrl = encodeURIComponent(targetUrl);
-    const startUrl = `https://loader.to/ajax/download.php?button=1&start=1&end=1&format=${reqFmt}&url=${encUrl}`;
+  const hosts = ["https://loader.to", "https://en.loader.to"];
 
-    const res = await fetch(startUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://loader.to/"
-      }
-    });
+  for (const host of hosts) {
+    try {
+      const encUrl = encodeURIComponent(targetUrl);
+      const startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=${reqFmt}&url=${encUrl}`;
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.download_url && data.download_url.startsWith("http")) {
-        return { url: data.download_url, title: data.title || "YouTube_Media" };
-      }
+      const res = await fetch(startUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Referer": `${host}/`
+        }
+      });
 
-      if (data.progress_url) {
-        // Poll progress URL up to 20 times (every 1.2s)
-        for (let i = 0; i < 20; i++) {
-          await new Promise(r => setTimeout(r, 1200));
-          try {
-            const pRes = await fetch(data.progress_url, {
-              headers: { "Referer": "https://loader.to/" }
-            });
-            if (pRes.ok) {
-              const pData = await pRes.json();
-              if (pData.download_url && pData.download_url.startsWith("http")) {
-                return { url: pData.download_url, title: pData.title || data.title || "YouTube_Media" };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.download_url && data.download_url.startsWith("http")) {
+          return { url: data.download_url, title: data.title || "YouTube_Media" };
+        }
+
+        if (data.progress_url) {
+          // Poll progress URL up to 25 times (every 1s)
+          for (let i = 0; i < 25; i++) {
+            await new Promise(r => setTimeout(r, 1100));
+            try {
+              const pRes = await fetch(data.progress_url, {
+                headers: { "Referer": `${host}/` }
+              });
+              if (pRes.ok) {
+                const pData = await pRes.json();
+                if (pData.download_url && pData.download_url.startsWith("http")) {
+                  return { url: pData.download_url, title: pData.title || data.title || "YouTube_Media" };
+                }
               }
-            }
-          } catch (_) {}
+            } catch (_) {}
+          }
         }
       }
+    } catch (loaderErr) {
+      console.warn(`${host} resolver error:`, loaderErr.message);
     }
-  } catch (loaderErr) {
-    console.warn("Loader.to direct resolver error:", loaderErr.message);
   }
 
   // 2. RapidAPI pool failover
