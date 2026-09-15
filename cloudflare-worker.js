@@ -125,9 +125,74 @@ export default {
 };
 
 /**
- * High-speed YouTube resolver using stream converter with polling
+ * High-speed YouTube resolver using RapidAPI rotation with loader.to fallback
  */
 async function resolveYouTube(targetUrl, format = "720") {
+  const ytMatch = targetUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|live\/|watch\?.+&v=))([\w-]{11})/i);
+  const videoId = ytMatch ? ytMatch[1] : null;
+
+  if (videoId) {
+    const rapidKeys = [
+      "032d76f1d5mshb4bec8c6a6bde50p145398jsn592ea147dc00",
+      "daf7c2c2admsh4f57b66f003a149p127d27jsna9e0929c2f69",
+      "ec3254c06amsh15d2ab52a9f83a0p181ae1jsn797161360aa4",
+      "813fcad230mshf097ffbb0308a63p1e972bjsnd0227bcac6bf",
+      "864eb7ae38msh28947dcfcf5ffbbp1f39eejsne5a966599b84",
+      "5ab5420addmshc469dee4edfb688p1d11dbjsn1ff8ff1ea86a"
+    ];
+    // Randomize keys for load balancing
+    const shuffledKeys = [...rapidKeys].sort(() => Math.random() - 0.5);
+
+    for (const key of shuffledKeys) {
+      try {
+        // Try Host A: youtube-media-downloader.p.rapidapi.com
+        const resA = await fetch(`https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${videoId}`, {
+          headers: {
+            "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com",
+            "x-rapidapi-key": key
+          }
+        });
+        if (resA.ok) {
+          const jA = await resA.json();
+          const fmts = jA.streamingData?.formats || jA.formats || jA.videos?.items || [];
+          const adps = jA.streamingData?.adaptiveFormats || jA.audios?.items || [];
+          const isAudio = format === "mp3" || format === "audio";
+          if (isAudio) {
+            const targetAudio = adps.find(a => (a.mimeType && a.mimeType.includes("audio")) || a.hasAudio) || fmts.find(f => f.hasAudio);
+            const dl = targetAudio?.url || targetAudio?.downloadUrl || targetAudio?.link;
+            if (dl) return { url: dl, title: jA.title || "YouTube_Audio" };
+          } else {
+            const targetVideo = fmts.find(v => v.url && (!v.mimeType || v.mimeType.includes("mp4"))) || fmts[0] || adps.find(v => v.url);
+            const dl = targetVideo?.url || targetVideo?.downloadUrl || targetVideo?.link;
+            if (dl) return { url: dl, title: jA.title || "YouTube_Video" };
+          }
+        }
+      } catch (_) {}
+
+      try {
+        // Try Host B: youtube-mp3-audio-video-downloader.p.rapidapi.com
+        const isAudio = format === "mp3" || format === "audio";
+        const epB = isAudio
+          ? `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${videoId}?response_mode=default`
+          : `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${videoId}?format=720`;
+        const resB = await fetch(epB, {
+          headers: {
+            "x-rapidapi-host": "youtube-mp3-audio-video-downloader.p.rapidapi.com",
+            "x-rapidapi-key": key
+          }
+        });
+        if (resB.ok) {
+          const jB = await resB.json();
+          const candidate = jB.download_url || jB.url || jB.link || jB.result?.url || jB.data?.downloadUrl;
+          if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
+            return { url: candidate, title: jB.title || "YouTube_Media" };
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Fallback: loader.to
   const encUrl = encodeURIComponent(targetUrl);
   const startUrl = `https://loader.to/ajax/download.php?button=1&start=1&end=1&format=${format}&url=${encUrl}`;
 

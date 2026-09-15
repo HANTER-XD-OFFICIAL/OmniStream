@@ -883,39 +883,125 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
   try {
     let directStream = null;
 
-    // 1. Primary: User's Official Cloudflare Edge Worker API (muddy-scene-0ff7) with Best Quality
-    try {
-      const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
-      if (isYtUrl) updateStatus("Resolving Stream...");
-      const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({
-          url: mediaUrl,
-          videoQuality: mode === "audio" ? "auto" : "max",
-          downloadMode: mode === "audio" ? "audio" : "auto",
-          youtubeVideoCodec: "h264",
-          audioFormat: "mp3",
-          alwaysProxy: true
-        }),
-        signal: AbortSignal.timeout(isYtUrl ? 28000 : 8000)
-      });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
-          directStream = json.url;
-        } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
-          directStream = json.picker[0]?.url;
-        } else if (json.url && typeof json.url === "string") {
-          directStream = json.url;
-        }
-        if (mode === "audio" && json.audio) {
-          directStream = json.audio;
-        }
-      }
-    } catch (_) {}
+    const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
 
-    // 2. Secondary: Cobalt Mirror Gateways
+    // 1. YouTube-Dedicated: RapidAPI Pool (Randomized Rotation specifically for Website)
+    if (isYtUrl) {
+      updateStatus("⚡ RapidAPI Engine...");
+      try {
+        const rapidKeys = [
+          "032d76f1d5mshb4bec8c6a6bde50p145398jsn592ea147dc00",
+          "daf7c2c2admsh4f57b66f003a149p127d27jsna9e0929c2f69",
+          "ec3254c06amsh15d2ab52a9f83a0p181ae1jsn797161360aa4",
+          "813fcad230mshf097ffbb0308a63p1e972bjsnd0227bcac6bf",
+          "864eb7ae38msh28947dcfcf5ffbbp1f39eejsne5a966599b84",
+          "5ab5420addmshc469dee4edfb688p1d11dbjsn1ff8ff1ea86a"
+        ];
+        // Shuffle keys randomly for every download attempt
+        const shuffledKeys = [...rapidKeys].sort(() => Math.random() - 0.5);
+        const ytIdMatch = mediaUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|live\/|watch\?.+&v=))([\w-]{11})/i);
+        const ytid = ytIdMatch ? ytIdMatch[1] : null;
+
+        if (ytid) {
+          for (const key of shuffledKeys) {
+            if (directStream) break;
+
+            // Try Host A: youtube-media-downloader.p.rapidapi.com
+            try {
+              const resA = await fetch(`https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${ytid}`, {
+                headers: {
+                  "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com",
+                  "x-rapidapi-key": key
+                },
+                signal: AbortSignal.timeout(6000)
+              });
+              if (resA.ok) {
+                const jA = await resA.json();
+                const fmts = jA.streamingData?.formats || jA.formats || jA.videos?.items || [];
+                const adps = jA.streamingData?.adaptiveFormats || jA.audios?.items || [];
+                if (mode === "audio") {
+                  const targetAudio = adps.find(a => (a.mimeType && a.mimeType.includes("audio")) || a.hasAudio) ||
+                                      fmts.find(f => f.hasAudio);
+                  if (targetAudio && (targetAudio.url || targetAudio.downloadUrl || targetAudio.link)) {
+                    directStream = targetAudio.url || targetAudio.downloadUrl || targetAudio.link;
+                    break;
+                  }
+                } else {
+                  const targetVideo = fmts.find(v => v.url && (!v.mimeType || v.mimeType.includes("mp4"))) ||
+                                      fmts[0] ||
+                                      adps.find(v => v.url);
+                  if (targetVideo && (targetVideo.url || targetVideo.downloadUrl || targetVideo.link)) {
+                    directStream = targetVideo.url || targetVideo.downloadUrl || targetVideo.link;
+                    break;
+                  }
+                }
+              }
+            } catch (_) {}
+
+            // Try Host B: youtube-mp3-audio-video-downloader.p.rapidapi.com
+            if (!directStream) {
+              try {
+                const epB = mode === "audio"
+                  ? `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${ytid}?response_mode=default`
+                  : `https://youtube-mp3-audio-video-downloader.p.rapidapi.com/download/${ytid}?format=720`;
+                const resB = await fetch(epB, {
+                  headers: {
+                    "x-rapidapi-host": "youtube-mp3-audio-video-downloader.p.rapidapi.com",
+                    "x-rapidapi-key": key
+                  },
+                  signal: AbortSignal.timeout(6000)
+                });
+                if (resB.ok) {
+                  const jB = await resB.json();
+                  const candidate = jB.download_url || jB.url || jB.link || jB.result?.url || jB.data?.downloadUrl;
+                  if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
+                    directStream = candidate;
+                    break;
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (rapidErr) {
+        console.warn("RapidAPI pool error:", rapidErr.message);
+      }
+    }
+
+    // 2. Primary / Edge Worker API (muddy-scene-0ff7) with Best Quality
+    if (!directStream) {
+      try {
+        if (isYtUrl) updateStatus("Resolving Stream...");
+        const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({
+            url: mediaUrl,
+            videoQuality: mode === "audio" ? "auto" : "max",
+            downloadMode: mode === "audio" ? "audio" : "auto",
+            youtubeVideoCodec: "h264",
+            audioFormat: "mp3",
+            alwaysProxy: true
+          }),
+          signal: AbortSignal.timeout(isYtUrl ? 28000 : 8000)
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
+            directStream = json.url;
+          } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
+            directStream = json.picker[0]?.url;
+          } else if (json.url && typeof json.url === "string") {
+            directStream = json.url;
+          }
+          if (mode === "audio" && json.audio) {
+            directStream = json.audio;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Cobalt Mirror Gateways
     if (!directStream) {
       const mirrorGateways = [
         "https://cobalt-latest-a04h.onrender.com",
