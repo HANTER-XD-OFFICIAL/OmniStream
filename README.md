@@ -189,7 +189,7 @@ OmniStream/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/alexraselchodhury/OmniStream.git
+git clone https://github.com/HANTER-XD-OFFICIAL/OmniStream.git
 cd OmniStream
 ```
 
@@ -236,8 +236,8 @@ OmniStream works out-of-the-box with default fallback engines. For custom or pri
 
 ## 👨‍💻 Developer & Author
 
-* **Lead Architect & Developer**: Alex Rasel Chowdhury
-* **Email**: [alexraselchodhury@gmail.com](mailto:alexraselchodhury@gmail.com)
+* **Lead Architect & Developer**: MD RASEL (@HANTER_XD_OFFICIAL)
+* **Email**: [hanterxdofficial@gmail.com](mailto:hanterxdofficial@gmail.com)
 * **Project**: OmniStream Universal Media Suite
 
 ---

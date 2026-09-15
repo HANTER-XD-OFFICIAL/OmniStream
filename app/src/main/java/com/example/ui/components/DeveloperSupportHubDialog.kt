@@ -95,7 +95,7 @@ fun DeveloperSupportHubDialog(
     val devWhatsAppNumber = "+8801882278234"
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
     val botTelegramUrl = "https://t.me/OmniStream34_bot"
-    val devEmail = "alexraselchodhury@gmail.com"
+    val devEmail = "hanterxdofficial@gmail.com"
 
     fun openUrl(url: String) {
         try {

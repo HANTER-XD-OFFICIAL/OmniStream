@@ -1565,7 +1565,7 @@ function initSupportForm() {
     const message = document.getElementById("support-sender-message")?.value.trim() || "";
 
     const emailBody = `Hi MD RASEL,\n\nName: ${name}\n\nMessage:\n${message}\n\n---\nSent via OmniStream Support Hub`;
-    const mailtoUrl = `mailto:alexraselchodhury@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+    const mailtoUrl = `mailto:hanterxdofficial@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
 
     // Feedback notification toast
     showToast("Opening your Email app...", "info");

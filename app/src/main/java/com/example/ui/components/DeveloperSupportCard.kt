@@ -85,7 +85,7 @@ fun DeveloperSupportCard(
 
     val devName = "MD RASEL"
     val devRole = "Lead Developer & System Architect"
-    val devEmail = "alexraselchodhury@gmail.com"
+    val devEmail = "hanterxdofficial@gmail.com"
     val devFacebook = "https://www.facebook.com/md.rasel.7.8.2.3.4"
     val devWhatsApp = "+8801882278234"
     val devTelegram = "https://t.me/HANTER_XD_OFFICIAL"
@@ -320,7 +320,7 @@ fun DeveloperSupportCard(
                     icon = Icons.Default.Email,
                     iconColor = Color(0xFFEA4335),
                     label = "Support Email (Gmail)",
-                    displayValue = if (isDetailsRevealed) devEmail else "al•••••••••••@gmail.com",
+                    displayValue = if (isDetailsRevealed) devEmail else "ha••••••••••••••@gmail.com",
                     realValue = devEmail,
                     actionButtonText = "Send Email",
                     onActionClick = { openEmail(devEmail) },
