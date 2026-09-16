@@ -13,33 +13,36 @@
 
 > **OmniStream** is a high-performance, enterprise-grade Android media extraction and download suite. Built natively with **Kotlin** and **Jetpack Compose (Material Design 3)**, it powers ultra-fast, watermark-free media downloads across **YouTube, Facebook, Instagram, TikTok, Twitter/X, Pinterest, TeraBox, Reddit**, and 1000+ streaming sites using a multi-tiered Cloudflare Edge API and intelligent failover architecture.
 
-<br/>
-
-### 🚀 Official Access Portals & Direct Links
-
-<p align="center">
-  <a href="https://hanter-xd-official.github.io/OmniStream/" target="_blank">
-    <img src="https://img.shields.io/badge/🌐_OFFICIAL_WEBSITE-Launch_Live_Web_App-6366f1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App" height="42" />
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://t.me/OmniStream34_bot" target="_blank">
-    <img src="https://img.shields.io/badge/🤖_TELEGRAM_BOT-@OmniStream34__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot" height="42" />
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro" target="_blank">
-    <img src="https://img.shields.io/badge/⬇️_ANDROID_APK-Download_Direct_Build-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Android App" height="42" />
-  </a>
-</p>
-
-| Portal | Access Link | Purpose & Capabilities |
-| :--- | :--- | :--- |
-| **🌐 Official Web App** | [**Open Web Downloader**](https://hanter-xd-official.github.io/OmniStream/) | Instant browser media downloader for PC & Mobile — 1-click Full HD video & 320kbps MP3 audio with no software installation required. |
-| **🤖 Fast Telegram Bot** | [**Launch @OmniStream34_bot**](https://t.me/OmniStream34_bot) | Ultra-fast media downloader on Telegram — simply send any video or audio URL into the chat to receive direct media files instantly. |
-| **📱 Native Android App** | [**Download APK (v1.0)**](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro) | High-performance Android application with background download notifications, encrypted offline vault, and built-in media player. |
-
-<br/>
-
 </div>
+
+<br/>
+
+### 🚀 Quick Launch & Direct Downloads
+
+Select your preferred platform below to start extracting and downloading media immediately:
+
+> [!TIP]
+> ### 🌐 [Launch Web Downloader (In-Browser)](https://hanter-xd-official.github.io/OmniStream/)
+> **Zero Installation Required • Works on All Devices**  
+> Direct media extraction engine for Android, iOS, Windows, macOS, and Linux. Download 4K / 1080p Full HD video streams and 320kbps MP3 audio directly in Chrome, Safari, or Edge.  
+>  
+> [![Launch Web Downloader](https://img.shields.io/badge/🌐_LAUNCH_WEB_APP-Live_in_Browser_↗-6366f1?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=0d1117)](https://hanter-xd-official.github.io/OmniStream/)
+
+> [!NOTE]
+> ### 🤖 [Telegram Downloader Bot (@OmniStream34_bot)](https://t.me/OmniStream34_bot)
+> **Direct Chat Downloads • Fast, Lightweight & Always Online**  
+> Simply paste any video link to `@OmniStream34_bot` on Telegram to receive original videos and audio files sent right into your chat with high-speed delivery.  
+>  
+> [![Open Telegram Bot](https://img.shields.io/badge/🤖_OPEN_TELEGRAM_BOT-@OmniStream34__bot_↗-0088cc?style=for-the-badge&logo=telegram&logoColor=white&labelColor=0d1117)](https://t.me/OmniStream34_bot)
+
+> [!IMPORTANT]
+> ### 📱 [Native Android Application (Pro APK)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
+> **Hardware-Accelerated Mobile Client • Built with Jetpack Compose & M3**  
+> Dedicated Android client featuring background download notifications, an AES-256 encrypted offline media vault, status bar playback controls, and an integrated media player.  
+>  
+> [![Download Android APK](https://img.shields.io/badge/⬇️_DOWNLOAD_ANDROID_APK-Direct_Release_v1.0_↗-00c853?style=for-the-badge&logo=android&logoColor=white&labelColor=0d1117)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
+
+<br/>
 
 ---
 
