@@ -168,16 +168,38 @@ async function fetchPlatformMetadata(url) {
     } catch (_) {}
   }
   // Instagram
-  else if (lower.includes('instagram.com')) {
+  else if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
     try {
-      const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`, {
-        signal: AbortSignal.timeout(5000)
+      const cleanUrl = url.split('?')[0].replace(/\/+$/, '') + '/';
+      const res = await fetch(cleanUrl, {
+        headers: {
+          'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        signal: AbortSignal.timeout(6000)
       });
-      if (oe.ok) {
-        const j = await oe.json();
-        title = j.title || 'Instagram Post';
-        author = j.author_name || 'Instagram Creator';
-        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      if (res.ok) {
+        const html = await res.text();
+        const ogImgMatch = html.match(/property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
+                           html.match(/content=["']([^"']+)["']\s+property=["']og:image["']/i);
+        const ogTitleMatch = html.match(/property=["']og:title["']\s+content=["']([^"']+)["']/i) ||
+                             html.match(/content=["']([^"']+)["']\s+property=["']og:title["']/i);
+        
+        let ogImg = ogImgMatch ? ogImgMatch[1].replace(/&amp;/g, '&') : null;
+        let ogTitle = ogTitleMatch ? ogTitleMatch[1].replace(/&amp;/g, '&').replace(/&#064;/g, '@').replace(/&quot;/g, '"') : null;
+        
+        if (ogTitle && ogTitle.includes(' on Instagram:')) {
+          const parts = ogTitle.split(' on Instagram:');
+          author = parts[0].trim();
+          title = parts[1].trim().replace(/^[:"'\s]+|[:"'\s]+$/g, '');
+        } else if (ogTitle) {
+          title = ogTitle;
+        }
+
+        if (ogImg && ogImg.startsWith('http')) {
+          thumbnail = `https://wsrv.nl/?url=${encodeURIComponent(ogImg)}`;
+        }
       }
     } catch (_) {}
   }
@@ -548,6 +570,22 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, result);
     } catch (err) {
       sendJson(res, 500, { success: false, message: err.message || 'Internal media extraction error.' });
+    }
+    return;
+  }
+
+  // --- API ROUTE: /api/metadata ---
+  if (pathname === '/api/metadata') {
+    try {
+      const targetUrl = parsedUrl.searchParams.get('url');
+      if (!targetUrl) {
+        sendJson(res, 400, { success: false, message: 'Missing url parameter.' });
+        return;
+      }
+      const meta = await fetchPlatformMetadata(targetUrl);
+      sendJson(res, 200, { success: true, ...meta });
+    } catch (err) {
+      sendJson(res, 500, { success: false, message: err.message });
     }
     return;
   }

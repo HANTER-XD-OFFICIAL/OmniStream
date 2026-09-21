@@ -27,14 +27,30 @@ export default {
       });
     }
 
-    // 2. Health check / status info on GET
+    // 2. Health check / status info on GET, or direct metadata query
     if (request.method === "GET") {
+      const reqUrl = new URL(request.url);
+      const queryUrl = reqUrl.searchParams.get("url");
+      if (queryUrl) {
+        let meta = null;
+        if (queryUrl.includes("instagram.com") || queryUrl.includes("instagr.am")) {
+          meta = await fetchInstagramMetadata(queryUrl);
+        }
+        if (meta) {
+          return new Response(JSON.stringify({ success: true, ...meta }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...CORS_HEADERS }
+          });
+        }
+      }
+
       return new Response(JSON.stringify({
         status: "online",
         service: "OmniStream Cloudflare Edge Worker API",
-        version: "2.0.0",
+        version: "2.1.0",
         youtubeSupported: true,
-        endpoints: ["POST /"]
+        instagramMetaSupported: true,
+        endpoints: ["POST /", "GET /?url=<media_url>"]
       }), {
         status: 200,
         headers: {
@@ -63,6 +79,7 @@ export default {
       }
 
       const isYouTube = rawUrl.includes("youtube.com") || rawUrl.includes("youtu.be");
+      const isInstagram = rawUrl.includes("instagram.com") || rawUrl.includes("instagr.am");
       const isAudio = body.downloadMode === "audio";
       const quality = body.videoQuality || "1080";
 
@@ -96,6 +113,9 @@ export default {
         }
       }
 
+      // If Instagram, fetch authentic metadata in parallel
+      const igMetaPromise = isInstagram ? fetchInstagramMetadata(rawUrl) : Promise.resolve(null);
+
       // 4. Default / Fallback: Proxy to Cobalt on Render
       const cobaltResp = await fetch(COBALT_BACKEND, {
         method: "POST",
@@ -106,6 +126,28 @@ export default {
         },
         body: JSON.stringify(body)
       });
+
+      if (isInstagram) {
+        try {
+          const cobaltJson = await cobaltResp.json();
+          const igMeta = await igMetaPromise.catch(() => null);
+          if (igMeta) {
+            if (igMeta.thumbnail) cobaltJson.thumbnail = igMeta.thumbnail;
+            if (igMeta.title && (!cobaltJson.filename || cobaltJson.filename.startsWith("instagram_"))) {
+              cobaltJson.title = igMeta.title;
+            }
+            if (igMeta.author) cobaltJson.author = igMeta.author;
+            cobaltJson.platform = "Instagram";
+          }
+          return new Response(JSON.stringify(cobaltJson), {
+            status: cobaltResp.status,
+            headers: {
+              "Content-Type": "application/json",
+              ...CORS_HEADERS
+            }
+          });
+        } catch (_) {}
+      }
 
       const cobaltData = await cobaltResp.text();
       return new Response(cobaltData, {
@@ -212,4 +254,50 @@ async function resolveYouTube(targetUrl, format = "720") {
   }
 
   throw new Error("YouTube stream could not be converted at this time");
+}
+
+/**
+ * Authentic Instagram thumbnail and metadata extraction using Facebook external hit
+ */
+async function fetchInstagramMetadata(url) {
+  try {
+    const cleanUrl = url.split("?")[0].replace(/\/+$/, "") + "/";
+    const res = await fetch(cleanUrl, {
+      headers: {
+        "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9"
+      }
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const ogImgMatch = html.match(/property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
+                       html.match(/content=["']([^"']+)["']\s+property=["']og:image["']/i);
+    const ogTitleMatch = html.match(/property=["']og:title["']\s+content=["']([^"']+)["']/i) ||
+                         html.match(/content=["']([^"']+)["']\s+property=["']og:title["']/i);
+
+    let ogImg = ogImgMatch ? ogImgMatch[1].replace(/&amp;/g, '&') : null;
+    let ogTitle = ogTitleMatch ? ogTitleMatch[1].replace(/&amp;/g, '&').replace(/&#064;/g, '@').replace(/&quot;/g, '"') : null;
+    let author = "Instagram Creator";
+    if (ogTitle && ogTitle.includes(" on Instagram:")) {
+      const parts = ogTitle.split(" on Instagram:");
+      author = parts[0].trim();
+      ogTitle = parts[1].trim().replace(/^[:"'\s]+|[:"'\s]+$/g, '');
+    }
+
+    let proxiedThumb = null;
+    if (ogImg && ogImg.startsWith("http")) {
+      // wsrv.nl provides fast, worldwide image proxying with CORS and cache headers
+      proxiedThumb = `https://wsrv.nl/?url=${encodeURIComponent(ogImg)}`;
+    }
+
+    return {
+      thumbnail: proxiedThumb,
+      rawThumbnail: ogImg,
+      title: ogTitle || "Instagram Video",
+      author: author || "Instagram Creator"
+    };
+  } catch (_) {
+    return null;
+  }
 }
