@@ -31,7 +31,13 @@ const REMOTE_WORKER_SECRET_URL = "https://omnistream-telegram-api.alexraselchodh
 async function resolveSecretToken() {
   if (BOT_TOKEN && BOT_TOKEN !== "YOUR_TELEGRAM_BOT_TOKEN") return BOT_TOKEN;
   try {
-    const res = await fetch(REMOTE_WORKER_SECRET_URL, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(REMOTE_WORKER_SECRET_URL, {
+      headers: {
+        "Authorization": "432872",
+        "User-Agent": "OmniStream-Bot-Server/1.0"
+      },
+      signal: AbortSignal.timeout(8000)
+    });
     if (res.ok) {
       const fetched = (await res.text()).trim();
       if (fetched && fetched.includes(":") && !fetched.includes("<") && !fetched.includes("{")) {

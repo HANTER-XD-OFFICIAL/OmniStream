@@ -20,6 +20,9 @@ object SecureTokenStore {
     // Secure Cloudflare Worker secret endpoint hosting the bot token safely
     const val SECURE_TOKEN_ENDPOINT = "https://omnistream-telegram-api.alexraselchodhury.workers.dev/"
 
+    // API_SECRET authorization header required by Cloudflare Worker
+    const val WORKER_API_SECRET = "432872"
+
     // Known obsolete/revoked token signature to automatically discard stale caches
     private const val REVOKED_TOKEN_SIGNATURE = "AAFv-tAzwkDevz4Z03F8AAV04GfeyAaF1EM"
 
@@ -88,6 +91,7 @@ object SecureTokenStore {
             val httpClient = client ?: OkHttpClient.Builder().build()
             val request = Request.Builder()
                 .url(SECURE_TOKEN_ENDPOINT)
+                .header("Authorization", WORKER_API_SECRET)
                 .header("User-Agent", "OmniStream-Android-Client/1.0")
                 .header("Cache-Control", "no-cache")
                 .get()
