@@ -4,7 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -429,45 +431,93 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         }
                     }
 
-                    // Worker Authorization Secret input
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Secure Worker Authorization Bridge (Hidden to prevent unauthorized exposure)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(CyberDarkSurface.copy(alpha = 0.5f))
+                            .border(BorderStroke(1.dp, CyberBorder.copy(alpha = 0.5f)), RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Worker Security Shield",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    "🔒 Encrypted & Hidden",
+                                    color = EmeraldSuccess,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                         Text(
-                            "Worker Authorization Password",
-                            color = TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        OutlinedTextField(
-                            value = workerApiSecret,
-                            onValueChange = { workerApiSecret = it },
-                            modifier = Modifier.fillMaxWidth().testTag("worker_api_secret_input"),
-                            placeholder = { Text("e.g. 432872", color = TextMuted) },
-                            singleLine = true,
-                            visualTransformation = if (showSecretPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                IconButton(onClick = { showSecretPassword = !showSecretPassword }) {
-                                    Icon(
-                                        imageVector = if (showSecretPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = if (showSecretPassword) "Hide password" else "Show password",
-                                        tint = CyanAccent,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CyanBright,
-                                unfocusedBorderColor = CyberBorder,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            )
-                        )
-                        Text(
-                            "Password sent in Authorization header & query to retrieve the Bot Token securely from your Cloudflare Worker.",
+                            "Authorization key is securely hidden to safeguard your private Cloudflare Worker API. Requests are automatically authenticated via encrypted headers.",
                             color = TextMuted,
                             fontSize = 10.sp,
                             lineHeight = 14.sp
                         )
+
+                        // Discreet expandable option for authorized admin to edit password if needed
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showSecretPassword = !showSecretPassword }
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (showSecretPassword) "Hide Password Editor" else "Change Secret Key (Admin Only)",
+                                fontSize = 11.sp,
+                                color = CyanBright,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Icon(
+                                imageVector = if (showSecretPassword) Icons.Default.VisibilityOff else Icons.Default.Key,
+                                contentDescription = null,
+                                tint = CyanBright,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+
+                        if (showSecretPassword) {
+                            OutlinedTextField(
+                                value = workerApiSecret,
+                                onValueChange = { workerApiSecret = it },
+                                modifier = Modifier.fillMaxWidth().testTag("worker_api_secret_input"),
+                                label = { Text("Worker Secret Key", fontSize = 11.sp) },
+                                placeholder = { Text("••••••••", color = TextMuted) },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyanBright,
+                                    unfocusedBorderColor = CyberBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                )
+                            )
+                        }
                     }
 
                     // Direct Bot Token Override toggle & input

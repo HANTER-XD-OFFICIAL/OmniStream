@@ -490,11 +490,23 @@ function initFormHandler() {
       resultQualityTag.textContent = data.quality || "1080p HD";
       resultAuthorTag.textContent = data.author || "Creator";
 
+      // Stream Player Setup (Initially hidden; revealed when user clicks Play in Browser)
+      const ytEmbedPreview = document.getElementById("ytEmbedPreview");
+      const streamUrl = data.videoUrl || data.streamUrl || data.downloadUrl;
+      const audioUrl = data.audioUrl;
+      const isAudioOnly = formatSelect.value === "audio" || (!streamUrl && audioUrl) || (streamUrl && streamUrl.endsWith(".mp3"));
+
       // Thumbnail & fallback handling (Never show logo.jpg as video thumbnail!)
       resultThumbnail.referrerPolicy = "no-referrer";
       resultThumbnail.removeAttribute("crossorigin");
       
       let thumbnailAssigned = false;
+      const thumbVideoPoster = document.getElementById("thumbVideoPoster");
+      if (thumbVideoPoster) {
+        thumbVideoPoster.classList.add("hidden");
+        thumbVideoPoster.removeAttribute("src");
+        thumbVideoPoster.load();
+      }
 
       // Extract high quality YouTube thumbnail immediately if it is YouTube
       let resolvedThumb = data.thumbnail;
@@ -504,6 +516,8 @@ function initFormHandler() {
           resolvedThumb = `https://i.ytimg.com/vi/${ytIdMatch[1].substring(0, 11)}/hqdefault.jpg`;
         }
       }
+
+      const isInstagramMedia = url.includes('instagram.com') || url.includes('instagr.am') || (data.platform && data.platform.toLowerCase().includes('instagram'));
 
       // Validate thumbnail (accept real image URLs, reject dummy 1x1 pixels)
       const isValidThumbnail = Boolean(
@@ -524,11 +538,25 @@ function initFormHandler() {
             resultThumbnail.src = resultThumbnail.src.replace('hqdefault.jpg', 'mqdefault.jpg');
             return;
           }
+          // If Instagram CDN blocks direct hotlinking, fallback to fast image proxy wsrv.nl
+          if (isInstagramMedia && !resultThumbnail.src.includes('wsrv.nl') && resolvedThumb) {
+            resultThumbnail.src = `https://wsrv.nl/?url=${encodeURIComponent(resolvedThumb)}&default=404`;
+            return;
+          }
+          // If thumbnail image still fails, show the video poster frame directly!
+          if (thumbVideoPoster && streamUrl && !isAudioOnly) {
+            thumbVideoPoster.src = streamUrl;
+            thumbVideoPoster.currentTime = 0.1;
+            thumbVideoPoster.classList.remove("hidden");
+            resultThumbnail.classList.add("hidden");
+            return;
+          }
           resultThumbnail.classList.add("hidden");
         };
         resultThumbnail.onload = () => {
           if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
           resultThumbnail.classList.remove("hidden");
+          if (thumbVideoPoster) thumbVideoPoster.classList.add("hidden");
         };
         resultThumbnail.src = resolvedThumb;
         videoPreview.poster = resolvedThumb;
@@ -536,17 +564,19 @@ function initFormHandler() {
         resultThumbnail.classList.remove("hidden");
         thumbnailAssigned = true;
       } else {
-        // Fallback: keep thumbnail wrapper visible with dark gradient card & play overlay
+        // Fallback: If no image thumbnail, use native HTML5 video frame as poster!
+        if (thumbVideoPoster && streamUrl && !isAudioOnly) {
+          thumbVideoPoster.src = streamUrl;
+          thumbVideoPoster.currentTime = 0.1;
+          thumbVideoPoster.classList.remove("hidden");
+          resultThumbnail.classList.add("hidden");
+          thumbnailAssigned = true;
+        } else {
+          resultThumbnail.classList.add("hidden");
+          resultThumbnail.src = "";
+        }
         if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
-        resultThumbnail.classList.add("hidden");
-        resultThumbnail.src = "";
       }
-
-      // Stream Player Setup (Initially hidden; revealed when user clicks Play in Browser)
-      const ytEmbedPreview = document.getElementById("ytEmbedPreview");
-      const streamUrl = data.videoUrl || data.streamUrl || data.downloadUrl;
-      const audioUrl = data.audioUrl;
-      const isAudioOnly = formatSelect.value === "audio" || (!streamUrl && audioUrl) || (streamUrl && streamUrl.endsWith(".mp3"));
 
       if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
       if (ytEmbedPreview) {
@@ -583,25 +613,13 @@ function initFormHandler() {
           if (playerStreamStatus && videoPreview.paused) {
             playerStreamStatus.textContent = "● Ready to Play";
           }
-          // If no external thumbnail image was found, capture the actual video first frame!
-          if (!thumbnailAssigned) {
-            try {
-              const canvas = document.createElement("canvas");
-              canvas.width = videoPreview.videoWidth || 640;
-              canvas.height = videoPreview.videoHeight || 360;
-              const ctx = canvas.getContext("2d");
-              ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
-              const snap = canvas.toDataURL("image/jpeg", 0.85);
-              if (snap && snap.length > 500) {
-                resultThumbnail.src = snap;
-                videoPreview.poster = snap;
-                if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
-                resultThumbnail.classList.remove("hidden");
-                thumbnailAssigned = true;
-              }
-            } catch (_) {
-              // Even if canvas CORS restrictions apply, videoPreview natively displays the video frame!
-            }
+          // If no external thumbnail image was found, reveal video poster directly!
+          if (!thumbnailAssigned && thumbVideoPoster && streamUrl) {
+            thumbVideoPoster.src = streamUrl;
+            thumbVideoPoster.currentTime = 0.1;
+            thumbVideoPoster.classList.remove("hidden");
+            resultThumbnail.classList.add("hidden");
+            thumbnailAssigned = true;
           }
         };
 
@@ -683,6 +701,7 @@ function initFormHandler() {
           if (isCurrentlyHidden) {
             // Reveal player only after user clicks Play in Browser!
             previewPlayerWrapper.classList.remove("hidden");
+            if (thumbVideoPoster) thumbVideoPoster.classList.add("hidden");
             const playPromise = videoPreview.play();
             if (playPromise !== undefined) {
               playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
@@ -737,6 +756,9 @@ function initFormHandler() {
             ytEmbedPreview.classList.add("hidden");
           }
           if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
+          if (thumbVideoPoster && streamUrl && (!resultThumbnail || resultThumbnail.classList.contains("hidden"))) {
+            thumbVideoPoster.classList.remove("hidden");
+          }
           if (togglePreviewBtnText) togglePreviewBtnText.textContent = isAudioOnly ? "Play Audio in Browser" : "Play Video in Browser";
           if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
           if (playerStreamStatus) {
@@ -775,8 +797,9 @@ function initFormHandler() {
       // Populate Download Buttons
       downloadButtonsGrid.innerHTML = "";
 
-      const videoFilename = formatOmniStreamFilename(data.platform, data.title, "mp4");
-      const audioFilename = formatOmniStreamFilename(data.platform, data.title, "mp3");
+      const detectedPlatform = detectPlatformName(data.platform, url || originalUrl || data.originalUrl);
+      const videoFilename = formatOmniStreamFilename(detectedPlatform, data.title, "mp4");
+      const audioFilename = formatOmniStreamFilename(detectedPlatform, data.title, "mp3");
       const downloadHintBar = document.getElementById("downloadHintBar");
 
       // Primary Video/Media Download (1-Click Direct Save to Device)
@@ -868,14 +891,42 @@ function initFormHandler() {
   });
 }
 
+// Detect standardized platform name from string or original URL
+function detectPlatformName(platform, url = "") {
+  if (platform && typeof platform === "string") {
+    const clean = platform.replace(/[^a-zA-Z0-9]/g, "");
+    if (clean && !clean.toLowerCase().includes("engine") && !clean.toLowerCase().includes("universal") && clean !== "Media") {
+      return clean;
+    }
+  }
+  const lower = (url || "").toLowerCase();
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "YouTube";
+  if (lower.includes("instagram.com") || lower.includes("instagr.am")) return "Instagram";
+  if (lower.includes("tiktok.com") || lower.includes("douyin.com")) return "TikTok";
+  if (lower.includes("facebook.com") || lower.includes("fb.watch") || lower.includes("fb.com")) return "Facebook";
+  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp")) return "TeraBox";
+  if (lower.includes("twitter.com") || lower.includes("x.com")) return "Twitter";
+  if (lower.includes("pinterest.") || lower.includes("pin.it")) return "Pinterest";
+  if (lower.includes("reddit.com")) return "Reddit";
+  if (lower.includes("snapchat.com")) return "Snapchat";
+  if (lower.includes("threads.net")) return "Threads";
+  if (lower.includes("soundcloud.com")) return "SoundCloud";
+  if (lower.includes("vimeo.com")) return "Vimeo";
+  if (lower.includes("dailymotion.com") || lower.includes("dai.ly")) return "Dailymotion";
+  if (lower.includes("bilibili.com")) return "Bilibili";
+  return "Media";
+}
+
 // Generates standardized project-branded filename: OmniStream_[Platform]_[Title].[ext]
 function formatOmniStreamFilename(platform, title, ext = "mp4") {
-  const cleanPlatform = (platform || "Media").replace(/[^a-zA-Z0-9]/g, "");
+  const cleanPlatform = detectPlatformName(platform, "");
   let cleanTitle = (title || "Download")
+    .replace(/&[a-zA-Z0-9#x]+;/g, "")
     .replace(/[^\w\s-]/g, "") // strip emojis, symbols, quotes
     .trim()
     .replace(/\s+/g, "_")
     .substring(0, 45);
+  cleanTitle = cleanTitle.replace(new RegExp(`^OmniStream_(${cleanPlatform}_)?`, "i"), "");
   if (!cleanTitle) cleanTitle = "Media";
   return `OmniStream_${cleanPlatform}_${cleanTitle}.${ext}`;
 }
@@ -1224,16 +1275,44 @@ async function fetchPlatformMetadata(url) {
     } catch (_) {}
   }
   // Instagram
-  else if (lower.includes('instagram.com')) {
+  else if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+    const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+    const shortcode = igMatch ? igMatch[1] : null;
+    title = shortcode ? `Instagram Reel (${shortcode})` : 'Instagram Post';
+    author = 'Instagram Creator';
+
+    // 1. Microlink API (supports CORS for browser requests)
     try {
-      const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`);
-      if (oe.ok) {
-        const j = await oe.json();
-        title = j.title || 'Instagram Post';
-        author = j.author_name || 'Instagram Creator';
-        if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+      const ml = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (ml.ok) {
+        const j = await ml.json();
+        if (j.data) {
+          if (j.data.title) title = j.data.title;
+          if (j.data.author) author = j.data.author;
+          const img = j.data.image?.url || j.data.image;
+          if (img && typeof img === 'string' && img.length > 10) {
+            thumbnail = img;
+          }
+        }
       }
     } catch (_) {}
+
+    // 2. Direct oEmbed fallback
+    if (!thumbnail) {
+      try {
+        const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`, {
+          signal: AbortSignal.timeout(3000)
+        });
+        if (oe.ok) {
+          const j = await oe.json();
+          if (j.title) title = j.title;
+          if (j.author_name) author = j.author_name;
+          if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+        }
+      } catch (_) {}
+    }
   }
   // Vimeo
   else if (lower.includes('vimeo.com')) {

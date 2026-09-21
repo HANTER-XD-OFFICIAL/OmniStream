@@ -807,6 +807,10 @@ body {
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
+video.result-thumbnail {
+  pointer-events: none;
+}
+
 .thumbnail-wrapper:hover .result-thumbnail {
   transform: scale(1.02);
 }

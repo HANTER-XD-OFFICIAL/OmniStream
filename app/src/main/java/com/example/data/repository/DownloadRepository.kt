@@ -146,18 +146,20 @@ class DownloadRepository(
                 // Ensure download directory exists in Internal Storage / Download / OmniStream
                 val downloadDir = getAppStorageDirectory(context)
 
-                // Sanitize filename to avoid invalid OS filesystem characters and unescaped HTML entities
-                val safeTitle = item.title
+                // Standardize filename: OmniStream_[Platform]_[Title].[ext]
+                val detectedPlatform = resolvePlatformName(item.platformName, item.sourceUrl)
+                var safeTitle = item.title
                     .replace(Regex("&[a-zA-Z0-9#x]+;"), "")
+                    .replace(Regex("""^OmniStream_(${detectedPlatform}_)?""", RegexOption.IGNORE_CASE), "")
                     .replace(Regex("""[\\/:*?"<>|;#,\r\n\t]"""), "_")
                     .replace(Regex("""[^a-zA-Z0-9._ -]"""), "_")
                     .replace(Regex("""_{2,}"""), "_")
                     .trim(' ', '_', '.')
-                    .take(40)
-                    .ifBlank { "OmniStream_Media" }
+                    .take(45)
+                    .ifBlank { "Media" }
 
-                val cleanRes = item.resolution.replace(Regex("[^a-zA-Z0-9]"), "_")
-                val fileName = "${safeTitle}_${cleanRes}_${downloadId}.${item.ext.ifBlank { "mp4" }}"
+                val ext = item.ext.ifBlank { if (item.mediaType == MediaType.AUDIO) "mp3" else "mp4" }
+                val fileName = "OmniStream_${detectedPlatform}_${safeTitle}.${ext}"
                 targetFile = File(downloadDir, fileName)
 
                 // 1. Prepare target local storage file safely
@@ -528,6 +530,35 @@ class DownloadRepository(
             seconds < 60 -> "${seconds}s"
             seconds < 3600 -> "${seconds / 60}m ${seconds % 60}s"
             else -> "${seconds / 3600}h ${(seconds % 3600) / 60}m"
+        }
+    }
+
+    private fun resolvePlatformName(platform: String?, sourceUrl: String?): String {
+        val clean = platform?.trim()?.replace(Regex("[^a-zA-Z0-9]"), "") ?: ""
+        if (clean.isNotBlank() &&
+            !clean.equals("Universal", ignoreCase = true) &&
+            !clean.equals("Media", ignoreCase = true) &&
+            !clean.equals("OmniStreamEngine", ignoreCase = true)) {
+            return clean
+        }
+        val lower = (sourceUrl ?: "").lowercase()
+        return when {
+            "youtube.com" in lower || "youtu.be" in lower -> "YouTube"
+            "instagram.com" in lower || "instagr.am" in lower -> "Instagram"
+            "tiktok.com" in lower || "douyin.com" in lower -> "TikTok"
+            "facebook.com" in lower || "fb.watch" in lower || "fb.com" in lower -> "Facebook"
+            "terabox" in lower || "1024tera" in lower || "teraboxapp" in lower -> "TeraBox"
+            "twitter.com" in lower || "x.com" in lower -> "Twitter"
+            "pinterest." in lower || "pin.it" in lower -> "Pinterest"
+            "reddit.com" in lower -> "Reddit"
+            "snapchat.com" in lower -> "Snapchat"
+            "threads.net" in lower -> "Threads"
+            "linkedin.com" in lower -> "LinkedIn"
+            "vimeo.com" in lower -> "Vimeo"
+            "soundcloud.com" in lower -> "SoundCloud"
+            "dailymotion.com" in lower || "dai.ly" in lower -> "Dailymotion"
+            "bilibili.com" in lower -> "Bilibili"
+            else -> "Media"
         }
     }
 }

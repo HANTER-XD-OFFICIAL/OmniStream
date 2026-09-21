@@ -310,6 +310,44 @@ async function callTg(method, payload) {
   }
 }
 
+function detectPlatformName(type, url = "") {
+  if (type && typeof type === "string") {
+    const clean = type.replace(/[^a-zA-Z0-9]/g, "");
+    if (clean && clean !== "WebVideo" && clean !== "SocialVideo" && clean !== "MediaVideo" && clean !== "Video") {
+      return clean;
+    }
+  }
+  const lower = (url || "").toLowerCase();
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "YouTube";
+  if (lower.includes("instagram.com") || lower.includes("instagr.am")) return "Instagram";
+  if (lower.includes("tiktok.com") || lower.includes("douyin.com")) return "TikTok";
+  if (lower.includes("facebook.com") || lower.includes("fb.watch") || lower.includes("fb.com")) return "Facebook";
+  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp")) return "TeraBox";
+  if (lower.includes("twitter.com") || lower.includes("x.com")) return "Twitter";
+  if (lower.includes("pinterest.") || lower.includes("pin.it")) return "Pinterest";
+  if (lower.includes("reddit.com")) return "Reddit";
+  if (lower.includes("snapchat.com")) return "Snapchat";
+  if (lower.includes("threads.net")) return "Threads";
+  if (lower.includes("soundcloud.com")) return "SoundCloud";
+  if (lower.includes("vimeo.com")) return "Vimeo";
+  if (lower.includes("dailymotion.com") || lower.includes("dai.ly")) return "Dailymotion";
+  if (lower.includes("bilibili.com")) return "Bilibili";
+  return "Media";
+}
+
+function formatOmniStreamFilename(platform, title, ext = "mp4") {
+  const cleanPlatform = (platform || "Media").replace(/[^a-zA-Z0-9]/g, "");
+  let cleanTitle = (title || "Download")
+    .replace(/&[a-zA-Z0-9#x]+;/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .substring(0, 45);
+  cleanTitle = cleanTitle.replace(new RegExp(`^OmniStream_(${cleanPlatform}_)?`, "i"), "");
+  if (!cleanTitle) cleanTitle = "Media";
+  return `OmniStream_${cleanPlatform}_${cleanTitle}.${ext}`;
+}
+
 async function sendTgVideo(chatId, videoBuffer, filename, caption, replyMarkup = null) {
   try {
     const form = new FormData();
@@ -1363,7 +1401,9 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
               ]
             };
 
-            const sendRes = await sendTgVideo(chatId, videoBuffer, "video.mp4", caption, replyMarkup);
+            const platformName = detectPlatformName(media.type, url);
+            const standardizedFilename = formatOmniStreamFilename(platformName, media.title || safeTitle, "mp4");
+            const sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, replyMarkup);
             if (sendRes.ok) {
               await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId });
               db.stats.totalDownloads++;
