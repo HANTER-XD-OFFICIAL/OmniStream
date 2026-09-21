@@ -149,8 +149,14 @@
           <div class="result-media-container">
             <!-- Thumbnail Visual (With Play Overlay) -->
             <div class="thumbnail-wrapper" id="thumbnailWrapper">
+              <div class="thumbnail-fallback-card hidden" id="thumbnailFallbackCard">
+                <div class="fallback-card-icon" id="fallbackCardIcon">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                </div>
+                <span class="fallback-card-text" id="fallbackCardText">Instagram Video Stream</span>
+              </div>
               <img src="" alt="Media Thumbnail" id="resultThumbnail" class="result-thumbnail" referrerpolicy="no-referrer">
-              <video id="thumbVideoPoster" class="result-thumbnail result-thumbnail-video hidden" playsinline muted preload="metadata"></video>
+              <video id="thumbVideoPoster" class="result-thumbnail result-thumbnail-video hidden" playsinline webkit-playsinline muted loop autoplay preload="auto"></video>
               <button type="button" class="play-overlay-btn" id="playOverlayBtn" aria-label="Play Video Preview">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               </button>

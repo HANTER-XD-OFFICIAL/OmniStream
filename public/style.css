@@ -798,6 +798,45 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.thumbnail-wrapper.is-instagram {
+  background: radial-gradient(circle at 30% 30%, #1f1238 0%, #2e113c 45%, #180a25 100%);
+  border: 1px solid rgba(225, 48, 108, 0.4);
+  box-shadow: inset 0 0 40px rgba(193, 53, 132, 0.2);
+}
+
+.thumbnail-fallback-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(64, 93, 230, 0.25) 0%, rgba(193, 53, 132, 0.35) 50%, rgba(225, 48, 108, 0.25) 100%);
+  z-index: 1;
+}
+
+.fallback-card-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(225, 48, 108, 0.45);
+}
+
+.fallback-card-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
 }
 
 .result-thumbnail {
@@ -805,10 +844,13 @@ body {
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s ease, opacity 0.3s ease;
+  position: relative;
+  z-index: 2;
 }
 
 video.result-thumbnail {
   pointer-events: none;
+  background: transparent;
 }
 
 .thumbnail-wrapper:hover .result-thumbnail {

@@ -312,6 +312,7 @@ async function resolveSingleCobalt(host, url, mode = 'auto', quality = '1080', t
       } else if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
         const item = json.picker.find(p => p.type === 'video') || json.picker[0];
         streamUrl = item.url;
+        if (item && item.thumb) json.thumbnail = item.thumb;
       } else if (json.status === 'local-processing' && Array.isArray(json.tunnel) && json.tunnel.length > 0) {
         streamUrl = json.tunnel[0];
       } else if (json.url && typeof json.url === 'string') {
@@ -319,14 +320,15 @@ async function resolveSingleCobalt(host, url, mode = 'auto', quality = '1080', t
       }
 
       if (streamUrl && streamUrl.startsWith('http')) {
+        const isIg = url.includes('instagram.com') || url.includes('instagr.am');
         const meta = await fetchPlatformMetadata(url).catch(() => ({}));
         const cleanTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
         const finalThumb = json.thumbnail || meta.thumbnail || null;
-        const finalAuthor = meta.author || 'Creator';
+        const finalAuthor = meta.author || (isIg ? 'Instagram Creator' : 'Creator');
 
         return {
           success: true,
-          platform: 'OmniStream Engine',
+          platform: isIg ? 'Instagram' : 'OmniStream Engine',
           title: cleanTitle,
           author: finalAuthor,
           thumbnail: finalThumb,

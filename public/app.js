@@ -496,16 +496,34 @@ function initFormHandler() {
       const audioUrl = data.audioUrl;
       const isAudioOnly = formatSelect.value === "audio" || (!streamUrl && audioUrl) || (streamUrl && streamUrl.endsWith(".mp3"));
 
-      // Thumbnail & fallback handling (Never show logo.jpg as video thumbnail!)
+      // Thumbnail & visual preview handling
       resultThumbnail.referrerPolicy = "no-referrer";
       resultThumbnail.removeAttribute("crossorigin");
-      
-      let thumbnailAssigned = false;
+
+      const thumbnailFallbackCard = document.getElementById("thumbnailFallbackCard");
+      const fallbackCardText = document.getElementById("fallbackCardText");
       const thumbVideoPoster = document.getElementById("thumbVideoPoster");
+      const isInstagramMedia = url.includes('instagram.com') || url.includes('instagr.am') || (data.platform && data.platform.toLowerCase().includes('instagram'));
+
+      if (thumbnailWrapper) {
+        thumbnailWrapper.classList.toggle("is-instagram", isInstagramMedia);
+        thumbnailWrapper.classList.remove("hidden");
+      }
+
+      if (thumbnailFallbackCard) {
+        if (isInstagramMedia) {
+          thumbnailFallbackCard.classList.remove("hidden");
+          if (fallbackCardText) fallbackCardText.textContent = "Instagram Video Stream";
+        } else {
+          thumbnailFallbackCard.classList.add("hidden");
+        }
+      }
+
+      // Reset thumbVideoPoster state
       if (thumbVideoPoster) {
+        thumbVideoPoster.pause();
         thumbVideoPoster.classList.add("hidden");
         thumbVideoPoster.removeAttribute("src");
-        thumbVideoPoster.load();
       }
 
       // Extract high quality YouTube thumbnail immediately if it is YouTube
@@ -517,8 +535,6 @@ function initFormHandler() {
         }
       }
 
-      const isInstagramMedia = url.includes('instagram.com') || url.includes('instagr.am') || (data.platform && data.platform.toLowerCase().includes('instagram'));
-
       // Validate thumbnail (accept real image URLs, reject dummy 1x1 pixels)
       const isValidThumbnail = Boolean(
         resolvedThumb && 
@@ -527,6 +543,65 @@ function initFormHandler() {
         !resolvedThumb.includes('data:image/gif;base64,R0lGODlhAQABA') &&
         !resolvedThumb.includes('data:image/svg+xml')
       );
+
+      // Dedicated helper to set up video as front poster/preview so it is never black
+      const setupVideoAsFrontPoster = () => {
+        if (!thumbVideoPoster || !streamUrl || isAudioOnly) return;
+        thumbVideoPoster.muted = true;
+        thumbVideoPoster.defaultMuted = true;
+        thumbVideoPoster.playsInline = true;
+        thumbVideoPoster.autoplay = true;
+        thumbVideoPoster.loop = true;
+        thumbVideoPoster.preload = "auto";
+        thumbVideoPoster.setAttribute("playsinline", "");
+        thumbVideoPoster.setAttribute("webkit-playsinline", "");
+        thumbVideoPoster.setAttribute("muted", "");
+        
+        const streamSrc = streamUrl.includes("#") ? streamUrl : (streamUrl + "#t=0.001");
+        if (thumbVideoPoster.src !== streamSrc) {
+          thumbVideoPoster.src = streamSrc;
+          thumbVideoPoster.load();
+        }
+
+        const playVideoPoster = () => {
+          thumbVideoPoster.classList.remove("hidden");
+          if (thumbnailFallbackCard) thumbnailFallbackCard.classList.add("hidden");
+          const playPromise = thumbVideoPoster.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              // Video is actively playing muted right in front!
+              // Attempt canvas snapshot to also set static image on resultThumbnail
+              setTimeout(() => {
+                try {
+                  if (thumbVideoPoster.videoWidth > 0 && thumbVideoPoster.videoHeight > 0) {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = thumbVideoPoster.videoWidth;
+                    canvas.height = thumbVideoPoster.videoHeight;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(thumbVideoPoster, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+                    if (dataUrl && dataUrl.length > 500) {
+                      resultThumbnail.src = dataUrl;
+                      resultThumbnail.classList.remove("hidden");
+                      videoPreview.poster = dataUrl;
+                    }
+                  }
+                } catch (_) {}
+              }, 200);
+            }).catch(() => {
+              try { thumbVideoPoster.currentTime = 0.1; } catch (_) {}
+            });
+          }
+        };
+
+        thumbVideoPoster.onloadedmetadata = () => {
+          try { thumbVideoPoster.currentTime = 0.1; } catch (_) {}
+          playVideoPoster();
+        };
+        thumbVideoPoster.oncanplay = playVideoPoster;
+        thumbVideoPoster.onloadeddata = playVideoPoster;
+        playVideoPoster();
+      };
 
       if (isValidThumbnail) {
         resultThumbnail.onerror = () => {
@@ -540,42 +615,40 @@ function initFormHandler() {
           }
           // If Instagram CDN blocks direct hotlinking, fallback to fast image proxy wsrv.nl
           if (isInstagramMedia && !resultThumbnail.src.includes('wsrv.nl') && resolvedThumb) {
-            resultThumbnail.src = `https://wsrv.nl/?url=${encodeURIComponent(resolvedThumb)}&default=404`;
+            resultThumbnail.src = `https://wsrv.nl/?url=${encodeURIComponent(resolvedThumb)}`;
             return;
           }
-          // If thumbnail image still fails, show the video poster frame directly!
-          if (thumbVideoPoster && streamUrl && !isAudioOnly) {
-            thumbVideoPoster.src = streamUrl;
-            thumbVideoPoster.currentTime = 0.1;
-            thumbVideoPoster.classList.remove("hidden");
+          // If thumbnail image still fails, show video front poster directly!
+          if (streamUrl && !isAudioOnly) {
             resultThumbnail.classList.add("hidden");
+            setupVideoAsFrontPoster();
             return;
           }
           resultThumbnail.classList.add("hidden");
         };
+
         resultThumbnail.onload = () => {
           if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
+          if (thumbnailFallbackCard) thumbnailFallbackCard.classList.add("hidden");
           resultThumbnail.classList.remove("hidden");
-          if (thumbVideoPoster) thumbVideoPoster.classList.add("hidden");
+          if (thumbVideoPoster) {
+            thumbVideoPoster.pause();
+            thumbVideoPoster.classList.add("hidden");
+          }
         };
+
         resultThumbnail.src = resolvedThumb;
         videoPreview.poster = resolvedThumb;
         if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
         resultThumbnail.classList.remove("hidden");
-        thumbnailAssigned = true;
       } else {
-        // Fallback: If no image thumbnail, use native HTML5 video frame as poster!
-        if (thumbVideoPoster && streamUrl && !isAudioOnly) {
-          thumbVideoPoster.src = streamUrl;
-          thumbVideoPoster.currentTime = 0.1;
-          thumbVideoPoster.classList.remove("hidden");
-          resultThumbnail.classList.add("hidden");
-          thumbnailAssigned = true;
-        } else {
-          resultThumbnail.classList.add("hidden");
-          resultThumbnail.src = "";
-        }
+        // No static image thumbnail: immediately show video front poster!
+        resultThumbnail.classList.add("hidden");
+        resultThumbnail.src = "";
         if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
+        if (streamUrl && !isAudioOnly) {
+          setupVideoAsFrontPoster();
+        }
       }
 
       if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
@@ -613,13 +686,9 @@ function initFormHandler() {
           if (playerStreamStatus && videoPreview.paused) {
             playerStreamStatus.textContent = "● Ready to Play";
           }
-          // If no external thumbnail image was found, reveal video poster directly!
-          if (!thumbnailAssigned && thumbVideoPoster && streamUrl) {
-            thumbVideoPoster.src = streamUrl;
-            thumbVideoPoster.currentTime = 0.1;
-            thumbVideoPoster.classList.remove("hidden");
-            resultThumbnail.classList.add("hidden");
-            thumbnailAssigned = true;
+          // If no external thumbnail image was found, ensure front video poster is active!
+          if ((!resultThumbnail || resultThumbnail.classList.contains("hidden")) && thumbVideoPoster && streamUrl) {
+            setupVideoAsFrontPoster();
           }
         };
 
@@ -701,7 +770,10 @@ function initFormHandler() {
           if (isCurrentlyHidden) {
             // Reveal player only after user clicks Play in Browser!
             previewPlayerWrapper.classList.remove("hidden");
-            if (thumbVideoPoster) thumbVideoPoster.classList.add("hidden");
+            if (thumbVideoPoster) {
+              thumbVideoPoster.pause();
+              thumbVideoPoster.classList.add("hidden");
+            }
             const playPromise = videoPreview.play();
             if (playPromise !== undefined) {
               playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
@@ -758,6 +830,7 @@ function initFormHandler() {
           if (previewPlayerWrapper) previewPlayerWrapper.classList.add("hidden");
           if (thumbVideoPoster && streamUrl && (!resultThumbnail || resultThumbnail.classList.contains("hidden"))) {
             thumbVideoPoster.classList.remove("hidden");
+            thumbVideoPoster.play().catch(() => {});
           }
           if (togglePreviewBtnText) togglePreviewBtnText.textContent = isAudioOnly ? "Play Audio in Browser" : "Play Video in Browser";
           if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
@@ -1534,6 +1607,7 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
         } else if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
           const item = json.picker.find(p => p.type === 'video') || json.picker[0];
           streamUrl = item.url;
+          if (item && item.thumb) json.thumbnail = item.thumb;
         } else if (json.status === 'local-processing' && Array.isArray(json.tunnel) && json.tunnel.length > 0) {
           streamUrl = json.tunnel[0];
         } else if (json.url && typeof json.url === 'string') {
