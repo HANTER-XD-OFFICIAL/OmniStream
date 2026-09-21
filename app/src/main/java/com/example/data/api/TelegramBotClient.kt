@@ -20,7 +20,7 @@ data class TelegramBotInfo(
 )
 
 sealed class TelegramBotResult {
-    data class Success(val botInfo: TelegramBotInfo) : TelegramBotResult()
+    data class Success(val botInfo: TelegramBotInfo, val tokenUsed: String = "") : TelegramBotResult()
     data class Error(val message: String) : TelegramBotResult()
 }
 
@@ -40,20 +40,35 @@ class TelegramBotClient {
     }
 
     suspend fun verifyBotToken(token: String): TelegramBotResult = withContext(Dispatchers.IO) {
-        val cleanToken = token.trim()
+        var cleanToken = token.trim()
+        if (cleanToken.isBlank() || SecureTokenStore.isKnownRevokedToken(cleanToken)) {
+            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+        }
         if (cleanToken.isBlank()) {
-            return@withContext TelegramBotResult.Error("Bot token cannot be empty.")
+            return@withContext TelegramBotResult.Error("Bot token cannot be empty. Please configure TELEGRAM_BOT_TOKEN.")
         }
 
         try {
-            val url = "https://api.telegram.org/bot$cleanToken/getMe"
-            val request = Request.Builder()
+            var url = "https://api.telegram.org/bot$cleanToken/getMe"
+            var request = Request.Builder()
                 .url(url)
                 .get()
                 .build()
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string().orEmpty()
+            var response = client.newCall(request).execute()
+            var body = response.body?.string().orEmpty()
+
+            // If 401 Unauthorized (e.g. cached/expired token), attempt to fetch fresh token from Worker endpoint and retry
+            if (response.code == 401 || !response.isSuccessful) {
+                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+                if (freshToken.isNotBlank() && freshToken != cleanToken) {
+                    cleanToken = freshToken
+                    url = "https://api.telegram.org/bot$cleanToken/getMe"
+                    request = Request.Builder().url(url).get().build()
+                    response = client.newCall(request).execute()
+                    body = response.body?.string().orEmpty()
+                }
+            }
 
             if (!response.isSuccessful || body.isBlank()) {
                 return@withContext TelegramBotResult.Error("HTTP error ${response.code}: Invalid bot token or connection issue.")
@@ -77,7 +92,8 @@ class TelegramBotClient {
                 isOnline = true
             )
 
-            TelegramBotResult.Success(botInfo)
+            SecureTokenStore.updateCachedToken(cleanToken)
+            TelegramBotResult.Success(botInfo, cleanToken)
         } catch (e: Exception) {
             TelegramBotResult.Error(e.localizedMessage ?: "Failed to connect to Telegram Bot API.")
         }
@@ -89,14 +105,17 @@ class TelegramBotClient {
         text: String,
         parseMode: String = "HTML"
     ): Result<Boolean> = withContext(Dispatchers.IO) {
-        val cleanToken = token.trim()
+        var cleanToken = token.trim()
         val cleanChatId = chatId.trim()
+        if (cleanToken.isBlank() || SecureTokenStore.isKnownRevokedToken(cleanToken)) {
+            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+        }
         if (cleanToken.isBlank() || cleanChatId.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Token and Chat ID are required."))
         }
 
         try {
-            val url = "https://api.telegram.org/bot$cleanToken/sendMessage"
+            val mediaType = "application/json; charset=utf-8".toMediaType()
             val jsonBody = JSONObject().apply {
                 put("chat_id", cleanChatId)
                 put("text", text)
@@ -104,16 +123,30 @@ class TelegramBotClient {
                 put("disable_web_page_preview", false)
             }
 
-            val mediaType = "application/json; charset=utf-8".toMediaType()
-            val requestBody = jsonBody.toString().toRequestBody(mediaType)
-
-            val request = Request.Builder()
+            var url = "https://api.telegram.org/bot$cleanToken/sendMessage"
+            var request = Request.Builder()
                 .url(url)
-                .post(requestBody)
+                .post(jsonBody.toString().toRequestBody(mediaType))
                 .build()
 
-            val response = client.newCall(request).execute()
-            val body = response.body?.string().orEmpty()
+            var response = client.newCall(request).execute()
+            var body = response.body?.string().orEmpty()
+
+            // If 401 Unauthorized, automatically refetch from Cloudflare Worker and retry
+            if (response.code == 401) {
+                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+                if (freshToken.isNotBlank() && freshToken != cleanToken) {
+                    cleanToken = freshToken
+                    SecureTokenStore.updateCachedToken(cleanToken)
+                    url = "https://api.telegram.org/bot$cleanToken/sendMessage"
+                    request = Request.Builder()
+                        .url(url)
+                        .post(jsonBody.toString().toRequestBody(mediaType))
+                        .build()
+                    response = client.newCall(request).execute()
+                    body = response.body?.string().orEmpty()
+                }
+            }
 
             if (response.isSuccessful && body.contains("\"ok\":true")) {
                 Result.success(true)

@@ -23,8 +23,8 @@ class YtDlpClient(
 ) {
 
     companion object {
-        const val PRIMARY_COBALT_API_URL = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev"
-        const val PRIMARY_RENDER_COBALT_URL = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev"
+        const val PRIMARY_COBALT_API_URL = "https://omnistream-api.alexraselchodhury.workers.dev"
+        const val PRIMARY_RENDER_COBALT_URL = "https://omnistream-api.alexraselchodhury.workers.dev"
         const val RENDER_MIRROR_COBALT_URL = "https://cobalt-latest-a04h.onrender.com"
 
         // Multi-Account RapidAPI Key Pool for YouTube VIP Resolvers (Rotates every 5 requests)
@@ -144,7 +144,7 @@ class YtDlpClient(
         val cleanBaseUrl = baseUrl.trim().trimEnd('/')
         var parsedResult: VideoInfoResponse? = null
 
-        // 1. PRIMARY UNIVERSAL ENGINE: Cloudflare Edge Worker API (https://muddy-scene-0ff7.alexraselchodhury.workers.dev)
+        // 1. PRIMARY UNIVERSAL ENGINE: Cloudflare Edge Worker API (https://omnistream-api.alexraselchodhury.workers.dev)
         val targetEngineUrl = if (cleanBaseUrl.isNotBlank() && (cleanBaseUrl.startsWith("http://") || cleanBaseUrl.startsWith("https://")) && !cleanBaseUrl.contains(".local")) {
             cleanBaseUrl
         } else {

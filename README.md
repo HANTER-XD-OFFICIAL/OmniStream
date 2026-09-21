@@ -51,7 +51,7 @@ Select your preferred platform below to start extracting and downloading media i
 * 🚀 **Universal Platform Coverage**: Instant extraction from YouTube, Facebook, Instagram, TikTok (No Watermark), Twitter / X, Pinterest, TeraBox, Reddit, Vimeo, Dailymotion, and generic HLS/Direct MP4 links.
 * 🎯 **Smart Quality Matrix System**: Automatically scans and displays all available stream tiers (4K 2160p, 2K 1440p, 1080p 60fps, 720p HD, 480p, 360p, and MP3 Audio 320kbps). Marks 100% verified streams as `AVAILABLE` / `RECOMMENDED` and grey-out unavailable options.
 * 🛡️ **Multi-Tier Edge Failover Engine**:
-  * **Tier 1 (Primary)**: Custom Cloudflare Edge Worker API (`muddy-scene-0ff7.alexraselchodhury.workers.dev`) providing sub-second latency and zero rate-limit media resolution.
+  * **Tier 1 (Primary)**: Custom Cloudflare Edge Worker API (`omnistream-api.alexraselchodhury.workers.dev`) providing sub-second latency and zero rate-limit media resolution.
   * **Tier 2 (Cobalt & yt-dlp)**: High-availability VIP extraction nodes for full audio/video muxing.
   * **Tier 3 (Dedicated Stream Decoupler)**: Asynchronous polling engines (`Loader.to`, `SaveNow`) for ultra-high bitrate MP4 and 320kbps MP3 streams.
   * **Tier 4 (Rotating Proxy Scrapers)**: Multi-key RapidAPI and Piped/Invidious proxy fallbacks ensuring 99.9% download success rate.
@@ -223,7 +223,7 @@ OmniStream works out-of-the-box with default fallback engines. For custom or pri
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `DEFAULT_API_URL` | Primary Cloudflare Worker API URL | `https://muddy-scene-0ff7.alexraselchodhury.workers.dev` |
+| `DEFAULT_API_URL` | Primary Cloudflare Worker API URL | `https://omnistream-api.alexraselchodhury.workers.dev` |
 | `API_AUTH_TOKEN` | Bearer Token for secured instances | *(Optional)* |
 | `COBALT_API_URL` | Cobalt VIP Fallback Engine | `https://cobalt-api.kwiatekm.tokyo` |
 

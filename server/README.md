@@ -35,7 +35,7 @@ Official Telegram Downloader Bot for OmniStream.
 3. Connect your GitHub repository or upload this `server` directory.
 4. **Build Command:** `echo "Ready"`
 5. **Start Command:** `node bot.mjs`
-6. **Environment Variable:** `BOT_TOKEN` = (Optional: securely injected via Render Secret, or runs from internal encrypted vault).
+6. **Environment Variable:** `BOT_TOKEN` = Add your Telegram Bot Token from @BotFather in the Environment tab (`BOT_TOKEN`).
 7. That's it! Your official bot will remain online 24/7/365 to process video downloads and deliver APK updates.
 
 ---

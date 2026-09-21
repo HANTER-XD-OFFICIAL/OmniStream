@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.api.ApiHealthResponse
 import com.example.data.api.FormatInfo
+import com.example.data.api.SecureTokenStore
 import com.example.data.api.TelegramBotClient
 import com.example.data.api.TelegramBotInfo
 import com.example.data.api.TelegramBotResult
@@ -116,20 +117,22 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _isVerifyingBot.value = true
             _botVerificationStatus.value = null
-            val tokenToUse = customToken?.trim() ?: settings.value.telegramBotToken
+            var tokenToUse = customToken?.trim() ?: settings.value.telegramBotToken
+            if (tokenToUse.isBlank() || SecureTokenStore.isKnownRevokedToken(tokenToUse)) {
+                tokenToUse = SecureTokenStore.resolveBotToken(forceRefresh = true)
+            }
             when (val result = telegramBotClient.verifyBotToken(tokenToUse)) {
                 is TelegramBotResult.Success -> {
                     _telegramBotInfo.value = result.botInfo
                     _botVerificationStatus.value = "Connected to @${result.botInfo.username} (${result.botInfo.firstName})"
-                    if (result.botInfo.username.isNotBlank()) {
-                        settingsRepo.updateSettings(
-                            settings.value.copy(
-                                telegramBotToken = tokenToUse,
-                                telegramBotUsername = result.botInfo.username,
-                                telegramBotName = result.botInfo.firstName
-                            )
+                    val finalToken = if (result.tokenUsed.isNotBlank()) result.tokenUsed else tokenToUse
+                    settingsRepo.updateSettings(
+                        settings.value.copy(
+                            telegramBotToken = finalToken,
+                            telegramBotUsername = result.botInfo.username,
+                            telegramBotName = result.botInfo.firstName
                         )
-                    }
+                    )
                 }
                 is TelegramBotResult.Error -> {
                     _botVerificationStatus.value = "Error: ${result.message}"
@@ -147,15 +150,25 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 _statusMessage.value = "Please enter your Telegram Chat ID first"
                 return@launch
             }
+            val activeToken = if (s.telegramBotToken.isBlank() || SecureTokenStore.isKnownRevokedToken(s.telegramBotToken)) {
+                SecureTokenStore.resolveBotToken(forceRefresh = true)
+            } else {
+                s.telegramBotToken
+            }
+            val botUser = if (s.telegramBotUsername.isNotBlank()) s.telegramBotUsername else "OmniStream34_bot"
+            val botTitle = if (s.telegramBotName.isNotBlank()) s.telegramBotName else "OmniStream"
             val testMsg = """
                 🚀 <b>OmniStream Pro Connected!</b>
-                🤖 <b>Bot:</b> @${s.telegramBotUsername} (${s.telegramBotName})
+                🤖 <b>Bot:</b> @$botUser ($botTitle)
                 ✅ <b>Status:</b> Operational & Ready
                 📱 OmniStream Android Downloader is successfully linked to your Telegram Bot.
             """.trimIndent()
-            val result = telegramBotClient.sendMessage(s.telegramBotToken, chatId, testMsg)
+            val result = telegramBotClient.sendMessage(activeToken, chatId, testMsg)
             if (result.isSuccess) {
                 _statusMessage.value = "Test message sent to Telegram successfully!"
+                if (activeToken.isNotBlank() && activeToken != s.telegramBotToken) {
+                    settingsRepo.updateSettings(s.copy(telegramBotToken = activeToken))
+                }
             } else {
                 _statusMessage.value = "Failed to send: ${result.exceptionOrNull()?.message}"
             }
@@ -166,6 +179,11 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val s = settings.value
             if (!s.telegramSyncEnabled || s.telegramChatId.isBlank()) return@launch
+            val activeToken = if (s.telegramBotToken.isBlank() || SecureTokenStore.isKnownRevokedToken(s.telegramBotToken)) {
+                SecureTokenStore.resolveBotToken(forceRefresh = true)
+            } else {
+                s.telegramBotToken
+            }
             val sizeMb = if (item.totalBytes > 0) String.format(java.util.Locale.US, "%.1f MB", item.totalBytes / (1024.0 * 1024.0)) else "Unknown"
             val msg = """
                 📥 <b>Download Completed on OmniStream</b>
@@ -175,7 +193,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 💾 <b>Size:</b> $sizeMb
                 📁 <b>Saved to:</b> Internal Storage/Download/OmniStream
             """.trimIndent()
-            telegramBotClient.sendMessage(s.telegramBotToken, s.telegramChatId, msg)
+            telegramBotClient.sendMessage(activeToken, s.telegramChatId, msg)
         }
     }
 

@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class AppSettings(
-    val customApiUrl: String = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev",
+    val customApiUrl: String = "https://omnistream-api.alexraselchodhury.workers.dev",
     val authToken: String = "",
     val defaultVideoQuality: String = "4K 60 FPS",
     val defaultAudioFormat: String = "MP3 320 kbps",
@@ -31,9 +31,10 @@ class SettingsRepository(context: Context) {
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     private fun loadSettings(): AppSettings {
-        val savedUrl = prefs.getString("custom_api_url", "https://muddy-scene-0ff7.alexraselchodhury.workers.dev")
-        val effectiveUrl = if (savedUrl.isNullOrBlank() || savedUrl.contains(".local") || savedUrl.contains("192.168.") || savedUrl == "https://cobalt-latest-a04h.onrender.com") {
-            "https://muddy-scene-0ff7.alexraselchodhury.workers.dev"
+        val savedUrl = prefs.getString("custom_api_url", "https://omnistream-api.alexraselchodhury.workers.dev")
+        val effectiveUrl = if (savedUrl.isNullOrBlank() || savedUrl.contains(".local") || savedUrl.contains("192.168.") || savedUrl == "https://cobalt-latest-a04h.onrender.com" || savedUrl.contains("muddy-scene-0ff7")) {
+            prefs.edit().putString("custom_api_url", "https://omnistream-api.alexraselchodhury.workers.dev").apply()
+            "https://omnistream-api.alexraselchodhury.workers.dev"
         } else {
             savedUrl
         }
@@ -50,13 +51,18 @@ class SettingsRepository(context: Context) {
                 ?: "--embed-metadata --embed-thumbnail",
             maxConcurrentDownloads = prefs.getInt("max_concurrent", 3),
             telegramBotToken = run {
-                val defaultEncryptedToken = SecureTokenStore.getDecryptedBotToken()
                 val saved = prefs.getString("telegram_bot_token", "")
-                if (saved.isNullOrBlank() || saved != defaultEncryptedToken) {
-                    prefs.edit().putString("telegram_bot_token", defaultEncryptedToken).apply()
-                    defaultEncryptedToken
-                } else {
+                if (!saved.isNullOrBlank() && !SecureTokenStore.isKnownRevokedToken(saved)) {
                     saved
+                } else {
+                    val defaultToken = SecureTokenStore.getDecryptedBotToken()
+                    if (defaultToken.isNotBlank() && !SecureTokenStore.isKnownRevokedToken(defaultToken)) {
+                        prefs.edit().putString("telegram_bot_token", defaultToken).apply()
+                        defaultToken
+                    } else {
+                        prefs.edit().remove("telegram_bot_token").apply()
+                        ""
+                    }
                 }
             },
             telegramBotUsername = run {

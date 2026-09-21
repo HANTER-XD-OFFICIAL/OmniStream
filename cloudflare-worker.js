@@ -1,6 +1,6 @@
 /**
  * OmniStream Cloudflare Edge Worker
- * API Endpoint: https://muddy-scene-0ff7.alexraselchodhury.workers.dev
+ * API Endpoint: https://omnistream-api.alexraselchodhury.workers.dev
  *
  * Handles:
  * 1. 100% Working YouTube video & audio downloads via high-speed stream resolver

@@ -21,28 +21,42 @@ process.on('unhandledRejection', (reason) => {
   console.error('[FATAL CAUGHT] Unhandled Rejection:', reason);
 });
 
-// ==================== ENCRYPTED TOKEN VAULT ====================
-// Cipher key and encrypted payload protect the token from plaintext harvesting, scrapers, and leaks
-const CIPHER_KEY = [0x4D, 0x52, 0x41, 0x53, 0x45, 0x4C, 0x33, 0x34]; // "MRASEL34"
-const ENCRYPTED_TOKEN_PAYLOAD = "dWZ0YnV/AwN+YHsSBApFGTkTOyQuCFZCN2YbY3YKC3UMBHFnAipWTQwzB2IAAQ==";
+// ==================== BOT CREDENTIAL CONFIGURATION ====================
+// Bot Token is read securely from environment variables (BOT_TOKEN, TELEGRAM_BOT_TOKEN, or TELEGRAM_TOKEN)
+// or securely resolved from the Cloudflare Worker secret endpoint.
+// No tokens or sensitive secrets are hardcoded in the source code or repository.
+let BOT_TOKEN = (process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || "").trim();
+const REMOTE_WORKER_SECRET_URL = "https://omnistream-telegram-api.alexraselchodhury.workers.dev/";
 
-function decryptToken(base64Payload) {
+async function resolveSecretToken() {
+  if (BOT_TOKEN && BOT_TOKEN !== "YOUR_TELEGRAM_BOT_TOKEN") return BOT_TOKEN;
   try {
-    const buf = Buffer.from(base64Payload, 'base64');
-    const out = Buffer.alloc(buf.length);
-    for (let i = 0; i < buf.length; i++) {
-      out[i] = buf[i] ^ CIPHER_KEY[i % CIPHER_KEY.length];
+    const res = await fetch(REMOTE_WORKER_SECRET_URL, { signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const fetched = (await res.text()).trim();
+      if (fetched && fetched.includes(":") && !fetched.includes("<") && !fetched.includes("{")) {
+        BOT_TOKEN = fetched;
+        TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+        console.log("🔐 [REMOTE SECRET] Telegram Bot Token securely acquired from Worker endpoint.");
+        return BOT_TOKEN;
+      }
     }
-    return out.toString('utf8');
   } catch (err) {
-    console.error('[VAULT] Failed to decrypt bot token:', err.message);
-    return "";
+    console.warn("⚠️ [REMOTE SECRET] Could not connect to remote worker endpoint:", err.message);
   }
+  return BOT_TOKEN;
 }
 
-// Token is securely obtained: environment variable if present, otherwise runtime decrypted from vault
-const BOT_TOKEN = process.env.BOT_TOKEN || decryptToken(ENCRYPTED_TOKEN_PAYLOAD);
-const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+// Initial resolution if not already provided via process.env
+await resolveSecretToken();
+
+let TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+if (!BOT_TOKEN) {
+  console.warn("⚠️ [SECURITY WARNING] Telegram BOT_TOKEN is not set in environment variables!");
+  console.warn("👉 Set BOT_TOKEN in your system environment or cloud deployment dashboard (e.g., Render, Docker, or .env).");
+  console.warn("   Example: BOT_TOKEN=\"123456789:ABCdefGHIjklMNOpqrSTUvwxYZ\"");
+}
 
 // Official Administrator configuration (Developer: MD Rasel)
 const ADMIN_ID = String(process.env.ADMIN_ID || "6204875999");
@@ -258,7 +272,7 @@ try {
   console.warn('[UPTIME HTTP WARNING] Server start ignored:', e.message);
 }
 
-console.log("🚀 Starting OmniStream Bot (@OmniStream34_bot) with Encrypted Vault, Admin Panel & APK Engine...");
+console.log("🚀 Starting OmniStream Bot (@OmniStream34_bot) with Admin Panel & APK Engine...");
 
 // ==================== TELEGRAM API HELPERS ====================
 
@@ -1046,6 +1060,7 @@ async function resolveTikTok(rawUrl) {
 
 // 2. Cobalt Multi-Host Resolver (Instagram, Facebook, Twitter, Reddit) - Complete with Audio & Video Muxed
 const COBALT_HOSTS = [
+  "https://omnistream-api.alexraselchodhury.workers.dev",
   "https://cobalt-latest-a04h.onrender.com",
   "https://co.wuk.sh",
   "https://cobalt.xy2401.com",
@@ -2042,6 +2057,15 @@ async function handleUpdate(update) {
 let lastUpdateId = 0;
 
 async function pollUpdates() {
+  if (!BOT_TOKEN) {
+    console.warn("⚠️ Telegram polling paused: BOT_TOKEN environment variable is not provided.");
+    console.warn("👉 Export BOT_TOKEN='your_token' or ensure remote secret endpoint is reachable.");
+    while (!BOT_TOKEN) {
+      await new Promise(r => setTimeout(r, 10000));
+      await resolveSecretToken();
+    }
+  }
+
   while (true) {
     try {
       const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId}&timeout=25`, {

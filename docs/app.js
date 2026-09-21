@@ -435,7 +435,7 @@ function initFormHandler() {
     if (errorBox) errorBox.classList.add("hidden");
     statusBox.classList.remove("hidden");
     statusTitle.textContent = "Connecting to Cloudflare Worker API...";
-    statusSub.textContent = "Dispatching request to muddy-scene-0ff7.alexraselchodhury.workers.dev...";
+    statusSub.textContent = "Dispatching request to omnistream-api.alexraselchodhury.workers.dev...";
     submitBtn.disabled = true;
 
     const detected = detectPlatform(url);
@@ -818,7 +818,7 @@ function initFormHandler() {
       if (downloadHintBar) {
         downloadHintBar.innerHTML = `
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API (muddy-scene-0ff7) &bull; Saved as <strong>OmniStream_[Media]</strong></span>
+          <span>1-Click direct save to device &bull; Powered by Cloudflare Edge Worker API (omnistream-api) &bull; Saved as <strong>OmniStream_[Media]</strong></span>
         `;
       }
 
@@ -901,7 +901,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
 
     const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
 
-    // 1. Primary: Official Cloudflare Edge Worker API (muddy-scene-0ff7)
+    // 1. Primary: Official Cloudflare Edge Worker API (omnistream-api)
     try {
       if (isYtUrl) {
         updateStatus("⚡ Merging Stream (10-20s)...");
@@ -909,7 +909,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
         updateStatus("Resolving Stream...");
       }
 
-      const resp = await fetch("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", {
+      const resp = await fetch("https://omnistream-api.alexraselchodhury.workers.dev", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
@@ -1423,7 +1423,7 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
 
   // 3. Cloudflare Edge Worker API & Multi-Gateway Cobalt Engine
   const gateways = [
-    "https://muddy-scene-0ff7.alexraselchodhury.workers.dev",
+    "https://omnistream-api.alexraselchodhury.workers.dev",
     "https://cobalt-latest-a04h.onrender.com",
     "https://co.wuk.sh",
     "https://cobalt.xy2401.com",

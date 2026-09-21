@@ -158,7 +158,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         onValueChange = { apiUrl = it },
                         modifier = Modifier.fillMaxWidth().testTag("api_url_input"),
                         label = { Text("Master Cobalt API URL") },
-                        placeholder = { Text("https://muddy-scene-0ff7.alexraselchodhury.workers.dev", color = TextMuted) },
+                        placeholder = { Text("https://omnistream-api.alexraselchodhury.workers.dev", color = TextMuted) },
                         singleLine = true,
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -194,7 +194,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        PresetChip("Cloudflare Worker API (Active)") { apiUrl = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev" }
+                        PresetChip("Cloudflare Worker API (Active)") { apiUrl = "https://omnistream-api.alexraselchodhury.workers.dev" }
                         PresetChip("Render VIP Mirror") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
                         PresetChip("Cobalt Official") { apiUrl = "https://api.cobalt.tools" }
                     }
@@ -293,10 +293,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         }
 
                         // Verified Status Badge
+                        val isOnline = telegramBotInfo?.isOnline == true && botVerificationStatus?.startsWith("Error") != true
+                        val badgeColor = if (isOnline) EmeraldSuccess else RoseError
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = EmeraldSuccess.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.4f))
+                            color = badgeColor.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.4f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
@@ -306,12 +308,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(EmeraldSuccess)
+                                        .background(badgeColor)
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = "ONLINE & READY",
-                                    color = EmeraldSuccess,
+                                    text = if (isOnline) "ONLINE & READY" else "NEEDS SYNC",
+                                    color = badgeColor,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )

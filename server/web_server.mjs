@@ -12,7 +12,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.resolve(ROOT_DIR, 'public');
 
 const PORT = 3000;
-const CLOUDFLARE_WORKER_API = "https://muddy-scene-0ff7.alexraselchodhury.workers.dev";
+const CLOUDFLARE_WORKER_API = "https://omnistream-api.alexraselchodhury.workers.dev";
 const COBALT_MIRRORS = [
   CLOUDFLARE_WORKER_API,
   "https://cobalt-latest-a04h.onrender.com",
