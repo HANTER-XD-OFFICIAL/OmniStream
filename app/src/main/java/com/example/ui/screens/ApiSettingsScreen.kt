@@ -121,13 +121,32 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
     ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Master API & Engine Hub",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Master API & Engine Hub",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
                 )
-            )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = CyanBright.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = "v2.0.0-beta",
+                        color = CyanBright,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+            }
             Text(
                 text = "Single Master API powering all 21 platforms (YouTube, TikTok, Facebook, Instagram, Twitter/X, Pinterest, SoundCloud, etc.)",
                 style = MaterialTheme.typography.bodySmall,

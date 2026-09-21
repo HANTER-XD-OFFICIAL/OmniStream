@@ -224,7 +224,23 @@ fun WelcomeOnboardingDialog(
                                 textAlign = TextAlign.Center
                             )
 
-                            Spacer(modifier = Modifier.height(3.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CyanBright.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = "v2.0.0 Beta (Official Latest)",
+                                    color = CyanBright,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
 
                             Text(
                                 text = "Next-Gen Universal 8K/4K Video & Studio Audio Engine",

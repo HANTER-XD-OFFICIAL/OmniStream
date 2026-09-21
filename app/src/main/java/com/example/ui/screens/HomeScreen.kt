@@ -319,17 +319,33 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(10.dp))
 
                         Column {
-                            Text(
-                                text = "OMNISTREAM",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 0.8.sp,
-                                    fontSize = 16.sp
-                                ),
-                                color = TextPrimary,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "OMNISTREAM",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 0.8.sp,
+                                        fontSize = 16.sp
+                                    ),
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = CyanBright.copy(alpha = 0.2f),
+                                    border = BorderStroke(0.8.dp, CyanBright.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "v2.0.0-beta",
+                                        color = CyanBright,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                    )
+                                }
+                            }
                             Text(
                                 text = "Universal 8K & MP3 Downloader",
                                 style = MaterialTheme.typography.bodySmall.copy(

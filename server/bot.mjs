@@ -93,7 +93,7 @@ const DB_FILE = path.join(__dirname, 'users_db.json');
 let db = {
   users: {},
   blockedUsers: [],
-  lastReleaseTag: "v1.0.0.OmniStreamPro",
+  lastReleaseTag: "v2.0.0-beta",
   cachedApkFileId: null,
   cachedWelcomeAudioFileId: null,
   stats: {
@@ -111,7 +111,7 @@ function loadDatabase() {
       db = {
         users: parsed.users || {},
         blockedUsers: Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [],
-        lastReleaseTag: parsed.lastReleaseTag || "v1.0.0.OmniStreamPro",
+        lastReleaseTag: parsed.lastReleaseTag || "v2.0.0-beta",
         cachedApkFileId: parsed.cachedApkFileId || null,
         cachedWelcomeAudioFileId: parsed.cachedWelcomeAudioFileId || null,
         stats: {
@@ -621,15 +621,15 @@ function getReplyKeyboardForUser(userId) {
 
 // High-speed verified release metadata - always ready with zero failure
 let cachedLatestRelease = {
-  tag: "v1.0.0.OmniStreamPro",
-  name: "OmniStream v1.0.0 (Official)",
-  publishedAt: "2026-09-05T07:52:15Z",
+  tag: "v2.0.0-beta",
+  name: "OmniStream v2.0.0 Beta (Official Latest)",
+  publishedAt: "2026-09-21T07:30:00Z",
   htmlUrl: `https://github.com/${GITHUB_REPO}/releases/latest`,
-  body: "Official OmniStream Android app release with 4K video downloader engine, background service, and native player.",
+  body: "Official OmniStream v2.0.0 Beta release with upgraded multi-threaded engine, enhanced Instagram/YouTube resolution, secure worker auth, and native player.",
   apkAsset: {
-    name: "OmniStream_v1.0.0.apk",
+    name: "OmniStream_v2.0.0-beta.apk",
     size: 24521929,
-    downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v1.0.0.OmniStreamPro/OmniStream_v1.0.0.apk`
+    downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.0-beta/OmniStream_v2.0.0-beta.apk`
   }
 };
 
