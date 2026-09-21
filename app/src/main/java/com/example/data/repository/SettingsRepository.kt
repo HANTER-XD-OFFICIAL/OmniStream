@@ -20,7 +20,8 @@ data class AppSettings(
     val telegramBotUsername: String = "OmniStream34_bot",
     val telegramBotName: String = "OmniStream",
     val telegramChatId: String = "",
-    val telegramSyncEnabled: Boolean = true
+    val telegramSyncEnabled: Boolean = true,
+    val workerApiSecret: String = SecureTokenStore.DEFAULT_WORKER_API_SECRET
 )
 
 class SettingsRepository(context: Context) {
@@ -76,7 +77,9 @@ class SettingsRepository(context: Context) {
             },
             telegramBotName = "OmniStream",
             telegramChatId = prefs.getString("telegram_chat_id", "") ?: "",
-            telegramSyncEnabled = prefs.getBoolean("telegram_sync_enabled", true)
+            telegramSyncEnabled = prefs.getBoolean("telegram_sync_enabled", true),
+            workerApiSecret = prefs.getString("worker_api_secret", SecureTokenStore.DEFAULT_WORKER_API_SECRET)
+                ?: SecureTokenStore.DEFAULT_WORKER_API_SECRET
         )
     }
 
@@ -95,6 +98,7 @@ class SettingsRepository(context: Context) {
             putString("telegram_bot_name", newSettings.telegramBotName)
             putString("telegram_chat_id", newSettings.telegramChatId)
             putBoolean("telegram_sync_enabled", newSettings.telegramSyncEnabled)
+            putString("worker_api_secret", newSettings.workerApiSecret)
             apply()
         }
         _settings.value = newSettings

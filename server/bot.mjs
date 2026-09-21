@@ -27,25 +27,38 @@ process.on('unhandledRejection', (reason) => {
 // No tokens or sensitive secrets are hardcoded in the source code or repository.
 let BOT_TOKEN = (process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || "").trim();
 const REMOTE_WORKER_SECRET_URL = "https://omnistream-telegram-api.alexraselchodhury.workers.dev/";
+const WORKER_AUTH_SECRET = (process.env.API_SECRET || process.env.WORKER_API_SECRET || "432872").trim();
 
 async function resolveSecretToken() {
   if (BOT_TOKEN && BOT_TOKEN !== "YOUR_TELEGRAM_BOT_TOKEN") return BOT_TOKEN;
   try {
-    const res = await fetch(REMOTE_WORKER_SECRET_URL, {
+    const encodedSecret = encodeURIComponent(WORKER_AUTH_SECRET);
+    const targetUrl = `${REMOTE_WORKER_SECRET_URL}?auth=${encodedSecret}&secret=${encodedSecret}&password=${encodedSecret}`;
+    const res = await fetch(targetUrl, {
       headers: {
-        "Authorization": "432872",
+        "Authorization": WORKER_AUTH_SECRET,
+        "X-API-Key": WORKER_AUTH_SECRET,
         "User-Agent": "OmniStream-Bot-Server/1.0"
       },
       signal: AbortSignal.timeout(8000)
     });
     if (res.ok) {
-      const fetched = (await res.text()).trim();
-      if (fetched && fetched.includes(":") && !fetched.includes("<") && !fetched.includes("{")) {
+      const text = (await res.text()).trim();
+      let fetched = text;
+      if (text.startsWith("{") && text.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(text);
+          fetched = parsed.token || parsed.bot_token || parsed.telegram_bot_token || parsed.api_key || text;
+        } catch (_) {}
+      }
+      if (fetched && fetched.includes(":") && !fetched.includes("<")) {
         BOT_TOKEN = fetched;
         TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
         console.log("🔐 [REMOTE SECRET] Telegram Bot Token securely acquired from Worker endpoint.");
         return BOT_TOKEN;
       }
+    } else if (res.status === 401) {
+      console.warn(`⚠️ [REMOTE SECRET] Worker returned 401 Unauthorized for secret '${WORKER_AUTH_SECRET}'. Please verify API_SECRET in Cloudflare.`);
     }
   } catch (err) {
     console.warn("⚠️ [REMOTE SECRET] Could not connect to remote worker endpoint:", err.message);

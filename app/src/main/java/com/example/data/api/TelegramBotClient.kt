@@ -39,13 +39,19 @@ class TelegramBotClient {
         const val BOT_TELEGRAM_URL = "https://t.me/OmniStream34_bot"
     }
 
-    suspend fun verifyBotToken(token: String): TelegramBotResult = withContext(Dispatchers.IO) {
+    suspend fun verifyBotToken(token: String, workerSecret: String? = null): TelegramBotResult = withContext(Dispatchers.IO) {
         var cleanToken = token.trim()
         if (cleanToken.isBlank() || SecureTokenStore.isKnownRevokedToken(cleanToken)) {
-            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true, workerSecret = workerSecret)
         }
         if (cleanToken.isBlank()) {
-            return@withContext TelegramBotResult.Error("Bot token cannot be empty. Please configure TELEGRAM_BOT_TOKEN.")
+            val workerErr = SecureTokenStore.lastWorkerError
+            val msg = if (!workerErr.isNullOrBlank()) {
+                workerErr
+            } else {
+                "Bot token cannot be empty. Please verify your Worker Password or configure bot token."
+            }
+            return@withContext TelegramBotResult.Error(msg)
         }
 
         try {
@@ -60,7 +66,7 @@ class TelegramBotClient {
 
             // If 401 Unauthorized (e.g. cached/expired token), attempt to fetch fresh token from Worker endpoint and retry
             if (response.code == 401 || !response.isSuccessful) {
-                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true, workerSecret = workerSecret)
                 if (freshToken.isNotBlank() && freshToken != cleanToken) {
                     cleanToken = freshToken
                     url = "https://api.telegram.org/bot$cleanToken/getMe"
@@ -71,7 +77,7 @@ class TelegramBotClient {
             }
 
             if (!response.isSuccessful || body.isBlank()) {
-                return@withContext TelegramBotResult.Error("HTTP error ${response.code}: Invalid bot token or connection issue.")
+                return@withContext TelegramBotResult.Error("Telegram API returned HTTP ${response.code}: Invalid bot token.")
             }
 
             val json = JSONObject(body)
@@ -103,15 +109,17 @@ class TelegramBotClient {
         token: String,
         chatId: String,
         text: String,
-        parseMode: String = "HTML"
+        parseMode: String = "HTML",
+        workerSecret: String? = null
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         var cleanToken = token.trim()
         val cleanChatId = chatId.trim()
         if (cleanToken.isBlank() || SecureTokenStore.isKnownRevokedToken(cleanToken)) {
-            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true, workerSecret = workerSecret)
         }
         if (cleanToken.isBlank() || cleanChatId.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("Token and Chat ID are required."))
+            val detail = if (cleanChatId.isBlank()) "Chat ID is required." else (SecureTokenStore.lastWorkerError ?: "Bot Token is required.")
+            return@withContext Result.failure(IllegalArgumentException(detail))
         }
 
         try {
@@ -134,7 +142,7 @@ class TelegramBotClient {
 
             // If 401 Unauthorized, automatically refetch from Cloudflare Worker and retry
             if (response.code == 401) {
-                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true)
+                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true, workerSecret = workerSecret)
                 if (freshToken.isNotBlank() && freshToken != cleanToken) {
                     cleanToken = freshToken
                     SecureTokenStore.updateCachedToken(cleanToken)

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -104,6 +105,10 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
 
     var telegramChatId by remember(currentSettings) { mutableStateOf(currentSettings.telegramChatId) }
     var telegramSyncEnabled by remember(currentSettings) { mutableStateOf(currentSettings.telegramSyncEnabled) }
+    var workerApiSecret by remember(currentSettings) { mutableStateOf(currentSettings.workerApiSecret) }
+    var manualBotToken by remember(currentSettings) { mutableStateOf("") }
+    var showSecretPassword by remember { mutableStateOf(false) }
+    var showManualTokenField by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -424,12 +429,104 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         }
                     }
 
-                    if (botVerificationStatus != null && botVerificationStatus?.startsWith("Error") == true) {
+                    // Worker Authorization Secret input
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = botVerificationStatus.orEmpty(),
-                            fontSize = 11.sp,
-                            color = RoseError
+                            "Worker Authorization Password",
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
+                        OutlinedTextField(
+                            value = workerApiSecret,
+                            onValueChange = { workerApiSecret = it },
+                            modifier = Modifier.fillMaxWidth().testTag("worker_api_secret_input"),
+                            placeholder = { Text("e.g. 432872", color = TextMuted) },
+                            singleLine = true,
+                            visualTransformation = if (showSecretPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showSecretPassword = !showSecretPassword }) {
+                                    Icon(
+                                        imageVector = if (showSecretPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = if (showSecretPassword) "Hide password" else "Show password",
+                                        tint = CyanAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CyanBright,
+                                unfocusedBorderColor = CyberBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+                        Text(
+                            "Password sent in Authorization header & query to retrieve the Bot Token securely from your Cloudflare Worker.",
+                            color = TextMuted,
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp
+                        )
+                    }
+
+                    // Direct Bot Token Override toggle & input
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showManualTokenField = !showManualTokenField }
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (showManualTokenField) "▲ Hide Direct Bot Token Override" else "▼ Direct Bot Token Override (Optional)",
+                            color = CyanAccent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    if (showManualTokenField) {
+                        OutlinedTextField(
+                            value = manualBotToken,
+                            onValueChange = { manualBotToken = it },
+                            modifier = Modifier.fillMaxWidth().testTag("manual_bot_token_input"),
+                            label = { Text("Direct Bot Token") },
+                            placeholder = { Text("Paste token e.g. 123456789:AAFv...", color = TextMuted) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CyanBright,
+                                unfocusedBorderColor = CyberBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+                    }
+
+                    if (botVerificationStatus != null && botVerificationStatus?.startsWith("Error") == true) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = RoseError.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, RoseError.copy(alpha = 0.35f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = botVerificationStatus.orEmpty(),
+                                    fontSize = 11.sp,
+                                    color = RoseError,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "💡 Tip: If HTTP 401 Unauthorized, make sure API_SECRET in Cloudflare Worker matches your password, or enter the Telegram Bot Token directly above.",
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
                     }
 
                     // Test & Launch Buttons
@@ -438,7 +535,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { viewModel.verifyTelegramBot() },
+                            onClick = {
+                                viewModel.verifyTelegramBot(
+                                    customToken = manualBotToken.trim().ifBlank { null },
+                                    customSecret = workerApiSecret.trim()
+                                )
+                            },
                             modifier = Modifier.weight(1f).height(42.dp).testTag("verify_telegram_bot_button"),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanBright),
@@ -701,6 +803,8 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
         item {
             Button(
                 onClick = {
+                    val manualTokenClean = manualBotToken.trim()
+                    val tokenToSave = if (manualTokenClean.isNotBlank()) manualTokenClean else currentSettings.telegramBotToken
                     val newSettings = AppSettings(
                         customApiUrl = apiUrl.trim(),
                         authToken = authToken.trim(),
@@ -709,11 +813,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         embedSubtitles = embedSubs,
                         embedThumbnail = embedThumb,
                         extraCliFlags = cliFlags.trim(),
-                        telegramBotToken = currentSettings.telegramBotToken,
+                        telegramBotToken = tokenToSave,
                         telegramBotUsername = currentSettings.telegramBotUsername,
                         telegramBotName = currentSettings.telegramBotName,
                         telegramChatId = telegramChatId.trim(),
-                        telegramSyncEnabled = telegramSyncEnabled
+                        telegramSyncEnabled = telegramSyncEnabled,
+                        workerApiSecret = workerApiSecret.trim()
                     )
                     viewModel.updateSettings(newSettings)
                 },
