@@ -96,6 +96,7 @@ fun DeveloperSupportHubDialog(
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
     val botTelegramUrl = "https://t.me/OmniStream34_bot"
     val devEmail = "hanterxdofficial@gmail.com"
+    val officialWebsiteUrl = "https://hanter-xd-official.github.io/OmniStream/"
 
     fun openUrl(url: String) {
         try {
@@ -307,6 +308,22 @@ fun DeveloperSupportHubDialog(
                     )
                 }
 
+                // 0. Official Website & Web Downloader
+                item {
+                    HubContactChannelCard(
+                        icon = Icons.Default.Public,
+                        iconBgColor = Color(0xFF0C2444),
+                        iconTintColor = CyanBright,
+                        title = "Official Web Downloader",
+                        subtitle = "hanter-xd-official.github.io • Direct In-Browser Downloads",
+                        buttonText = "Visit Web →",
+                        buttonBgColor = Color(0xFF0C2444).copy(alpha = 0.8f),
+                        buttonBorderColor = CyanBright,
+                        buttonTextColor = CyanBright,
+                        onClick = { openUrl(officialWebsiteUrl) }
+                    )
+                }
+
                 // 1. WhatsApp Support
                 item {
                     HubContactChannelCard(
@@ -422,6 +439,66 @@ fun DeveloperSupportHubDialog(
                         fontSize = 10.sp,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+                }
+
+                // Official Website Featured Quick Button
+                item {
+                    Surface(
+                        onClick = { openUrl(officialWebsiteUrl) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0C2444),
+                        border = BorderStroke(1.2.dp, CyanBright),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(CyanBright.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Public,
+                                        contentDescription = null,
+                                        tint = CyanBright,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Official Website (In-Browser Downloader)",
+                                        style = MaterialTheme.typography.titleSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = TextPrimary
+                                        )
+                                    )
+                                    Text(
+                                        text = "hanter-xd-official.github.io/OmniStream",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontSize = 10.sp,
+                                            color = CyanAccent
+                                        )
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Open →",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CyanBright
+                            )
+                        }
+                    }
                 }
 
                 // Quick Action Chips Row

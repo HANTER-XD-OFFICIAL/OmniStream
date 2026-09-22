@@ -1904,6 +1904,7 @@ private fun HomeDeveloperSupportBanner(
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
     val devWhatsAppNumber = "+8801882278234"
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
+    val officialWebsiteUrl = "https://hanter-xd-official.github.io/OmniStream/"
 
     fun openUrl(url: String) {
         try {
@@ -2050,6 +2051,32 @@ private fun HomeDeveloperSupportBanner(
                     Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(13.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Facebook", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Dedicated Official Website Launcher
+            Surface(
+                onClick = { openUrl(officialWebsiteUrl) },
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF0C2444),
+                border = BorderStroke(1.dp, CyanBright),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanBright, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "🌐 Visit Official Website (Web Downloader)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CyanBright
+                    )
                 }
             }
         }

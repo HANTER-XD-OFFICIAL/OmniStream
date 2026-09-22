@@ -89,6 +89,7 @@ fun WelcomeOnboardingDialog(
     val context = LocalContext.current
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
     val devName = "MD RASEL"
+    val officialWebsiteUrl = "https://hanter-xd-official.github.io/OmniStream/"
 
     fun openUrl(url: String) {
         try {
@@ -331,6 +332,85 @@ fun WelcomeOnboardingDialog(
                         }
                     }
 
+                    // Official Website Showcase Card
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF071B2F),
+                            border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CyanBright, Color(0xFF2563EB)))),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(CyanBright.copy(alpha = 0.2f))
+                                            .border(1.dp, CyanBright, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Public,
+                                            contentDescription = null,
+                                            tint = CyanBright,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Column {
+                                        Text(
+                                            text = "OFFICIAL WEB APP",
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                fontWeight = FontWeight.Black,
+                                                fontFamily = FontFamily.Monospace,
+                                                letterSpacing = 0.5.sp,
+                                                fontSize = 12.sp,
+                                                color = TextPrimary
+                                            )
+                                        )
+                                        Text(
+                                            text = "hanter-xd-official.github.io/OmniStream",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 9.5.sp,
+                                                color = CyanAccent
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = { openUrl(officialWebsiteUrl) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = CyanBright.copy(alpha = 0.2f),
+                                    border = BorderStroke(1.dp, CyanBright)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Public, contentDescription = null, tint = CyanBright, modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Visit Web", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = CyanBright)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Feature highlights
                     item {
                         Text(
@@ -387,7 +467,7 @@ fun WelcomeOnboardingDialog(
                         onClick = onDismiss,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(46.dp)
                             .testTag("welcome_start_app_button"),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -408,7 +488,34 @@ fun WelcomeOnboardingDialog(
                         )
                     }
 
-                    // 2. Dual Secondary Buttons: Facebook Profile & Support Hub
+                    // 2. Official Website Button (Dedicated Web Downloader Launcher)
+                    Button(
+                        onClick = { openUrl(officialWebsiteUrl) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .testTag("welcome_official_website_button"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF0C2444),
+                            contentColor = CyanBright
+                        ),
+                        border = BorderStroke(1.2.dp, CyanBright)
+                    ) {
+                        Icon(Icons.Default.Public, contentDescription = null, tint = CyanBright, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "🌐 Visit Official Website (Web Downloader)",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                letterSpacing = 0.3.sp
+                            ),
+                            maxLines = 1
+                        )
+                    }
+
+                    // 3. Dual Secondary Buttons: Facebook Profile & Support Hub
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)

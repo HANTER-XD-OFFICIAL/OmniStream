@@ -103,6 +103,7 @@ fun DeveloperScreen(
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
     val botTelegramUrl = "https://t.me/OmniStream34_bot"
     val devEmail = "hanterxdofficial@gmail.com"
+    val officialWebsiteUrl = "https://hanter-xd-official.github.io/OmniStream/"
 
     fun openUrl(url: String) {
         try {
@@ -430,6 +431,19 @@ fun DeveloperScreen(
                             onOpen = { openUrl(botTelegramUrl) }
                         )
 
+                        // Official Website Downloader
+                        DeveloperActionButtonRow(
+                            icon = Icons.Default.Public,
+                            iconBgColor = Color(0xFF0C2444),
+                            iconColor = CyanBright,
+                            channelTitle = "Official Web Downloader",
+                            channelSubtitle = "hanter-xd-official.github.io • Use in any browser worldwide",
+                            buttonLabel = "Visit Web",
+                            buttonBg = Color(0xFF0C2444).copy(alpha = 0.8f),
+                            buttonBorder = CyanBright,
+                            onOpen = { openUrl(officialWebsiteUrl) }
+                        )
+
                         // 3. Facebook Profile
                         DeveloperActionButtonRow(
                             icon = Icons.Default.Public,
@@ -516,6 +530,27 @@ fun DeveloperScreen(
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text("Facebook", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
                             }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Dedicated Official Website Button
+                    Surface(
+                        onClick = { openUrl(officialWebsiteUrl) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF0C2444),
+                        border = BorderStroke(1.2.dp, CyanBright),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Public, contentDescription = null, tint = CyanBright, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("🌐 Visit Official Website (Web Downloader)", fontSize = 12.sp, fontWeight = FontWeight.Black, color = CyanBright)
                         }
                     }
                 }

@@ -89,6 +89,7 @@ fun DeveloperSupportCard(
     val devFacebook = "https://www.facebook.com/md.rasel.7.8.2.3.4"
     val devWhatsApp = "+8801882278234"
     val devTelegram = "https://t.me/HANTER_XD_OFFICIAL"
+    val officialWebsite = "https://hanter-xd-official.github.io/OmniStream/"
 
     fun copyToClipboard(label: String, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -279,6 +280,18 @@ fun DeveloperSupportCard(
 
             // Contact Channels List (Masked by default with one-tap action & copy)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Official Website Channel
+                DeveloperContactItem(
+                    icon = Icons.Default.Public,
+                    iconColor = CyanBright,
+                    label = "Official Web Downloader",
+                    displayValue = if (isDetailsRevealed) "hanter-xd-official.github.io/OmniStream" else "hanter-xd-official.github.io/••••",
+                    realValue = officialWebsite,
+                    actionButtonText = "Open Web",
+                    onActionClick = { openUrl(officialWebsite) },
+                    onCopyClick = { copyToClipboard("Official Website", officialWebsite) }
+                )
+
                 // 1. WhatsApp Channel
                 DeveloperContactItem(
                     icon = Icons.Default.Chat,
@@ -373,6 +386,25 @@ fun DeveloperSupportCard(
                     Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Facebook", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Dedicated Official Website Action Button
+            Surface(
+                onClick = { openUrl(officialWebsite) },
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFF0C2444),
+                border = BorderStroke(1.2.dp, CyanBright),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanBright, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("🌐 Visit Official Website (Web Downloader)", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = CyanBright)
                 }
             }
         }
