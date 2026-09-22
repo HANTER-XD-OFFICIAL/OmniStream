@@ -22,17 +22,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import android.widget.Toast
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Terminal
@@ -62,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -74,6 +82,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.api.TelegramBotClient
 import com.example.data.repository.AppSettings
 import com.example.ui.DownloadViewModel
+import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.CobaltBlue
 import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberCardSurface
 import com.example.ui.theme.CyberDarkSurface
@@ -119,39 +129,181 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
             .testTag("settings_screen_list"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Hero Cyber Engine Command Banner
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
+            Spacer(modifier = Modifier.height(4.dp))
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Master API & Engine Hub",
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
+                border = BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(
+                            CyanBright.copy(alpha = 0.55f),
+                            NeonPurple.copy(alpha = 0.35f),
+                            CyberBorder
+                        )
                     )
                 )
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = CyanBright.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.4f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    CyanBright.copy(alpha = 0.09f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                        .padding(16.dp)
                 ) {
-                    Text(
-                        text = "v2.0.0-beta",
-                        color = CyanBright,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(
+                                                    CyanBright.copy(alpha = 0.25f),
+                                                    NeonPurple.copy(alpha = 0.25f)
+                                                )
+                                            )
+                                        )
+                                        .border(1.dp, CyanBright.copy(alpha = 0.45f), RoundedCornerShape(12.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Dns,
+                                        contentDescription = null,
+                                        tint = CyanBright,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "OmniStream Engine Hub",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            letterSpacing = 0.2.sp
+                                        ),
+                                        color = TextPrimary,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "OmniStream Core Network",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Medium
+                                        ),
+                                        color = CyanAccent
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Fixed, sleek Version Badge that NEVER breaks or wraps
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = CyanBright.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(CyanBright)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "v2.0.0-beta",
+                                        color = CyanBright,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Single Master API powering all 21 platforms (YouTube, TikTok, Facebook, Instagram, Twitter/X, Pinterest, SoundCloud, etc.) with real-time yt-dlp & Cobalt extraction.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            lineHeight = 16.sp
+                        )
+
+                        // High-tech status telemetry badges
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CyberDarkSurface,
+                                border = BorderStroke(1.dp, CyberBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Cobalt 10.x", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CyberDarkSurface,
+                                border = BorderStroke(1.dp, CyberBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("SSL Encrypted", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CyberDarkSurface,
+                                border = BorderStroke(1.dp, CyberBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("21+ Platforms", fontSize = 10.sp, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            Text(
-                text = "Single Master API powering all 21 platforms (YouTube, TikTok, Facebook, Instagram, Twitter/X, Pinterest, SoundCloud, etc.)",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
-            )
         }
 
         // Custom API URL Card
@@ -160,7 +312,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                border = BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(CyanBright.copy(alpha = 0.45f), CyberBorder)
+                    )
+                )
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -169,8 +326,16 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(CyanBright.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "Official Master API Endpoint",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
@@ -212,17 +377,32 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         )
                     )
 
-                    // Presets
-                    Text("Official API Engine:", fontSize = 11.sp, color = TextMuted)
+                    // Presets with Active Highlighting
+                    Text("Official API Engine Mirrors:", fontSize = 11.sp, color = TextMuted)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        PresetChip("Cloudflare Worker API (Active)") { apiUrl = "https://omnistream-api.alexraselchodhury.workers.dev" }
-                        PresetChip("Render VIP Mirror") { apiUrl = "https://cobalt-latest-a04h.onrender.com" }
-                        PresetChip("Cobalt Official") { apiUrl = "https://api.cobalt.tools" }
+                        PresetChip(
+                            label = "Cloudflare Worker (Recommended)",
+                            isActive = apiUrl.trim() == "https://omnistream-api.alexraselchodhury.workers.dev"
+                        ) {
+                            apiUrl = "https://omnistream-api.alexraselchodhury.workers.dev"
+                        }
+                        PresetChip(
+                            label = "Render VIP Mirror",
+                            isActive = apiUrl.trim() == "https://cobalt-latest-a04h.onrender.com"
+                        ) {
+                            apiUrl = "https://cobalt-latest-a04h.onrender.com"
+                        }
+                        PresetChip(
+                            label = "Cobalt Official",
+                            isActive = apiUrl.trim() == "https://api.cobalt.tools"
+                        ) {
+                            apiUrl = "https://api.cobalt.tools"
+                        }
                     }
 
                     // Ping / Test API Status
@@ -252,20 +432,29 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         val health = apiHealth
                         if (health != null) {
                             val isConnected = health.status == "connected"
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isConnected) EmeraldSuccess else CyanBright)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "${health.latencyMs} ms • ${health.ytdlpVersion}",
-                                    color = if (isConnected) EmeraldSuccess else CyanBright,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = (if (isConnected) EmeraldSuccess else CyanBright).copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, (if (isConnected) EmeraldSuccess else CyanBright).copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isConnected) EmeraldSuccess else CyanBright)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "${health.latencyMs} ms • ${health.ytdlpVersion}",
+                                        color = if (isConnected) EmeraldSuccess else CyanBright,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
@@ -639,7 +828,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             colors = ButtonDefaults.buttonColors(containerColor = CyanBright.copy(alpha = 0.15f), contentColor = CyanBright),
                             border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
                         ) {
-                            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Open in TG", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -696,7 +885,7 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanAccent),
                                 border = BorderStroke(1.dp, CyberBorder)
                             ) {
-                                Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Send Test Message via Bot", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
@@ -890,20 +1079,21 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         workerApiSecret = workerApiSecret.trim()
                     )
                     viewModel.updateSettings(newSettings)
+                    Toast.makeText(context, "Settings saved & applied successfully!", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(52.dp)
                     .testTag("save_settings_button"),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CyanBright,
                     contentColor = Color.Black
                 )
             ) {
-                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Save Settings & Apply", fontWeight = FontWeight.Bold)
+                Text("Save Settings & Apply", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
 
@@ -914,20 +1104,40 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
 }
 
 @Composable
-fun PresetChip(label: String, onClick: () -> Unit) {
+fun PresetChip(
+    label: String,
+    isActive: Boolean = false,
+    onClick: () -> Unit
+) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = CyberDarkSurface,
-        border = BorderStroke(1.dp, CyberBorder)
-    ) {
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = CyanAccent,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        shape = RoundedCornerShape(12.dp),
+        color = if (isActive) CyanBright.copy(alpha = 0.18f) else CyberDarkSurface,
+        border = BorderStroke(
+            1.dp,
+            if (isActive) CyanBright else CyberBorder
         )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isActive) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = CyanBright,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+            }
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                color = if (isActive) CyanBright else CyanAccent
+            )
+        }
     }
 }
 

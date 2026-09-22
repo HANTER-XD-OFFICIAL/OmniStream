@@ -47,7 +47,7 @@ export default {
       return new Response(JSON.stringify({
         status: "online",
         service: "OmniStream Cloudflare Edge Worker API",
-        version: "2.1.0",
+        version: "2.0.0-beta",
         youtubeSupported: true,
         instagramMetaSupported: true,
         endpoints: ["POST /", "GET /?url=<media_url>"]
@@ -260,6 +260,10 @@ async function resolveYouTube(targetUrl, format = "720") {
  * Authentic Instagram thumbnail and metadata extraction using Facebook external hit
  */
 async function fetchInstagramMetadata(url) {
+  const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+  const shortcode = igMatch ? igMatch[1] : null;
+  const fallbackThumb = shortcode ? `https://wsrv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l` : null;
+
   try {
     const cleanUrl = url.split("?")[0].replace(/\/+$/, "") + "/";
     const res = await fetch(cleanUrl, {
@@ -269,7 +273,17 @@ async function fetchInstagramMetadata(url) {
         "Accept-Language": "en-US,en;q=0.9"
       }
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (shortcode) {
+        return {
+          thumbnail: fallbackThumb,
+          rawThumbnail: `https://www.instagram.com/p/${shortcode}/media/?size=l`,
+          title: `Instagram Reel (${shortcode})`,
+          author: "Instagram Creator"
+        };
+      }
+      return null;
+    }
     const html = await res.text();
     const ogImgMatch = html.match(/property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
                        html.match(/content=["']([^"']+)["']\s+property=["']og:image["']/i);
@@ -289,15 +303,25 @@ async function fetchInstagramMetadata(url) {
     if (ogImg && ogImg.startsWith("http")) {
       // wsrv.nl provides fast, worldwide image proxying with CORS and cache headers
       proxiedThumb = `https://wsrv.nl/?url=${encodeURIComponent(ogImg)}`;
+    } else if (fallbackThumb) {
+      proxiedThumb = fallbackThumb;
     }
 
     return {
       thumbnail: proxiedThumb,
-      rawThumbnail: ogImg,
-      title: ogTitle || "Instagram Video",
+      rawThumbnail: ogImg || (shortcode ? `https://www.instagram.com/p/${shortcode}/media/?size=l` : null),
+      title: ogTitle || (shortcode ? `Instagram Reel (${shortcode})` : "Instagram Video"),
       author: author || "Instagram Creator"
     };
   } catch (_) {
+    if (shortcode) {
+      return {
+        thumbnail: fallbackThumb,
+        rawThumbnail: `https://www.instagram.com/p/${shortcode}/media/?size=l`,
+        title: `Instagram Reel (${shortcode})`,
+        author: "Instagram Creator"
+      };
+    }
     return null;
   }
 }

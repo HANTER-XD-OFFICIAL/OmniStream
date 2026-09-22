@@ -510,13 +510,10 @@ function initFormHandler() {
         thumbnailWrapper.classList.remove("hidden");
       }
 
+      // Keep fallback card hidden by default so real thumbnail shines!
       if (thumbnailFallbackCard) {
-        if (isInstagramMedia) {
-          thumbnailFallbackCard.classList.remove("hidden");
-          if (fallbackCardText) fallbackCardText.textContent = "Instagram Video Stream";
-        } else {
-          thumbnailFallbackCard.classList.add("hidden");
-        }
+        thumbnailFallbackCard.classList.add("hidden");
+        if (fallbackCardText) fallbackCardText.textContent = "Instagram Reel";
       }
 
       // Reset thumbVideoPoster state
@@ -526,9 +523,17 @@ function initFormHandler() {
         thumbVideoPoster.removeAttribute("src");
       }
 
-      // Extract high quality YouTube thumbnail immediately if it is YouTube
+      // Extract high quality Instagram or YouTube thumbnail immediately
       let resolvedThumb = data.thumbnail;
-      if (!resolvedThumb && (url.includes('youtube.com') || url.includes('youtu.be'))) {
+      if (isInstagramMedia) {
+        const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+        const shortcode = igMatch ? igMatch[1] : null;
+        if (shortcode) {
+          if (!resolvedThumb || !resolvedThumb.includes('wsrv.nl')) {
+            resolvedThumb = `https://wsrv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l`;
+          }
+        }
+      } else if (!resolvedThumb && (url.includes('youtube.com') || url.includes('youtu.be'))) {
         const ytIdMatch = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=)([^#&?]*)/i);
         if (ytIdMatch && ytIdMatch[1] && ytIdMatch[1].length >= 11) {
           resolvedThumb = `https://i.ytimg.com/vi/${ytIdMatch[1].substring(0, 11)}/hqdefault.jpg`;
@@ -613,10 +618,21 @@ function initFormHandler() {
             resultThumbnail.src = resultThumbnail.src.replace('hqdefault.jpg', 'mqdefault.jpg');
             return;
           }
-          // If Instagram CDN blocks direct hotlinking, fallback to fast image proxy wsrv.nl
-          if (isInstagramMedia && !resultThumbnail.src.includes('wsrv.nl') && resolvedThumb) {
-            resultThumbnail.src = `https://wsrv.nl/?url=${encodeURIComponent(resolvedThumb)}`;
-            return;
+          // If Instagram CDN/proxy fails, fallback to alternative global image proxies
+          if (isInstagramMedia) {
+            const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+            const shortcode = igMatch ? igMatch[1] : null;
+            if (shortcode) {
+              const weservUrl = `https://images.weserv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l`;
+              const directMedia = `https://www.instagram.com/p/${shortcode}/media/?size=l`;
+              if (resultThumbnail.src.includes('wsrv.nl') && !resultThumbnail.src.includes('images.weserv.nl')) {
+                resultThumbnail.src = weservUrl;
+                return;
+              } else if (!resultThumbnail.src.includes('/media/?size=l')) {
+                resultThumbnail.src = directMedia;
+                return;
+              }
+            }
           }
           // If thumbnail image still fails, show video front poster directly!
           if (streamUrl && !isAudioOnly) {
@@ -625,12 +641,14 @@ function initFormHandler() {
             return;
           }
           resultThumbnail.classList.add("hidden");
+          if (thumbnailFallbackCard) thumbnailFallbackCard.classList.remove("hidden");
         };
 
         resultThumbnail.onload = () => {
           if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
           if (thumbnailFallbackCard) thumbnailFallbackCard.classList.add("hidden");
           resultThumbnail.classList.remove("hidden");
+          if (playOverlayBtn) playOverlayBtn.classList.remove("hidden");
           if (thumbVideoPoster) {
             thumbVideoPoster.pause();
             thumbVideoPoster.classList.add("hidden");
@@ -642,12 +660,25 @@ function initFormHandler() {
         if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
         resultThumbnail.classList.remove("hidden");
       } else {
-        // No static image thumbnail: immediately show video front poster!
-        resultThumbnail.classList.add("hidden");
-        resultThumbnail.src = "";
-        if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
-        if (streamUrl && !isAudioOnly) {
-          setupVideoAsFrontPoster();
+        // No static image thumbnail: check if Instagram shortcode can be derived
+        if (isInstagramMedia) {
+          const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+          const shortcode = igMatch ? igMatch[1] : null;
+          if (shortcode) {
+            resolvedThumb = `https://wsrv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l`;
+            resultThumbnail.src = resolvedThumb;
+            resultThumbnail.classList.remove("hidden");
+          }
+        }
+        if (!resultThumbnail.src) {
+          resultThumbnail.classList.add("hidden");
+          resultThumbnail.src = "";
+          if (thumbnailWrapper) thumbnailWrapper.classList.remove("hidden");
+          if (streamUrl && !isAudioOnly) {
+            setupVideoAsFrontPoster();
+          } else if (thumbnailFallbackCard) {
+            thumbnailFallbackCard.classList.remove("hidden");
+          }
         }
       }
 
@@ -1351,8 +1382,13 @@ async function fetchPlatformMetadata(url) {
   else if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
     const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
     const shortcode = igMatch ? igMatch[1] : null;
-    title = shortcode ? `Instagram Reel (${shortcode})` : 'Instagram Post';
+    title = shortcode ? `Instagram Reel (${shortcode})` : 'Instagram Reel';
     author = 'Instagram Creator';
+
+    if (shortcode) {
+      // Primary direct high-resolution thumbnail proxy with full CORS and cache headers
+      thumbnail = `https://wsrv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l`;
+    }
 
     // 1. Microlink API (supports CORS for browser requests)
     try {
@@ -1362,18 +1398,18 @@ async function fetchPlatformMetadata(url) {
       if (ml.ok) {
         const j = await ml.json();
         if (j.data) {
-          if (j.data.title) title = j.data.title;
+          if (j.data.title && !j.data.title.includes('Login • Instagram')) title = j.data.title;
           if (j.data.author) author = j.data.author;
           const img = j.data.image?.url || j.data.image;
-          if (img && typeof img === 'string' && img.length > 10) {
-            thumbnail = img;
+          if (img && typeof img === 'string' && img.length > 10 && !img.includes('instagram.com/static/')) {
+            thumbnail = `https://wsrv.nl/?url=${encodeURIComponent(img)}`;
           }
         }
       }
     } catch (_) {}
 
-    // 2. Direct oEmbed fallback
-    if (!thumbnail) {
+    // 2. Direct oEmbed fallback if title/author missing
+    if (!title || title.startsWith('Instagram Reel (')) {
       try {
         const oe = await fetch(`https://api.instagram.com/oembed/?url=${encodeURIComponent(url)}`, {
           signal: AbortSignal.timeout(3000)
@@ -1382,7 +1418,7 @@ async function fetchPlatformMetadata(url) {
           const j = await oe.json();
           if (j.title) title = j.title;
           if (j.author_name) author = j.author_name;
-          if (j.thumbnail_url) thumbnail = j.thumbnail_url;
+          if (j.thumbnail_url) thumbnail = `https://wsrv.nl/?url=${encodeURIComponent(j.thumbnail_url)}`;
         }
       } catch (_) {}
     }
@@ -1628,7 +1664,14 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
           else if (lower.includes('bilibili.com')) pName = 'Bilibili';
 
           const meta = await metaPromise.catch(() => ({}));
-          const finalThumb = json.thumbnail || meta.thumbnail || null;
+          let finalThumb = json.thumbnail || meta.thumbnail || null;
+          if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+            const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+            const shortcode = igMatch ? igMatch[1] : null;
+            if (shortcode && (!finalThumb || !finalThumb.includes('wsrv.nl'))) {
+              finalThumb = `https://wsrv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l`;
+            }
+          }
           const finalTitle = (meta.title && meta.title !== 'YouTube Video') ? meta.title : (json.filename?.replace(/\.[^/.]+$/, '') || 'Media Stream');
           const finalAuthor = meta.author || 'Creator';
 

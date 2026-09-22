@@ -169,6 +169,13 @@ async function fetchPlatformMetadata(url) {
   }
   // Instagram
   else if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+    const igMatch = url.match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+    const shortcode = igMatch ? igMatch[1] : null;
+    if (shortcode) {
+      thumbnail = `https://wsrv.nl/?url=https://www.instagram.com/p/${shortcode}/media/?size=l`;
+      title = `Instagram Reel (${shortcode})`;
+      author = 'Instagram Creator';
+    }
     try {
       const cleanUrl = url.split('?')[0].replace(/\/+$/, '') + '/';
       const res = await fetch(cleanUrl, {

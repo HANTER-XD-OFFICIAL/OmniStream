@@ -865,22 +865,26 @@ video.result-thumbnail {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: rgba(0, 242, 254, 0.9);
-  color: #050b16;
-  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #00f2fe;
+  border: 1.5px solid #00f2fe;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 0 25px rgba(0, 242, 254, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 24px rgba(0, 242, 254, 0.45), inset 0 0 12px rgba(0, 242, 254, 0.15);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 5;
 }
 
 .play-overlay-btn:hover {
   transform: translate(-50%, -50%) scale(1.1);
-  background: #38f9d7;
-  box-shadow: 0 0 35px rgba(0, 242, 254, 0.9), 0 6px 16px rgba(0, 0, 0, 0.6);
+  background: rgba(0, 242, 254, 0.2);
+  border-color: #38f9d7;
+  color: #38f9d7;
+  box-shadow: 0 0 35px rgba(0, 242, 254, 0.8), inset 0 0 15px rgba(0, 242, 254, 0.3);
 }
 
 .play-overlay-btn svg {

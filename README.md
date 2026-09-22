@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![OmniStream Banner](https://img.shields.io/badge/OmniStream-v1.0.0--Pro-6366f1?style=for-the-badge&logo=android&logoColor=white)
+![OmniStream Banner](https://img.shields.io/badge/OmniStream-v2.0.0--Beta-6366f1?style=for-the-badge&logo=android&logoColor=white)
 [![Platform](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://android.com)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin_2.0+-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack_Compose_M3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
@@ -36,11 +36,11 @@ Select your preferred platform below to start extracting and downloading media i
 > [![Open Telegram Bot](https://img.shields.io/badge/🤖_OPEN_TELEGRAM_BOT-@OmniStream34__bot_↗-0088cc?style=for-the-badge&logo=telegram&logoColor=white&labelColor=0d1117)](https://t.me/OmniStream34_bot)
 
 > [!IMPORTANT]
-> ### 📱 [Native Android Application (Pro APK)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
+> ### 📱 [Native Android Application (Pro APK v2.0.0 Beta)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest)
 > **Hardware-Accelerated Mobile Client • Built with Jetpack Compose & M3**  
 > Dedicated Android client featuring background download notifications, an AES-256 encrypted offline media vault, status bar playback controls, and an integrated media player.  
 >  
-> [![Download Android APK](https://img.shields.io/badge/⬇️_DOWNLOAD_ANDROID_APK-Direct_Release_v1.0_↗-00c853?style=for-the-badge&logo=android&logoColor=white&labelColor=0d1117)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/tag/v1.0.0.OmniStreamPro)
+> [![Download Android APK](https://img.shields.io/badge/⬇️_DOWNLOAD_ANDROID_APK-Direct_Release_v2.0.0--Beta_↗-00c853?style=for-the-badge&logo=android&logoColor=white&labelColor=0d1117)](https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest)
 
 <br/>
 
