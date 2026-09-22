@@ -251,53 +251,59 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             lineHeight = 16.sp
                         )
 
-                        // High-tech status telemetry badges
+                        // High-tech status telemetry badges - strictly equal width & single-line
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.weight(1f).height(30.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = CyberDarkSurface,
                                 border = BorderStroke(1.dp, CyberBorder)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(11.dp))
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Cobalt 10.x", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    Text("Cobalt 10.x", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                 }
                             }
 
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.weight(1f).height(30.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = CyberDarkSurface,
                                 border = BorderStroke(1.dp, CyberBorder)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Shield, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(11.dp))
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("SSL Encrypted", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold)
+                                    Text("SSL Secure", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                 }
                             }
 
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.weight(1f).height(30.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = CyberDarkSurface,
                                 border = BorderStroke(1.dp, CyberBorder)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(11.dp))
+                                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(12.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("21+ Platforms", fontSize = 10.sp, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                                    Text("21+ Sites", fontSize = 10.sp, color = CyanAccent, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                 }
                             }
                         }
@@ -408,16 +414,20 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                     // Ping / Test API Status
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
                             onClick = { viewModel.testApiHealth() },
-                            modifier = Modifier.height(40.dp).testTag("test_api_button"),
+                            modifier = Modifier
+                                .then(if (apiHealth != null) Modifier.weight(1f) else Modifier.fillMaxWidth())
+                                .height(40.dp)
+                                .testTag("test_api_button"),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanBright),
-                            border = BorderStroke(1.dp, CyanBright),
-                            enabled = !isTestingApi
+                            border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.8f)),
+                            enabled = !isTestingApi,
+                            contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
                             if (isTestingApi) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), color = CyanBright, strokeWidth = 2.dp)
@@ -425,35 +435,55 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Ping & Check Health", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (apiHealth != null) "Ping Health" else "Ping & Check Health",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
 
-                        // Status result pill
+                        // Sleek status result pill matching button height & clean 2-line telemetry
                         val health = apiHealth
                         if (health != null) {
                             val isConnected = health.status == "connected"
+                            val statusColor = if (isConnected) EmeraldSuccess else CyanBright
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = (if (isConnected) EmeraldSuccess else CyanBright).copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, (if (isConnected) EmeraldSuccess else CyanBright).copy(alpha = 0.35f))
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(40.dp),
+                                color = statusColor.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
                                         modifier = Modifier
                                             .size(7.dp)
                                             .clip(CircleShape)
-                                            .background(if (isConnected) EmeraldSuccess else CyanBright)
+                                            .background(statusColor)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "${health.latencyMs} ms • ${health.ytdlpVersion}",
-                                        color = if (isConnected) EmeraldSuccess else CyanBright,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    Spacer(modifier = Modifier.width(7.dp))
+                                    Column(verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            text = "${health.latencyMs} ms",
+                                            color = statusColor,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        Text(
+                                            text = "v${health.ytdlpVersion}",
+                                            color = TextMuted,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -477,7 +507,10 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f, fill = false),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
@@ -496,27 +529,33 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 Text(
                                     text = "Telegram Bot Integration",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = TextPrimary
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                                 Text(
                                     text = "@OmniStream34_bot",
                                     color = CyanAccent,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
 
-                        // Verified Status Badge
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Verified Status Badge (Single line, strictly no wrap)
                         val isOnline = telegramBotInfo?.isOnline == true && botVerificationStatus?.startsWith("Error") != true
                         val badgeColor = if (isOnline) EmeraldSuccess else RoseError
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = badgeColor.copy(alpha = 0.15f),
                             border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.4f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
@@ -527,10 +566,12 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = if (isOnline) "ONLINE & READY" else "NEEDS SYNC",
+                                    text = if (isOnline) "ONLINE" else "OFFLINE",
                                     color = badgeColor,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -591,49 +632,61 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 lineHeight = 16.sp
                             )
 
-                            // Feature Chips Row
+                            // Feature Chips Row - strictly equal width & single-line
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Surface(
+                                    modifier = Modifier.weight(1f).height(28.dp),
                                     shape = RoundedCornerShape(6.dp),
                                     color = CyanBright.copy(alpha = 0.1f),
                                     border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.25f))
                                 ) {
-                                    Text(
-                                        "⚡ 24/7 Active",
-                                        color = CyanAccent,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                    )
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "⚡ 24/7 Active",
+                                            color = CyanAccent,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                                 Surface(
+                                    modifier = Modifier.weight(1f).height(28.dp),
                                     shape = RoundedCornerShape(6.dp),
                                     color = CyanBright.copy(alpha = 0.1f),
                                     border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.25f))
                                 ) {
-                                    Text(
-                                        "✨ No Watermark",
-                                        color = CyanAccent,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                    )
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "✨ Clean HD",
+                                            color = CyanAccent,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                                 Surface(
+                                    modifier = Modifier.weight(1f).height(28.dp),
                                     shape = RoundedCornerShape(6.dp),
                                     color = EmeraldSuccess.copy(alpha = 0.1f),
                                     border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.25f))
                                 ) {
-                                    Text(
-                                        "🔒 Token Private",
-                                        color = EmeraldSuccess,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                    )
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "🔒 Private",
+                                            color = EmeraldSuccess,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -654,28 +707,42 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f, fill = false),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     "Worker Security Shield",
                                     color = TextPrimary,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = EmeraldSuccess.copy(alpha = 0.12f),
                                 border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.3f))
                             ) {
-                                Text(
-                                    "🔒 Encrypted & Hidden",
-                                    color = EmeraldSuccess,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Lock, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "ENCRYPTED",
+                                        color = EmeraldSuccess,
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
                         Text(
