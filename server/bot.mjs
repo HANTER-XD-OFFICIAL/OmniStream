@@ -395,15 +395,24 @@ async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup
   }
 }
 
-async function sendTgAudio(chatId, fileBuffer, filename, caption, title = "OmniStream Pro Official Sound", performer = "OmniStream") {
+async function sendTgAudio(chatId, fileBuffer, filename, caption, title = "OmniStream Audio Track", performer = "OmniStream", replyMarkup = null) {
   try {
     const form = new FormData();
     form.append("chat_id", String(chatId));
-    form.append("caption", caption || "");
+    if (caption) form.append("caption", caption);
     form.append("parse_mode", "HTML");
-    form.append("title", title);
-    form.append("performer", performer);
-    form.append("audio", new Blob([fileBuffer], { type: "audio/wav" }), filename || "OmniStream Pro.wav");
+    if (title) form.append("title", title);
+    if (performer) form.append("performer", performer);
+    if (replyMarkup) {
+      form.append("reply_markup", JSON.stringify(replyMarkup));
+    }
+    const ext = filename?.split('.').pop()?.toLowerCase() || 'mp3';
+    let mime = 'audio/mpeg';
+    if (ext === 'wav') mime = 'audio/wav';
+    else if (ext === 'm4a') mime = 'audio/mp4';
+    else if (ext === 'ogg') mime = 'audio/ogg';
+
+    form.append("audio", new Blob([fileBuffer], { type: mime }), filename || "OmniStream_Audio.mp3");
 
     const res = await fetch(`${TELEGRAM_API}/sendAudio`, {
       method: "POST",
@@ -1267,6 +1276,171 @@ async function resolveTeraBox(url) {
   return null;
 }
 
+// ==================== AUDIO EXTRACTORS & DELIVERY ====================
+
+async function resolveCobaltAudio(url) {
+  for (const host of COBALT_HOSTS) {
+    try {
+      const res = await fetch(host, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0"
+        },
+        body: JSON.stringify({
+          url,
+          downloadMode: "audio",
+          audioFormat: "mp3",
+          alwaysProxy: true
+        }),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const streamUrl = json.url;
+        if (streamUrl && streamUrl.startsWith("http")) {
+          return streamUrl;
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+async function resolveYouTubeAudio(url) {
+  const hosts = ["https://loader.to", "https://en.loader.to"];
+  for (const host of hosts) {
+    try {
+      const encUrl = encodeURIComponent(url);
+      const startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=mp3&url=${encUrl}`;
+      const startRes = await fetch(startUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": `${host}/` },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (startRes.ok) {
+        const sJson = await startRes.json();
+        if (sJson.download_url && sJson.download_url.startsWith("http")) {
+          return sJson.download_url;
+        }
+        if (sJson.progress_url) {
+          for (let i = 0; i < 10; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+              const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(6000) });
+              if (pRes.ok) {
+                const pJson = await pRes.json();
+                if (pJson.download_url && pJson.download_url.startsWith("http")) {
+                  return pJson.download_url;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer = null) {
+  try {
+    let audioUrl = media?.audioUrl || null;
+    const lower = url.toLowerCase();
+
+    // 1. If no direct audioUrl yet, query audio resolver
+    if (!audioUrl) {
+      if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
+        audioUrl = await resolveYouTubeAudio(url);
+      }
+      if (!audioUrl) {
+        audioUrl = await resolveCobaltAudio(url);
+      }
+    }
+
+    const cleanTitle = (media?.title || safeTitle || "Audio Track")
+      .replace(/&[a-zA-Z0-9#x]+;/g, "")
+      .replace(/[^\w\s-]/g, "")
+      .trim()
+      .substring(0, 45) || "Audio";
+
+    const audioFilename = formatOmniStreamFilename(platformName, cleanTitle, "mp3");
+    const audioCaption = `🎵 <b>${escapeHtml(safeTitle)}</b>\n\n` +
+      `👤 <b>Artist/Creator:</b> ${escapeHtml(media?.author || "Creator")}\n` +
+      `📻 <b>Format:</b> High Quality Audio (MP3)\n` +
+      `🌐 <b>Platform:</b> ${escapeHtml(platformName)}\n\n` +
+      `⚡ <i>Audio track extracted via OmniStream Bot (@OmniStream34_bot)</i>`;
+
+    const audioMarkup = {
+      inline_keyboard: [
+        [{ text: "🌐 Official Web App", url: "https://hanter-xd-official.github.io/OmniStream/" }],
+        [{ text: "👨‍💻 Developer Profile", url: DEV_TELEGRAM }]
+      ]
+    };
+
+    // Try fetching audio from audioUrl
+    if (audioUrl && audioUrl.startsWith("http")) {
+      try {
+        const audioFetch = await fetch(audioUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": lower.includes("tiktok.com") ? "https://www.tiktok.com/" : url
+          },
+          signal: AbortSignal.timeout(35000)
+        });
+        if (audioFetch.ok) {
+          const aBuf = await audioFetch.arrayBuffer();
+          if (aBuf.byteLength > 1000 && aBuf.byteLength < 49 * 1024 * 1024) {
+            const aRes = await sendTgAudio(chatId, aBuf, audioFilename, audioCaption, safeTitle, media?.author || platformName, audioMarkup);
+            if (aRes && aRes.ok) {
+              console.log(`[DELIVERED AUDIO] Audio buffer sent to ${chatId}`);
+              return true;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Audio buffer fetch/send error:", err.message);
+      }
+
+      // Fallback: send directly via Telegram sendAudio URL
+      try {
+        const urlRes = await callTg("sendAudio", {
+          chat_id: chatId,
+          audio: audioUrl,
+          caption: audioCaption,
+          parse_mode: "HTML",
+          title: safeTitle,
+          performer: media?.author || platformName,
+          reply_markup: audioMarkup
+        });
+        if (urlRes && urlRes.ok) {
+          console.log(`[DELIVERED AUDIO] Audio URL sent to ${chatId}`);
+          return true;
+        }
+      } catch (urlErr) {
+        console.warn("Audio URL delivery error:", urlErr.message);
+      }
+    }
+
+    // 2. If separate audio stream is not available, but videoBuffer was fetched,
+    // Telegram sendAudio natively accepts MP4 container and plays audio stream!
+    if (videoBuffer && videoBuffer.byteLength > 1000 && videoBuffer.byteLength < 48 * 1024 * 1024) {
+      try {
+        const aRes = await sendTgAudio(chatId, videoBuffer, audioFilename, audioCaption, safeTitle, media?.author || platformName, audioMarkup);
+        if (aRes && aRes.ok) {
+          console.log(`[DELIVERED AUDIO] Media container audio sent to ${chatId}`);
+          return true;
+        }
+      } catch (bufErr) {
+        console.warn("VideoBuffer audio fallback error:", bufErr.message);
+      }
+    }
+  } catch (err) {
+    console.error("deliverAudioTrack error:", err.message);
+  }
+  return false;
+}
+
 // ==================== PROCESS URL ====================
 
 async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
@@ -1344,8 +1518,8 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           const sizeMb = (contentLength / (1024 * 1024)).toFixed(1);
           const largeText = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
             `👤 <b>Platform:</b> ${escapeHtml(media.type || "Media Video")}\n` +
-            `💾 <b>File Size:</b> ${sizeMb} MB (Exceeds 50MB Bot Limit)\n\n` +
-            `⚡ <i>Click below to download or stream high-definition video directly:</i>`;
+            `💾 <b>Video Size:</b> ${sizeMb} MB (Exceeds 50MB Bot Limit)\n\n` +
+            `⚡ <i>Video download link is ready below. Extracting & sending audio track directly to chat...</i>`;
 
           await callTg("editMessageText", {
             chat_id: chatId,
@@ -1355,6 +1529,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
             reply_markup: {
               inline_keyboard: [
                 [{ text: `📥 Download Full HD Video (${sizeMb} MB)`, url: media.videoUrl }],
+                [{ text: "🌐 Official Web App", url: "https://hanter-xd-official.github.io/OmniStream/" }],
                 [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
               ]
             }
@@ -1362,6 +1537,10 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           db.stats.totalDownloads++;
           if (db.users[userId]) db.users[userId].downloads++;
           saveDatabase();
+
+          // Deliver audio track directly to chat!
+          const platformName = detectPlatformName(media.type, url);
+          await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
           return;
         }
 
@@ -1391,7 +1570,8 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
             const caption = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
               `👤 <b>Platform:</b> ${escapeHtml(media.type || "Web Video")}\n` +
               (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
-              `💾 <b>Size:</b> ${sizeMb} MB\n\n` +
+              `💾 <b>Size:</b> ${sizeMb} MB\n` +
+              `🎵 <b>Audio:</b> Extracted & delivering below\n\n` +
               `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
 
             const replyMarkup = {
@@ -1409,7 +1589,10 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
               db.stats.totalDownloads++;
               if (db.users[userId]) db.users[userId].downloads++;
               saveDatabase();
-              console.log(`[DELIVERED] Video sent to ${chatId}`);
+              console.log(`[DELIVERED VIDEO] Video sent to ${chatId}`);
+
+              // ALSO send audio track immediately!
+              await deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer);
               return;
             }
           }
@@ -1425,6 +1608,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     const buttons = [
       [{ text: "📥 Download / Watch Video (HD)", url: media.videoUrl }],
+      [{ text: "🌐 Official Web App", url: "https://hanter-xd-official.github.io/OmniStream/" }],
       [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
     ];
 
@@ -1439,6 +1623,10 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     db.stats.totalDownloads++;
     if (db.users[userId]) db.users[userId].downloads++;
     saveDatabase();
+
+    // Deliver audio track in fallback mode as well
+    const fallbackPlatformName = detectPlatformName(media?.type, url);
+    await deliverAudioTrack(chatId, url, media, safeTitle, fallbackPlatformName);
 
   } catch (err) {
     console.error("[PROCESS ERROR]:", err.message);
