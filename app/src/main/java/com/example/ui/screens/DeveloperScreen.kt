@@ -99,7 +99,7 @@ fun DeveloperScreen(
 
     val devName = "MD RASEL"
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
-    val devWhatsAppNumber = "+8801882278234"
+    val devWhatsAppUrl = "https://wa.me/mdrasel78234"
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
     val botTelegramUrl = "https://t.me/OmniStream34_bot"
     val devEmail = "hanterxdofficial@gmail.com"
@@ -116,18 +116,17 @@ fun DeveloperScreen(
         }
     }
 
-    fun openWhatsApp(phone: String) {
+    fun openWhatsApp() {
         try {
-            val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
             val intent = Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode("Hello MD RASEL, I am reaching out regarding OmniStream App Support.")}")
+                Uri.parse("https://wa.me/mdrasel78234?text=${Uri.encode("Hello MD RASEL, I am reaching out regarding OmniStream App Support.")}")
             ).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
         } catch (_: Exception) {
-            openUrl("https://wa.me/8801882278234")
+            openUrl("https://wa.me/mdrasel78234")
         }
     }
 
@@ -398,11 +397,11 @@ fun DeveloperScreen(
                             iconBgColor = Color(0xFF064E3B),
                             iconColor = Color(0xFF34D399),
                             channelTitle = "WhatsApp Support",
-                            channelSubtitle = "Direct 1-click encrypted chat with developer",
+                            channelSubtitle = "wa.me/mdrasel78234 • Encrypted Chat",
                             buttonLabel = "Chat",
                             buttonBg = Color(0xFF064E3B).copy(alpha = 0.8f),
                             buttonBorder = Color(0xFF10B981),
-                            onOpen = { openWhatsApp(devWhatsAppNumber) }
+                            onOpen = { openWhatsApp() }
                         )
 
                         // 2. Telegram Support
@@ -480,7 +479,7 @@ fun DeveloperScreen(
                     ) {
                         // WhatsApp
                         Surface(
-                            onClick = { openWhatsApp(devWhatsAppNumber) },
+                            onClick = { openWhatsApp() },
                             shape = RoundedCornerShape(10.dp),
                             color = Color(0xFF10B981),
                             modifier = Modifier.weight(1f)

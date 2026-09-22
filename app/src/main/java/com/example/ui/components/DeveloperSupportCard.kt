@@ -87,7 +87,7 @@ fun DeveloperSupportCard(
     val devRole = "Lead Developer & System Architect"
     val devEmail = "hanterxdofficial@gmail.com"
     val devFacebook = "https://www.facebook.com/md.rasel.7.8.2.3.4"
-    val devWhatsApp = "+8801882278234"
+    val devWhatsAppUrl = "https://wa.me/mdrasel78234"
     val devTelegram = "https://t.me/HANTER_XD_OFFICIAL"
     val officialWebsite = "https://hanter-xd-official.github.io/OmniStream/"
 
@@ -123,15 +123,14 @@ fun DeveloperSupportCard(
         }
     }
 
-    fun openWhatsApp(phone: String) {
+    fun openWhatsApp() {
         try {
-            val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode("Hello MD RASEL, I am contacting you regarding OmniStream App Support.")}")).apply {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/mdrasel78234?text=${Uri.encode("Hello MD RASEL, I am contacting you regarding OmniStream App Support.")}")).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            copyToClipboard("WhatsApp Number", phone)
+            copyToClipboard("WhatsApp", devWhatsAppUrl)
         }
     }
 
@@ -297,11 +296,11 @@ fun DeveloperSupportCard(
                     icon = Icons.Default.Chat,
                     iconColor = Color(0xFF25D366),
                     label = "WhatsApp Official",
-                    displayValue = if (isDetailsRevealed) devWhatsApp else "+880 188 ••• •234",
-                    realValue = devWhatsApp,
+                    displayValue = if (isDetailsRevealed) "wa.me/mdrasel78234" else "wa.me/mdrasel••••",
+                    realValue = devWhatsAppUrl,
                     actionButtonText = "Chat on WhatsApp",
-                    onActionClick = { openWhatsApp(devWhatsApp) },
-                    onCopyClick = { copyToClipboard("WhatsApp", devWhatsApp) }
+                    onActionClick = { openWhatsApp() },
+                    onCopyClick = { copyToClipboard("WhatsApp", devWhatsAppUrl) }
                 )
 
                 // 2. Telegram Channel
@@ -347,7 +346,7 @@ fun DeveloperSupportCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { openWhatsApp(devWhatsApp) },
+                    onClick = { openWhatsApp() },
                     modifier = Modifier.weight(1f).height(42.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(

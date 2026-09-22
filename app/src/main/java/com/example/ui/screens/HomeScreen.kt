@@ -1902,7 +1902,7 @@ private fun HomeDeveloperSupportBanner(
 ) {
     val context = LocalContext.current
     val devFacebookUrl = "https://www.facebook.com/md.rasel.7.8.2.3.4"
-    val devWhatsAppNumber = "+8801882278234"
+    val devWhatsAppUrl = "https://wa.me/mdrasel78234"
     val devTelegramUrl = "https://t.me/HANTER_XD_OFFICIAL"
     val officialWebsiteUrl = "https://hanter-xd-official.github.io/OmniStream/"
 
@@ -1915,18 +1915,17 @@ private fun HomeDeveloperSupportBanner(
         } catch (_: Exception) {}
     }
 
-    fun openWhatsApp(phone: String) {
+    fun openWhatsApp() {
         try {
-            val cleanPhone = phone.replace("+", "").replace(" ", "").replace("-", "")
             val intent = Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode("Hello MD RASEL, I need support with OmniStream Downloader.")}")
+                Uri.parse("https://wa.me/mdrasel78234?text=${Uri.encode("Hello MD RASEL, I need support with OmniStream Downloader.")}")
             ).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
         } catch (_: Exception) {
-            openUrl("https://wa.me/8801882278234")
+            openUrl("https://wa.me/mdrasel78234")
         }
     }
 
@@ -2016,7 +2015,7 @@ private fun HomeDeveloperSupportBanner(
             ) {
                 // WhatsApp
                 Button(
-                    onClick = { openWhatsApp(devWhatsAppNumber) },
+                    onClick = { openWhatsApp() },
                     modifier = Modifier.weight(1f).height(36.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF064E3B), contentColor = Color(0xFF34D399)),
