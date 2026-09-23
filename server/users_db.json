@@ -1,9 +1,11 @@
 {
   "users": {},
   "blockedUsers": [],
+  "lastReleaseTag": "v2.0.0-beta_OmniStream",
+  "cachedApkFileId": null,
   "stats": {
     "totalDownloads": 0,
     "totalLinks": 0,
-    "botStartedAt": "2026-09-10T07:41:15.111Z"
+    "botStartedAt": "2026-09-23T11:45:00.000Z"
   }
 }

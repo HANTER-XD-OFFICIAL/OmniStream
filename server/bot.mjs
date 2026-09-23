@@ -93,7 +93,7 @@ const DB_FILE = path.join(__dirname, 'users_db.json');
 let db = {
   users: {},
   blockedUsers: [],
-  lastReleaseTag: "v2.0.0-beta",
+  lastReleaseTag: "v2.0.0-beta_OmniStream",
   cachedApkFileId: null,
   cachedWelcomeAudioFileId: null,
   stats: {
@@ -111,7 +111,7 @@ function loadDatabase() {
       db = {
         users: parsed.users || {},
         blockedUsers: Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [],
-        lastReleaseTag: parsed.lastReleaseTag || "v2.0.0-beta",
+        lastReleaseTag: parsed.lastReleaseTag || "v2.0.0-beta_OmniStream",
         cachedApkFileId: parsed.cachedApkFileId || null,
         cachedWelcomeAudioFileId: parsed.cachedWelcomeAudioFileId || null,
         stats: {
@@ -572,7 +572,8 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "start", description: "Start OmniStream Bot" },
-        { command: "app", description: "📱 Download Official Android App (APK)" },
+        { command: "app", description: "📱 Download Latest App (APK)" },
+        { command: "tags", description: "🏷️ View All Release Tags & APKs" },
         { command: "help", description: "How to download videos & guide" }
       ],
       scope: { type: "default" }
@@ -582,14 +583,15 @@ async function setupBotCommands() {
     await callTg("setMyCommands", {
       commands: [
         { command: "admin", description: "👑 Open Master Admin Panel" },
-        { command: "msg", description: "💬 Message Single User (/msg ID text)" },
-        { command: "broadcast", description: "📢 Send Broadcast to All" },
-        { command: "users", description: "👥 View Registered Users" },
         { command: "app", description: "📱 Download Official App (APK)" },
+        { command: "tags", description: "🏷️ View All Release Tags" },
         { command: "check_update", description: "🚀 Check GitHub Releases & Notify" },
+        { command: "broadcast", description: "📢 Send Broadcast to All" },
+        { command: "msg", description: "💬 Message Single User (/msg ID text)" },
+        { command: "users", description: "👥 View Registered Users" },
+        { command: "stats", description: "📊 Bot System Statistics" },
         { command: "block", description: "🚫 Block User (/block ID)" },
         { command: "unblock", description: "✅ Unblock User (/unblock ID)" },
-        { command: "stats", description: "📊 Bot System Statistics" },
         { command: "help", description: "Help Guide" }
       ],
       scope: { type: "chat", chat_id: ADMIN_ID }
@@ -626,19 +628,17 @@ function getReplyKeyboardForUser(userId) {
 
 // ==================== GITHUB RELEASES & APK ENGINE ====================
 
-// ==================== GITHUB RELEASES & APK ENGINE ====================
-
 // High-speed verified release metadata - always ready with zero failure
 let cachedLatestRelease = {
-  tag: "v2.0.0-beta",
-  name: "OmniStream v2.0.0 Beta (Official Latest)",
-  publishedAt: "2026-09-21T07:30:00Z",
-  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/latest`,
-  body: "Official OmniStream v2.0.0 Beta release with upgraded multi-threaded engine, enhanced Instagram/YouTube resolution, secure worker auth, and native player.",
+  tag: "v2.0.0-beta_OmniStream",
+  name: "OmniStream Official Android App (v2.0.0-beta)",
+  publishedAt: "2026-09-23T11:43:00Z",
+  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v2.0.0-beta_OmniStream`,
+  body: "Official OmniStream Android release with upgraded multi-threaded download engine, 4K video & audio support, and instant direct Telegram delivery.",
   apkAsset: {
     name: "OmniStream_v2.0.0-beta.apk",
-    size: 24521929,
-    downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.0-beta/OmniStream_v2.0.0-beta.apk`
+    size: 24732759,
+    downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.0-beta_OmniStream/OmniStream_v2.0.0-beta.apk`
   }
 };
 
@@ -646,73 +646,212 @@ let lastGitHubFetchTime = 0;
 
 async function getLatestAppRelease(force = false) {
   const now = Date.now();
-  // Return cached metadata if checked recently (avoids GitHub 60 req/hr rate limits)
-  if (!force && cachedLatestRelease && (now - lastGitHubFetchTime < 180000)) {
+  // Return cached metadata if checked recently (avoids excessive requests)
+  if (!force && cachedLatestRelease && (now - lastGitHubFetchTime < 60000)) {
     return cachedLatestRelease;
   }
 
+  // Strategy 1: GitHub Releases API (ordered newest first)
   try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=5`, {
       headers: {
-        "User-Agent": "OmniStreamBot/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OmniStreamBot/2.0",
         "Accept": "application/vnd.github.v3+json"
       },
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (res.ok) {
-      const data = await res.json();
-      const apkAsset = data.assets?.find(a => a.name.endsWith('.apk')) || data.assets?.[0];
-      if (apkAsset) {
-        lastGitHubFetchTime = now;
-        if (db.lastReleaseTag !== data.tag_name) {
-          db.lastReleaseTag = data.tag_name;
-          db.cachedApkFileId = null; // Invalidate cached Telegram file_id for new version
-          saveDatabase();
-        }
-        cachedLatestRelease = {
-          tag: data.tag_name,
-          name: data.name || data.tag_name,
-          publishedAt: data.published_at,
-          htmlUrl: data.html_url,
-          body: data.body || "Performance optimizations and latest media downloader engine updates.",
-          apkAsset: {
-            name: apkAsset.name,
-            size: apkAsset.size,
-            downloadUrl: apkAsset.browser_download_url
+      const releases = await res.json();
+      if (Array.isArray(releases) && releases.length > 0) {
+        for (const rel of releases) {
+          const apkAsset = rel.assets?.find(a => a.name?.toLowerCase().endsWith('.apk'));
+          if (apkAsset) {
+            lastGitHubFetchTime = now;
+            if (db.lastReleaseTag !== rel.tag_name) {
+              console.log(`[GITHUB RELEASES] Discovered new release tag: ${rel.tag_name} (previous: ${db.lastReleaseTag})`);
+              db.lastReleaseTag = rel.tag_name;
+              db.cachedApkFileId = null; // Invalidate cached Telegram file_id for new version
+              saveDatabase();
+            }
+            cachedLatestRelease = {
+              tag: rel.tag_name,
+              name: rel.name || rel.tag_name,
+              publishedAt: rel.published_at,
+              htmlUrl: rel.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${rel.tag_name}`,
+              body: rel.body || "Performance optimizations and latest media downloader engine updates.",
+              apkAsset: {
+                name: apkAsset.name,
+                size: apkAsset.size,
+                downloadUrl: apkAsset.browser_download_url
+              }
+            };
+            return cachedLatestRelease;
           }
-        };
-        return cachedLatestRelease;
+        }
       }
     } else {
-      console.warn(`[GITHUB RELEASES] GitHub API status: ${res.status}, using verified cached release.`);
+      console.warn(`[GITHUB RELEASES] GitHub API status: ${res.status}, trying HTML scrape fallback.`);
     }
   } catch (err) {
-    console.warn('[GITHUB RELEASES] Fetch note:', err.message);
+    console.warn('[GITHUB RELEASES] API fetch note:', err.message);
   }
 
-  // Always return the verified release structure - never null!
+  // Strategy 2: GitHub Web Scraping (100% immune to API rate limits!)
+  try {
+    const tagsRes = await fetch(`https://github.com/${GITHUB_REPO}/tags`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml"
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (tagsRes.ok) {
+      const html = await tagsRes.text();
+      const tagMatches = [...html.matchAll(/\/releases\/tag\/([^\"\'\s>]+)/g)].map(m => m[1]);
+      const uniqueTags = [...new Set(tagMatches)];
+
+      if (uniqueTags.length > 0) {
+        for (const tag of uniqueTags.slice(0, 3)) {
+          const assetsRes = await fetch(`https://github.com/${GITHUB_REPO}/releases/expanded_assets/${tag}`, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Accept": "text/html"
+            },
+            signal: AbortSignal.timeout(8000)
+          });
+
+          if (assetsRes.ok) {
+            const aHtml = await assetsRes.text();
+            const apkMatch = aHtml.match(/href=\"([^\"]*\/releases\/download\/([^\"]+)\/([^\"]+\.apk))\"/i);
+            if (apkMatch) {
+              const downloadPath = apkMatch[1].startsWith('/') ? apkMatch[1] : `/${apkMatch[1]}`;
+              const apkDownloadUrl = `https://github.com${downloadPath}`;
+              const apkName = apkMatch[3];
+
+              lastGitHubFetchTime = now;
+              if (db.lastReleaseTag !== tag) {
+                console.log(`[GITHUB TAGS] Found new release tag via web: ${tag}`);
+                db.lastReleaseTag = tag;
+                db.cachedApkFileId = null;
+                saveDatabase();
+              }
+              cachedLatestRelease = {
+                tag: tag,
+                name: `OmniStream Official App (${tag})`,
+                publishedAt: new Date().toISOString(),
+                htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+                body: "Official OmniStream Android release with upgraded downloader engine.",
+                apkAsset: {
+                  name: apkName,
+                  size: 24732759,
+                  downloadUrl: apkDownloadUrl
+                }
+              };
+              return cachedLatestRelease;
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[GITHUB TAGS SCRAPE ERROR]:', err.message);
+  }
+
+  // Always return verified release structure
   return cachedLatestRelease;
 }
 
-async function handleSendApk(chatId, userId) {
+// Fetch all releases & tags for tag picker
+async function getAllAppReleases() {
+  const releasesList = [];
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=10`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OmniStreamBot/2.0",
+        "Accept": "application/vnd.github.v3+json"
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        for (const rel of data) {
+          const apk = rel.assets?.find(a => a.name?.toLowerCase().endsWith('.apk'));
+          releasesList.push({
+            tag: rel.tag_name,
+            name: rel.name || rel.tag_name,
+            publishedAt: rel.published_at,
+            htmlUrl: rel.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${rel.tag_name}`,
+            apkAsset: apk ? {
+              name: apk.name,
+              size: apk.size,
+              downloadUrl: apk.browser_download_url
+            } : null
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[GET ALL RELEASES API ERROR]:', err.message);
+  }
+
+  if (releasesList.length === 0) {
+    try {
+      const tagsRes = await fetch(`https://github.com/${GITHUB_REPO}/tags`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (tagsRes.ok) {
+        const html = await tagsRes.text();
+        const tagMatches = [...html.matchAll(/\/releases\/tag\/([^\"\'\s>]+)/g)].map(m => m[1]);
+        const uniqueTags = [...new Set(tagMatches)];
+        for (const tag of uniqueTags) {
+          releasesList.push({
+            tag: tag,
+            name: tag,
+            htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+            apkAsset: {
+              name: `OmniStream_${tag}.apk`,
+              size: 24732759,
+              downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/${tag}/OmniStream_${tag}.apk`
+            }
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  return releasesList;
+}
+
+async function handleSendApk(chatId, userId, requestedTag = null) {
   if (isUserBlocked(userId)) return;
 
   const initMsg = await callTg("sendMessage", {
     chat_id: chatId,
-    text: `⏳ <b>Fetching Official OmniStream App...</b>\n<i>Preparing verified APK package...</i>`,
+    text: `⏳ <b>Fetching Latest Official OmniStream App...</b>\n<i>Checking GitHub release tags & preparing verified APK package...</i>`,
     parse_mode: "HTML"
   });
   const progressMsgId = initMsg.result?.message_id;
 
   try {
-    const release = await getLatestAppRelease();
+    let release = null;
+    if (requestedTag) {
+      const all = await getAllAppReleases();
+      release = all.find(r => r.tag === requestedTag && r.apkAsset);
+    }
+    if (!release) {
+      release = await getLatestAppRelease(true);
+    }
+
     const apk = release.apkAsset;
     const sizeMb = (apk.size / (1024 * 1024)).toFixed(1);
 
     const caption = `📱 <b>OmniStream Official Android App</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🏷 <b>Version:</b> <code>${escapeHtml(release.tag)}</code>\n` +
+      `🏷 <b>Release Tag:</b> <code>${escapeHtml(release.tag)}</code>\n` +
       `💾 <b>File Size:</b> ${sizeMb} MB\n` +
       `🛡 <b>Integrity:</b> Verified Official Release\n` +
       `👨‍💻 <b>Developer:</b> ${DEV_NAME}\n\n` +
@@ -725,13 +864,14 @@ async function handleSendApk(chatId, userId) {
 
     const replyMarkup = {
       inline_keyboard: [
+        [{ text: "🏷️ View All Release Tags", callback_data: "view_releases" }],
         [{ text: "🌐 Official GitHub Releases", url: release.htmlUrl }],
         [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
       ]
     };
 
-    // 1. FAST PATH: If we have Telegram's cached file_id, deliver instantly in < 1 second!
-    if (db.cachedApkFileId) {
+    // 1. FAST PATH: If we have Telegram's cached file_id for this EXACT tag, deliver instantly in < 1 second!
+    if (db.cachedApkFileId && db.lastReleaseTag === release.tag) {
       const fastRes = await callTg("sendDocument", {
         chat_id: chatId,
         document: db.cachedApkFileId,
@@ -747,27 +887,27 @@ async function handleSendApk(chatId, userId) {
         db.stats.totalDownloads++;
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
-        console.log(`[APK DELIVERED FAST] OmniStream APK delivered via file_id to ${chatId} (${userId})`);
+        console.log(`[APK DELIVERED FAST] OmniStream APK (${release.tag}) delivered via cached file_id to ${chatId}`);
         return;
       } else {
-        console.warn("[APK CACHE INVALID] Cached file_id expired or invalid, falling back to upload:", fastRes.description);
+        console.warn("[APK CACHE INVALID] Cached file_id invalid, refreshing:", fastRes.description);
         db.cachedApkFileId = null;
       }
     }
 
-    // 2. FILE UPLOAD PATH: Read local APK if present on disk, otherwise download from GitHub
+    // 2. FILE UPLOAD PATH: Read local APK if present on disk, otherwise download from GitHub asset
     if (progressMsgId) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `📥 <b>Uploading OmniStream APK (${sizeMb} MB)...</b>\n<i>Sending directly to your Telegram chat...</i>`,
+        text: `📥 <b>Downloading Latest OmniStream APK (${sizeMb} MB)...</b>\n<i>Fetching tag <code>${escapeHtml(release.tag)}</code> and sending directly to your Telegram chat...</i>`,
         parse_mode: "HTML"
       }).catch(() => {});
     }
 
     let apkBuffer = null;
     const localApkPath = path.resolve(__dirname, '../.build-outputs/app-debug.apk');
-    if (fs.existsSync(localApkPath)) {
+    if (fs.existsSync(localApkPath) && !requestedTag) {
       try {
         apkBuffer = await fs.promises.readFile(localApkPath);
         console.log(`[APK LOCAL] Read APK from disk (${(apkBuffer.length / (1024 * 1024)).toFixed(1)} MB)`);
@@ -778,28 +918,43 @@ async function handleSendApk(chatId, userId) {
 
     if (!apkBuffer && apk.downloadUrl) {
       try {
+        console.log(`[APK FETCH] Fetching APK from: ${apk.downloadUrl}`);
         const apkRes = await fetch(apk.downloadUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/octet-stream,application/vnd.android.package-archive,*/*"
           },
-          signal: AbortSignal.timeout(90000)
+          redirect: "follow",
+          signal: AbortSignal.timeout(120000)
         });
         if (apkRes.ok) {
           apkBuffer = await apkRes.arrayBuffer();
+          console.log(`[APK FETCH SUCCESS] Downloaded ${(apkBuffer.byteLength / (1024 * 1024)).toFixed(1)} MB`);
+        } else {
+          console.warn(`[APK FETCH FAILED] Status ${apkRes.status} for ${apk.downloadUrl}`);
         }
       } catch (err) {
         console.warn('[APK FETCH ERROR]', err.message);
       }
     }
 
-    if (apkBuffer) {
+    if (apkBuffer && apkBuffer.byteLength > 1000000) {
+      if (progressMsgId) {
+        await callTg("editMessageText", {
+          chat_id: chatId,
+          message_id: progressMsgId,
+          text: `📤 <b>Uploading Official APK to Telegram...</b>\n<i>Delivering <code>${escapeHtml(apk.name)}</code> (${sizeMb} MB)...</i>`,
+          parse_mode: "HTML"
+        }).catch(() => {});
+      }
+
       const docRes = await sendTgDocument(chatId, apkBuffer, apk.name, caption, replyMarkup);
       if (docRes.ok) {
-        // Cache Telegram's file_id so all subsequent user downloads are instantaneous
         if (docRes.result?.document?.file_id) {
           db.cachedApkFileId = docRes.result.document.file_id;
+          db.lastReleaseTag = release.tag;
           saveDatabase();
-          console.log(`[APK CACHED] Telegram file_id cached: ${db.cachedApkFileId}`);
+          console.log(`[APK CACHED] Telegram file_id cached: ${db.cachedApkFileId} for version ${release.tag}`);
         }
         if (progressMsgId) {
           await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }).catch(() => {});
@@ -807,7 +962,35 @@ async function handleSendApk(chatId, userId) {
         db.stats.totalDownloads++;
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
-        console.log(`[APK DELIVERED] OmniStream APK delivered to ${chatId} (${userId})`);
+        console.log(`[APK DELIVERED] OmniStream APK document delivered to ${chatId} (${userId})`);
+        return;
+      } else {
+        console.warn('[APK DOCUMENT UPLOAD NOTICE]:', docRes.error || docRes.description);
+      }
+    }
+
+    // Direct URL send via Telegram Bot API
+    if (apk.downloadUrl) {
+      const urlDocRes = await callTg("sendDocument", {
+        chat_id: chatId,
+        document: apk.downloadUrl,
+        caption: caption,
+        parse_mode: "HTML",
+        reply_markup: replyMarkup
+      });
+      if (urlDocRes.ok) {
+        if (urlDocRes.result?.document?.file_id) {
+          db.cachedApkFileId = urlDocRes.result.document.file_id;
+          db.lastReleaseTag = release.tag;
+          saveDatabase();
+        }
+        if (progressMsgId) {
+          await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }).catch(() => {});
+        }
+        db.stats.totalDownloads++;
+        if (db.users[userId]) db.users[userId].downloads++;
+        saveDatabase();
+        console.log(`[APK DELIVERED VIA URL] OmniStream APK delivered to ${chatId}`);
         return;
       }
     }
@@ -815,7 +998,7 @@ async function handleSendApk(chatId, userId) {
     // 3. RELIABLE FALLBACK: High-speed direct download card
     const fallbackText = `📱 <b>OmniStream Official Android App</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🏷 <b>Version:</b> <code>${escapeHtml(release.tag)}</code>\n` +
+      `🏷 <b>Release Tag:</b> <code>${escapeHtml(release.tag)}</code>\n` +
       `💾 <b>Size:</b> ${sizeMb} MB\n` +
       `🛡 <b>Integrity:</b> Verified Official GitHub Build\n` +
       `👨‍💻 <b>Developer:</b> ${DEV_NAME}\n\n` +
@@ -830,6 +1013,7 @@ async function handleSendApk(chatId, userId) {
         reply_markup: {
           inline_keyboard: [
             [{ text: `📥 Download APK (${sizeMb} MB)`, url: apk.downloadUrl }],
+            [{ text: "🏷️ View All Release Tags", callback_data: "view_releases" }],
             [{ text: "🌐 Official GitHub Releases", url: release.htmlUrl }],
             [{ text: "👨‍💻 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
@@ -852,6 +1036,91 @@ async function handleSendApk(chatId, userId) {
           inline_keyboard: [
             [{ text: "📥 Download Latest APK", url: `https://github.com/${GITHUB_REPO}/releases/latest` }],
             [{ text: "👨‍💻 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+          ]
+        }
+      });
+    }
+  }
+}
+
+// Display full list of release tags
+async function handleSendReleasesList(chatId, userId) {
+  if (isUserBlocked(userId)) return;
+
+  const waitMsg = await callTg("sendMessage", {
+    chat_id: chatId,
+    text: `⏳ <b>Fetching GitHub Release Tags...</b>`,
+    parse_mode: "HTML"
+  });
+
+  try {
+    const releases = await getAllAppReleases();
+    const latest = await getLatestAppRelease();
+
+    let text = `🏷️ <b>OmniStream Official App - Release Tags</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🚀 <b>Latest Tag:</b> <code>${escapeHtml(latest.tag)}</code>\n\n` +
+      `📦 <b>Available Release Versions:</b>\n`;
+
+    const inlineButtons = [];
+
+    if (releases.length > 0) {
+      releases.forEach((rel, idx) => {
+        const isLatest = rel.tag === latest.tag;
+        const sizeMb = rel.apkAsset ? (rel.apkAsset.size / (1024 * 1024)).toFixed(1) : "24.7";
+        text += `${idx + 1}. <b>${escapeHtml(rel.tag)}</b> ${isLatest ? "⭐ <i>(Latest)</i>" : ""}\n`;
+        text += `   • File: <code>${rel.apkAsset?.name || "OmniStream.apk"}</code> (${sizeMb} MB)\n\n`;
+
+        inlineButtons.push([{
+          text: `📥 Download ${rel.tag} (${sizeMb} MB)`,
+          callback_data: `get_apk_tag_${rel.tag}`
+        }]);
+      });
+    } else {
+      text += `• <b>${escapeHtml(latest.tag)}</b> ⭐ <i>(Latest Release)</i>\n\n`;
+      inlineButtons.push([{
+        text: `📥 Download Latest APK (${latest.tag})`,
+        callback_data: "get_apk"
+      }]);
+    }
+
+    inlineButtons.push([
+      { text: "🌐 View on GitHub Releases", url: `https://github.com/${GITHUB_REPO}/releases` }
+    ]);
+    inlineButtons.push([
+      { text: "👨‍💻 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }
+    ]);
+
+    text += `⚡ <i>Tap any button below to receive that APK directly in this chat!</i>`;
+
+    if (waitMsg.result?.message_id) {
+      await callTg("editMessageText", {
+        chat_id: chatId,
+        message_id: waitMsg.result.message_id,
+        text: text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: inlineButtons }
+      });
+    } else {
+      await callTg("sendMessage", {
+        chat_id: chatId,
+        text: text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: inlineButtons }
+      });
+    }
+  } catch (err) {
+    console.error('[RELEASES LIST ERROR]:', err.message);
+    if (waitMsg.result?.message_id) {
+      await callTg("editMessageText", {
+        chat_id: chatId,
+        message_id: waitMsg.result.message_id,
+        text: `⚠️ Could not fetch release tags right now. Tap below to download latest version:`,
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 Download Latest APK", callback_data: "get_apk" }],
+            [{ text: "🌐 GitHub Releases", url: `https://github.com/${GITHUB_REPO}/releases` }]
           ]
         }
       });
@@ -1771,10 +2040,23 @@ async function handleUpdate(update) {
       const msgId = cq.message?.message_id;
       const data = cq.data || "";
 
-      // Allow any registered user to request the APK file
+      // Allow any user to download APK directly (latest or specific tag)
       if (data === "get_apk") {
-        await callTg("answerCallbackQuery", { callback_query_id: cqId, text: "Fetching OmniStream APK..." });
+        await callTg("answerCallbackQuery", { callback_query_id: cqId, text: "Fetching Latest OmniStream APK..." });
         await handleSendApk(chatId, senderId);
+        return;
+      }
+
+      if (data.startsWith("get_apk_tag_")) {
+        const reqTag = data.replace("get_apk_tag_", "");
+        await callTg("answerCallbackQuery", { callback_query_id: cqId, text: `Fetching APK for tag ${reqTag}...` });
+        await handleSendApk(chatId, senderId, reqTag);
+        return;
+      }
+
+      if (data === "view_releases") {
+        await callTg("answerCallbackQuery", { callback_query_id: cqId, text: "Loading GitHub release tags..." });
+        await handleSendReleasesList(chatId, senderId);
         return;
       }
 
@@ -2167,8 +2449,13 @@ async function handleUpdate(update) {
     }
 
     // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
-    if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app")) {
+    if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app") || text.startsWith("/latest") || text.startsWith("/update")) {
       await handleSendApk(chatId, senderId);
+      return;
+    }
+
+    if (text === "🏷️ Release Tags" || text.startsWith("/releases") || text.startsWith("/tags") || text.startsWith("/tag_list")) {
+      await handleSendReleasesList(chatId, senderId);
       return;
     }
 
