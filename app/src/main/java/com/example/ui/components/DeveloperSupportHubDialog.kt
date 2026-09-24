@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
@@ -444,58 +445,100 @@ fun DeveloperSupportHubDialog(
                 item {
                     Surface(
                         onClick = { openUrl(officialWebsiteUrl) },
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF0C2444),
-                        border = BorderStroke(1.2.dp, CyanBright),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF0D1E36),
+                        border = BorderStroke(1.2.dp, CyanBright.copy(alpha = 0.8f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(30.dp)
-                                        .clip(CircleShape)
-                                        .background(CyanBright.copy(alpha = 0.2f)),
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF0C2444))
+                                        .border(1.dp, CyanBright.copy(alpha = 0.5f), RoundedCornerShape(10.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Public,
-                                        contentDescription = null,
+                                        contentDescription = "Official Website",
                                         tint = CyanBright,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Official Website (In-Browser Downloader)",
+                                        text = "Official Website",
                                         style = MaterialTheme.typography.titleSmall.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
+                                            fontSize = 13.5.sp,
                                             color = TextPrimary
-                                        )
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "In-Browser Web Downloader",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = CyanAccent
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = "hanter-xd-official.github.io/OmniStream",
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            fontSize = 10.sp,
-                                            color = CyanAccent
-                                        )
+                                            fontSize = 9.5.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = TextMuted
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
-                            Text(
-                                text = "Open →",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Black,
-                                color = CyanBright
-                            )
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Surface(
+                                onClick = { openUrl(officialWebsiteUrl) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = CyanBright.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, CyanBright)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Open Web",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CyanBright
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = CyanBright,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
