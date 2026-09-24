@@ -2188,6 +2188,14 @@ async function handleUpdate(update) {
 
         // If either check explicitly failed (user is not member of both)
         if (!liveStatus.isMember) {
+          if (msgId) {
+            // Delete previously sent verification message or update it
+            try {
+              await callTg("deleteMessage", { chat_id: chatId, message_id: msgId });
+            } catch (e) {
+              console.warn("Could not delete previous prompt message:", e.message);
+            }
+          }
           await sendVerificationPrompt(chatId, senderName, true, {
             channelJoined: liveStatus.channelJoined,
             groupJoined: liveStatus.groupJoined
@@ -2202,6 +2210,18 @@ async function handleUpdate(update) {
           db.users[senderId].verifiedAt = new Date().toISOString();
         }
         saveDatabase();
+
+        // Delete the membership verification prompt message before sending the successful verification message
+        if (msgId) {
+          try {
+            await callTg("deleteMessage", {
+              chat_id: chatId,
+              message_id: msgId
+            });
+          } catch (e) {
+            console.warn("Could not delete verification prompt message:", e.message);
+          }
+        }
 
         // 1. Send confirmation success message to user
         const successUserText = `🎉 <b>Verification Successful!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
