@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
@@ -98,7 +99,10 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
 @Composable
-fun ApiSettingsScreen(viewModel: DownloadViewModel) {
+fun ApiSettingsScreen(
+    viewModel: DownloadViewModel,
+    onCheckForUpdates: () -> Unit = {}
+) {
     val context = LocalContext.current
     val currentSettings by viewModel.settings.collectAsStateWithLifecycle()
     val apiHealth by viewModel.apiHealth.collectAsStateWithLifecycle()
@@ -308,6 +312,88 @@ fun ApiSettingsScreen(viewModel: DownloadViewModel) {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // In-App Updates (GitHub Releases) Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCheckForUpdates() },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
+                border = BorderStroke(1.2.dp, CyanBright.copy(alpha = 0.6f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CyanBright.copy(alpha = 0.2f))
+                                .border(1.dp, CyanBright, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = CyanBright, modifier = Modifier.size(22.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "In-App Updates & Releases",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = NeonPurple.copy(alpha = 0.2f),
+                                    border = BorderStroke(0.6.dp, NeonPurple.copy(alpha = 0.6f))
+                                ) {
+                                    Text(
+                                        text = "v${com.example.BuildConfig.VERSION_NAME}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = NeonPurple,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Auto-checks GitHub Releases • Direct in-app install",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = onCheckForUpdates,
+                        shape = RoundedCornerShape(8.dp),
+                        color = CyanBright.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "Check Now",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanBright
+                        )
                     }
                 }
             }

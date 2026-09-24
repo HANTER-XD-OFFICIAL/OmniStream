@@ -47,9 +47,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.api.AppUpdateManager
 import com.example.data.local.DownloadStatus
 import com.example.ui.DownloadViewModel
 import com.example.ui.components.AppLoadingScreen
+import com.example.ui.components.AppUpdateDialog
 import com.example.ui.components.DeveloperSupportHubDialog
 import com.example.ui.components.MediaPreviewDialog
 import com.example.ui.components.StoragePermissionDialog
@@ -93,6 +95,10 @@ fun MainApp(viewModel: DownloadViewModel) {
     val previewItem by viewModel.previewItem.collectAsStateWithLifecycle()
     val allDownloads by viewModel.filteredDownloads.collectAsStateWithLifecycle()
 
+    val appUpdateManager = remember { AppUpdateManager.getInstance(context) }
+    val updateState by appUpdateManager.updateState.collectAsStateWithLifecycle()
+    val showUpdateDialog by appUpdateManager.showUpdateDialog.collectAsStateWithLifecycle()
+
     var showPermissionDialog by remember {
         mutableStateOf(false)
     }
@@ -100,7 +106,7 @@ fun MainApp(viewModel: DownloadViewModel) {
     var showWelcomeDialog by remember { mutableStateOf(false) }
     var showSupportHubModal by remember { mutableStateOf(false) }
 
-    // When loading screen completes, check permissions & welcome state
+    // When loading screen completes, check permissions, welcome state, and GitHub releases
     fun onBootFinished() {
         isAppLoading = false
         if (!StoragePermissionHelper.hasStoragePermission(context)) {
@@ -113,6 +119,9 @@ fun MainApp(viewModel: DownloadViewModel) {
             showWelcomeDialog = true
             prefs.edit().putBoolean("has_seen_welcome_v2", true).apply()
         }
+
+        // Automatic In-App Update check against GitHub Releases on app launch
+        appUpdateManager.checkForUpdates(isManual = false)
     }
 
     if (isAppLoading) {
@@ -144,6 +153,16 @@ fun MainApp(viewModel: DownloadViewModel) {
     if (showSupportHubModal) {
         DeveloperSupportHubDialog(
             onDismiss = { showSupportHubModal = false }
+        )
+    }
+
+    if (showUpdateDialog) {
+        AppUpdateDialog(
+            updateState = updateState,
+            onStartDownload = { info -> appUpdateManager.startDownload(info) },
+            onCancelDownload = { appUpdateManager.cancelDownload() },
+            onInstallApk = { file -> appUpdateManager.installApk(context, file) },
+            onDismiss = { rememberDismissal -> appUpdateManager.dismissDialog(rememberDismissal) }
         )
     }
 
@@ -320,9 +339,13 @@ fun MainApp(viewModel: DownloadViewModel) {
                         viewModel = viewModel,
                         onNavigateToHome = { currentTab = 0 }
                     )
-                    2 -> ApiSettingsScreen(viewModel = viewModel)
+                    2 -> ApiSettingsScreen(
+                        viewModel = viewModel,
+                        onCheckForUpdates = { appUpdateManager.checkForUpdates(isManual = true) }
+                    )
                     3 -> DeveloperScreen(
-                        onNavigateToHome = { currentTab = 0 }
+                        onNavigateToHome = { currentTab = 0 },
+                        onCheckForUpdates = { appUpdateManager.checkForUpdates(isManual = true) }
                     )
                 }
             }

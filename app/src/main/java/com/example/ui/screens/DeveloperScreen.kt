@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.HeadsetMic
@@ -40,8 +41,10 @@ import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VerifiedUser
+import com.example.BuildConfig
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -90,7 +93,8 @@ import com.example.ui.theme.TextSecondary
  */
 @Composable
 fun DeveloperScreen(
-    onNavigateToHome: () -> Unit = {}
+    onNavigateToHome: () -> Unit = {},
+    onCheckForUpdates: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showSupportHubModal by remember { mutableStateOf(false) }
@@ -214,25 +218,51 @@ fun DeveloperScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Surface(
-                    onClick = { showWelcomeModal = true },
-                    shape = RoundedCornerShape(10.dp),
-                    color = NeonPurple.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.6f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        onClick = onCheckForUpdates,
+                        shape = RoundedCornerShape(10.dp),
+                        color = CyanBright.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.6f))
                     ) {
-                        Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = NeonPurple, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Welcome UI",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = NeonPurple,
-                            maxLines = 1
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = CyanBright, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Updates",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CyanBright,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Surface(
+                        onClick = { showWelcomeModal = true },
+                        shape = RoundedCornerShape(10.dp),
+                        color = NeonPurple.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = NeonPurple, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Welcome UI",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NeonPurple,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -607,6 +637,77 @@ fun DeveloperScreen(
                     }
 
                     Icon(Icons.Default.OpenInNew, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+
+        // In-App Updates & Releases (GitHub Releases Engine)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCheckForUpdates() },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B192C)),
+                border = BorderStroke(1.2.dp, CyanBright.copy(alpha = 0.6f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CyanBright.copy(alpha = 0.2f))
+                                .border(1.dp, CyanBright, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = CyanBright, modifier = Modifier.size(22.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "In-App Updates & Releases",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = NeonPurple.copy(alpha = 0.2f),
+                                    border = BorderStroke(0.6.dp, NeonPurple.copy(alpha = 0.6f))
+                                ) {
+                                    Text(
+                                        text = "v${BuildConfig.VERSION_NAME}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = NeonPurple,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Auto-checks GitHub Releases • Direct in-app install",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = CyanBright, modifier = Modifier.size(18.dp))
                 }
             }
         }
