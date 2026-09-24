@@ -103,53 +103,39 @@ const REQUIRED_GROUP = {
   url: "https://t.me/hanter_xd_official34"
 };
 
-// Continuous live membership verification cache (5-minute TTL to ensure fast responsiveness while actively re-validating)
-const membershipCache = new Map(); // key: userId, value: { isMember: Boolean, timestamp: number, channelJoined: Boolean, groupJoined: Boolean }
-const MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000;
-
-async function verifyUserMembershipLive(userId, forceFresh = false) {
+// Continuous live membership verification before processing any command or link
+async function verifyUserMembershipLive(userId) {
   const id = String(userId);
   if (isAdmin(id)) {
     return { isMember: true, channelJoined: true, groupJoined: true };
   }
 
-  const now = Date.now();
-  if (!forceFresh && membershipCache.has(id)) {
-    const cached = membershipCache.get(id);
-    if (now - cached.timestamp < MEMBERSHIP_CACHE_TTL_MS) {
-      return cached;
-    }
-  }
-
   const chRes = await checkChatMembership(REQUIRED_CHANNEL.chatId, id);
   const grRes = await checkChatMembership(REQUIRED_GROUP.chatId, id);
 
-  console.log(`[CONTINUOUS MEMBERSHIP CHECK] User: ${id} | Channel:`, chRes, "| Group:", grRes);
+  console.log(`[CONTINUOUS MEMBERSHIP CHECK] User: ${id} | Channel:`, chRes?.isMember, "| Group:", grRes?.isMember);
 
-  // If user has left or was removed from either channel or group
+  // User must be an active member of BOTH channel and group
   const channelJoined = chRes.isMember === true;
   const groupJoined = grRes.isMember === true;
   const isMember = channelJoined && groupJoined;
 
-  const result = {
-    isMember,
-    channelJoined,
-    groupJoined,
-    timestamp: now
-  };
-
-  membershipCache.set(id, result);
-
-  // Sync with persistent database
+  // Immediately update persistent database state
   if (db.users[id]) {
     db.users[id].isVerified = isMember;
     if (isMember && !db.users[id].verifiedAt) {
       db.users[id].verifiedAt = new Date().toISOString();
+    } else if (!isMember) {
+      delete db.users[id].verifiedAt;
     }
     saveDatabase();
   }
 
-  return result;
+  return {
+    isMember,
+    channelJoined,
+    groupJoined
+  };
 }
 
 function isUserVerified(userId) {
@@ -395,50 +381,50 @@ async function checkChatMembership(chatIdOrUsername, userId) {
       const isMember = ["creator", "administrator", "member", "restricted"].includes(status);
       return { ok: true, isMember, status };
     }
+    const desc = (res?.description || "").toLowerCase();
+    if (desc.includes("user not found") || desc.includes("participant") || desc.includes("not a member")) {
+      return { ok: true, isMember: false, status: "left" };
+    }
     // Telegram returned an error (e.g. bot not admin in channel, or chat not found)
     console.warn(`[MEMBERSHIP] getChatMember for ${chatIdOrUsername} (user: ${userId}) returned:`, res?.description || res?.error);
-    return { ok: false, isMember: null, description: res?.description || "Unable to query chat member" };
+    return { ok: false, isMember: false, description: res?.description || "Unable to query chat member" };
   } catch (err) {
     console.warn(`[MEMBERSHIP] checkChatMembership exception for ${chatIdOrUsername}:`, err.message);
-    return { ok: false, isMember: null, description: err.message };
+    return { ok: false, isMember: false, description: err.message };
   }
 }
 
-// Uniquely designed verification prompt using emojis and a structured layout without step labels
+// Existing multi-step joining verification prompt
 async function sendVerificationPrompt(chatId, senderName = "User", isRetry = false, missingDetails = null) {
-  let statusSection = "";
-  if (missingDetails) {
-    const chIcon = missingDetails.channelJoined ? "🟢" : "🔴";
-    const chLabel = missingDetails.channelJoined ? "Verified Member" : "Not Joined Yet";
-    const grIcon = missingDetails.groupJoined ? "🟢" : "🔴";
-    const grLabel = missingDetails.groupJoined ? "Verified Member" : "Not Joined Yet";
+  let header = isRetry
+    ? `⚠️ <b>Verification Incomplete!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `Hello <b>${escapeHtml(senderName)}</b>, you must join <b>BOTH</b> our channel and group before using OmniStream Bot:\n\n`
+    : `🔐 <b>Channel & Group Verification Required!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `Hello <b>${escapeHtml(senderName)}</b>! To activate your account and unlock all features, you must join our official channel and group:\n\n`;
 
-    statusSection =
-      `📊 <b>Membership Telemetry:</b>\n` +
-      `├ 📢 <b>Channel:</b> ${chIcon} <code>${chLabel}</code>\n` +
-      `└ 👥 <b>Group:</b> ${grIcon} <code>${grLabel}</code>\n\n`;
+  let statusDetails = "";
+  if (missingDetails) {
+    const chStatus = missingDetails.channelJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
+    const grStatus = missingDetails.groupJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
+    statusDetails = `📊 <b>Current Status:</b>\n` +
+      `• Channel: ${chStatus}\n` +
+      `• Group: ${grStatus}\n\n`;
   }
 
-  const promptText =
-    `🛡️ <b>MEMBER VERIFICATION REQUIRED</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `👋 Greetings, <b>${escapeHtml(senderName)}</b>!\n\n` +
-    `To ensure safe, high-speed access and prevent automated abuse, OmniStream requires active membership in both our official channel and discussion group.\n\n` +
-    (statusSection || "") +
-    `📢 <b>Official Channel</b>\n` +
-    `» <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n` +
-    `<i>Daily update notes, fresh mirrors & announcements</i>\n\n` +
-    `👥 <b>Community Group</b>\n` +
-    `» <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n` +
-    `<i>24/7 user support, community chat & feature requests</i>\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `⚡ <i>Join both links above, then tap <b>Confirm</b> below to verify your membership and unlock instant video downloading!</i>`;
+  const promptText = header + statusDetails +
+    `1️⃣ <b>Step 1: Join Official Channel</b>\n` +
+    `👉 <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n\n` +
+    `2️⃣ <b>Step 2: Join Community Group</b>\n` +
+    `👉 <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n\n` +
+    `3️⃣ <b>Step 3: Click 'Confirm' Below</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `⛔ <i>Access to video downloads, APK files, and all commands is strictly blocked until confirmed.</i>`;
 
   const inlineKeyboard = {
     inline_keyboard: [
-      [{ text: "📢 Join Channel", url: REQUIRED_CHANNEL.url }],
-      [{ text: "👥 Join Group", url: REQUIRED_GROUP.url }],
-      [{ text: "✨ Confirm", callback_data: "confirm_membership" }]
+      [{ text: "📢 1. Join Official Channel", url: REQUIRED_CHANNEL.url }],
+      [{ text: "👥 2. Join Community Group", url: REQUIRED_GROUP.url }],
+      [{ text: "✅ 3. Confirm", callback_data: "confirm_membership" }]
     ]
   };
 
