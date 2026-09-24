@@ -44,11 +44,15 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import com.example.data.api.AppUpdateManager
+import com.example.data.api.UpdateState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -86,6 +90,7 @@ import com.example.data.repository.AppSettings
 import com.example.ui.DownloadViewModel
 import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.CobaltBlue
+import com.example.ui.theme.CyberBlack
 import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberCardSurface
 import com.example.ui.theme.CyberDarkSurface
@@ -111,6 +116,9 @@ fun ApiSettingsScreen(
     val telegramBotInfo by viewModel.telegramBotInfo.collectAsStateWithLifecycle()
     val isVerifyingBot by viewModel.isVerifyingBot.collectAsStateWithLifecycle()
     val botVerificationStatus by viewModel.botVerificationStatus.collectAsStateWithLifecycle()
+
+    val appUpdateManager = remember { AppUpdateManager.getInstance(context) }
+    val updateState by appUpdateManager.updateState.collectAsStateWithLifecycle()
 
     var apiUrl by remember(currentSettings) { mutableStateOf(currentSettings.customApiUrl) }
     var authToken by remember(currentSettings) { mutableStateOf(currentSettings.authToken) }
@@ -317,83 +325,269 @@ fun ApiSettingsScreen(
             }
         }
 
-        // In-App Updates (GitHub Releases) Card
+        // In-App Updates & Releases (GitHub OTA Engine) Card - Developer Standard UI
         item {
+            val isChecking = updateState is UpdateState.Checking
+            val isUpdateAvailable = updateState is UpdateState.UpdateAvailable
+            val isUpToDate = updateState is UpdateState.UpToDate
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onCheckForUpdates() },
+                    .testTag("in_app_update_card"),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.2.dp, CyanBright.copy(alpha = 0.6f))
+                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
+                border = BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(
+                            if (isUpdateAvailable) NeonPurple else CyanBright.copy(alpha = 0.5f),
+                            CyberBorder
+                        )
+                    )
+                )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Header Row: Icon + Title/Subtitle + Status Chip
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(CyanBright.copy(alpha = 0.2f))
-                                .border(1.dp, CyanBright, RoundedCornerShape(10.dp)),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = CyanBright, modifier = Modifier.size(22.dp))
-                        }
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isUpdateAvailable) NeonPurple.copy(alpha = 0.2f)
+                                        else CyanBright.copy(alpha = 0.15f)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isUpdateAvailable) NeonPurple else CyanBright.copy(alpha = 0.45f),
+                                        RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = null,
+                                    tint = if (isUpdateAvailable) NeonPurple else CyanBright,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
 
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column {
                                 Text(
                                     text = "In-App Updates & Releases",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = NeonPurple.copy(alpha = 0.2f),
-                                    border = BorderStroke(0.6.dp, NeonPurple.copy(alpha = 0.6f))
-                                ) {
-                                    Text(
-                                        text = "v${com.example.BuildConfig.VERSION_NAME}",
-                                        fontSize = 9.sp,
+                                    style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = NeonPurple,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        letterSpacing = 0.1.sp
+                                    ),
+                                    color = TextPrimary,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "Automated OTA GitHub Engine",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = CyanAccent
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Dynamic Status Badge on Top Right
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = when {
+                                isChecking -> CyanBright.copy(alpha = 0.15f)
+                                isUpdateAvailable -> EmeraldSuccess.copy(alpha = 0.15f)
+                                isUpToDate -> EmeraldSuccess.copy(alpha = 0.12f)
+                                else -> CyberDarkSurface
+                            },
+                            border = BorderStroke(
+                                1.dp,
+                                when {
+                                    isChecking -> CyanBright.copy(alpha = 0.5f)
+                                    isUpdateAvailable -> EmeraldSuccess
+                                    isUpToDate -> EmeraldSuccess.copy(alpha = 0.6f)
+                                    else -> CyberBorder
+                                }
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (isChecking) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(10.dp),
+                                        color = CyanBright,
+                                        strokeWidth = 1.5.dp
                                     )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("Checking...", fontSize = 10.sp, color = CyanBright, fontWeight = FontWeight.Bold)
+                                } else if (isUpdateAvailable) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(EmeraldSuccess)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("Update Available", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.Bold)
+                                } else if (isUpToDate) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Up to Date", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(CyanBright)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("v${com.example.BuildConfig.VERSION_NAME}", fontSize = 10.sp, color = CyanBright, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Text(
-                                text = "Auto-checks GitHub Releases • Direct in-app install",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = TextSecondary
-                            )
                         }
                     }
 
-                    Surface(
-                        onClick = onCheckForUpdates,
-                        shape = RoundedCornerShape(8.dp),
-                        color = CyanBright.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                    // Description
+                    Text(
+                        text = "Automated version tracking directly syncing GitHub Releases with direct in-app package installation without opening external browsers.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+
+                    // 3 High-Tech Status Telemetry Badges (Harmonious with Top Card!)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "Check Now",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CyanBright
-                        )
+                        Surface(
+                            modifier = Modifier.weight(1f).height(30.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = CyberDarkSurface,
+                            border = BorderStroke(1.dp, CyberBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("GitHub API", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.weight(1f).height(30.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = CyberDarkSurface,
+                            border = BorderStroke(1.dp, CyberBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("OTA Direct", fontSize = 10.sp, color = AmberWarning, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.weight(1f).height(30.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = CyberDarkSurface,
+                            border = BorderStroke(1.dp, CyberBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Auto Install", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
+
+                    // Action & Version Footer Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "CURRENT VERSION",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMuted,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = "v${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CyanBright
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                if (isUpdateAvailable) {
+                                    appUpdateManager.showDialog()
+                                } else {
+                                    onCheckForUpdates()
+                                }
+                            },
+                            enabled = !isChecking,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isUpdateAvailable) EmeraldSuccess else CyanBright,
+                                contentColor = CyberBlack
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.height(38.dp)
+                        ) {
+                            if (isChecking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    color = CyberBlack,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Checking...", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            } else if (isUpdateAvailable) {
+                                Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("View Update", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Check Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
