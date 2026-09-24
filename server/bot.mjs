@@ -103,6 +103,55 @@ const REQUIRED_GROUP = {
   url: "https://t.me/hanter_xd_official34"
 };
 
+// Continuous live membership verification cache (5-minute TTL to ensure fast responsiveness while actively re-validating)
+const membershipCache = new Map(); // key: userId, value: { isMember: Boolean, timestamp: number, channelJoined: Boolean, groupJoined: Boolean }
+const MEMBERSHIP_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function verifyUserMembershipLive(userId, forceFresh = false) {
+  const id = String(userId);
+  if (isAdmin(id)) {
+    return { isMember: true, channelJoined: true, groupJoined: true };
+  }
+
+  const now = Date.now();
+  if (!forceFresh && membershipCache.has(id)) {
+    const cached = membershipCache.get(id);
+    if (now - cached.timestamp < MEMBERSHIP_CACHE_TTL_MS) {
+      return cached;
+    }
+  }
+
+  const chRes = await checkChatMembership(REQUIRED_CHANNEL.chatId, id);
+  const grRes = await checkChatMembership(REQUIRED_GROUP.chatId, id);
+
+  console.log(`[CONTINUOUS MEMBERSHIP CHECK] User: ${id} | Channel:`, chRes, "| Group:", grRes);
+
+  // If user has left or was removed from either channel or group
+  const channelJoined = chRes.isMember === true;
+  const groupJoined = grRes.isMember === true;
+  const isMember = channelJoined && groupJoined;
+
+  const result = {
+    isMember,
+    channelJoined,
+    groupJoined,
+    timestamp: now
+  };
+
+  membershipCache.set(id, result);
+
+  // Sync with persistent database
+  if (db.users[id]) {
+    db.users[id].isVerified = isMember;
+    if (isMember && !db.users[id].verifiedAt) {
+      db.users[id].verifiedAt = new Date().toISOString();
+    }
+    saveDatabase();
+  }
+
+  return result;
+}
+
 function isUserVerified(userId) {
   const id = String(userId);
   if (isAdmin(id)) return true; // Admin is always verified
@@ -355,37 +404,41 @@ async function checkChatMembership(chatIdOrUsername, userId) {
   }
 }
 
-// Send or edit the multi-step verification prompt
+// Uniquely designed verification prompt using emojis and a structured layout without step labels
 async function sendVerificationPrompt(chatId, senderName = "User", isRetry = false, missingDetails = null) {
-  let header = isRetry
-    ? `⚠️ <b>Verification Incomplete!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-      `Hello <b>${escapeHtml(senderName)}</b>, you must join <b>BOTH</b> our channel and group before using OmniStream Bot:\n\n`
-    : `🔐 <b>Channel & Group Verification Required!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-      `Hello <b>${escapeHtml(senderName)}</b>! To activate your account and unlock all features, you must join our official channel and group:\n\n`;
-
-  let statusDetails = "";
+  let statusSection = "";
   if (missingDetails) {
-    const chStatus = missingDetails.channelJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
-    const grStatus = missingDetails.groupJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
-    statusDetails = `📊 <b>Current Status:</b>\n` +
-      `• Channel: ${chStatus}\n` +
-      `• Group: ${grStatus}\n\n`;
+    const chIcon = missingDetails.channelJoined ? "🟢" : "🔴";
+    const chLabel = missingDetails.channelJoined ? "Verified Member" : "Not Joined Yet";
+    const grIcon = missingDetails.groupJoined ? "🟢" : "🔴";
+    const grLabel = missingDetails.groupJoined ? "Verified Member" : "Not Joined Yet";
+
+    statusSection =
+      `📊 <b>Membership Telemetry:</b>\n` +
+      `├ 📢 <b>Channel:</b> ${chIcon} <code>${chLabel}</code>\n` +
+      `└ 👥 <b>Group:</b> ${grIcon} <code>${grLabel}</code>\n\n`;
   }
 
-  const promptText = header + statusDetails +
-    `1️⃣ <b>Step 1: Join Official Channel</b>\n` +
-    `👉 <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n\n` +
-    `2️⃣ <b>Step 2: Join Community Group</b>\n` +
-    `👉 <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n\n` +
-    `3️⃣ <b>Step 3: Click 'Confirm' Below</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `⛔ <i>Access to video downloads, APK files, and all commands is strictly blocked until confirmed.</i>`;
+  const promptText =
+    `🛡️ <b>MEMBER VERIFICATION REQUIRED</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `👋 Greetings, <b>${escapeHtml(senderName)}</b>!\n\n` +
+    `To ensure safe, high-speed access and prevent automated abuse, OmniStream requires active membership in both our official channel and discussion group.\n\n` +
+    (statusSection || "") +
+    `📢 <b>Official Channel</b>\n` +
+    `» <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n` +
+    `<i>Daily update notes, fresh mirrors & announcements</i>\n\n` +
+    `👥 <b>Community Group</b>\n` +
+    `» <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n` +
+    `<i>24/7 user support, community chat & feature requests</i>\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `⚡ <i>Join both links above, then tap <b>Confirm</b> below to verify your membership and unlock instant video downloading!</i>`;
 
   const inlineKeyboard = {
     inline_keyboard: [
-      [{ text: "📢 1. Join Official Channel", url: REQUIRED_CHANNEL.url }],
-      [{ text: "👥 2. Join Community Group", url: REQUIRED_GROUP.url }],
-      [{ text: "✅ 3. Confirm", callback_data: "confirm_membership" }]
+      [{ text: "📢 Join Channel", url: REQUIRED_CHANNEL.url }],
+      [{ text: "👥 Join Group", url: REQUIRED_GROUP.url }],
+      [{ text: "✨ Confirm", callback_data: "confirm_membership" }]
     ]
   };
 
@@ -2139,30 +2192,21 @@ async function handleUpdate(update) {
 
       // 0. Handle Confirmation of Channel & Group Membership
       if (data === "confirm_membership") {
-        if (isUserVerified(senderId)) {
-          await callTg("answerCallbackQuery", {
-            callback_query_id: cqId,
-            text: "✅ You are already verified! You have full access to all features.",
-            show_alert: true
-          });
-          return;
-        }
-
         await callTg("answerCallbackQuery", {
           callback_query_id: cqId,
           text: "🔍 Checking your channel & group membership..."
         });
 
-        const chRes = await checkChatMembership(REQUIRED_CHANNEL.chatId, senderId);
-        const grRes = await checkChatMembership(REQUIRED_GROUP.chatId, senderId);
+        // Force a live check against Telegram servers
+        const liveStatus = await verifyUserMembershipLive(senderId, true);
 
-        console.log(`[VERIFICATION CHECK] User: ${senderId} (${senderName}) | Channel:`, chRes, "| Group:", grRes);
+        console.log(`[VERIFICATION CHECK] User: ${senderId} (${senderName}) | Result:`, liveStatus);
 
-        // If either check explicitly failed (user is left or kicked)
-        if (chRes.isMember === false || grRes.isMember === false) {
+        // If either check explicitly failed (user is not member of both)
+        if (!liveStatus.isMember) {
           await sendVerificationPrompt(chatId, senderName, true, {
-            channelJoined: chRes.isMember === true,
-            groupJoined: grRes.isMember === true
+            channelJoined: liveStatus.channelJoined,
+            groupJoined: liveStatus.groupJoined
           });
           return;
         }
@@ -2224,14 +2268,20 @@ async function handleUpdate(update) {
       }
 
       // Block all other callback interactions if user is not verified
-      if (!isAdmin(senderId) && !isUserVerified(senderId)) {
-        await callTg("answerCallbackQuery", {
-          callback_query_id: cqId,
-          text: "⚠️ Please join both our Channel and Group and click Confirm to unlock this bot!",
-          show_alert: true
-        });
-        await sendVerificationPrompt(chatId, senderName, false);
-        return;
+      if (!isAdmin(senderId)) {
+        const cbMembership = await verifyUserMembershipLive(senderId);
+        if (!cbMembership.isMember) {
+          await callTg("answerCallbackQuery", {
+            callback_query_id: cqId,
+            text: "⚠️ Please join both our Channel and Group and click Confirm to unlock this bot!",
+            show_alert: true
+          });
+          await sendVerificationPrompt(chatId, senderName, false, {
+            channelJoined: cbMembership.channelJoined,
+            groupJoined: cbMembership.groupJoined
+          });
+          return;
+        }
       }
 
       // Allow any user to download APK directly (latest or specific tag)
@@ -2688,8 +2738,12 @@ async function handleUpdate(update) {
       await sendWelcomeAudio(chatId);
 
       // 3. Immediately after, require membership if not verified
-      if (!isUserVerified(senderId)) {
-        await sendVerificationPrompt(chatId, senderName, false);
+      const startMembership = await verifyUserMembershipLive(senderId);
+      if (!startMembership.isMember) {
+        await sendVerificationPrompt(chatId, senderName, false, {
+          channelJoined: startMembership.channelJoined,
+          groupJoined: startMembership.groupJoined
+        });
       } else {
         // Send persistent bottom menu keyboard with "Download Official App" option
         await callTg("sendMessage", {
@@ -2703,11 +2757,17 @@ async function handleUpdate(update) {
     }
 
     // ==================== MEMBERSHIP GATEWAY (BLOCK UNVERIFIED ACCESS) ====================
-    // The bot must block access to all other commands and features until the user joins both and clicks 'Confirm'
-    if (!isAdmin(senderId) && !isUserVerified(senderId)) {
-      console.log(`[ACCESS BLOCKED - UNVERIFIED USER] ${senderId} (${senderName}) attempted: "${text}"`);
-      await sendVerificationPrompt(chatId, senderName, false);
-      return;
+    // Continuously verify user membership in channel and group before processing ANY command, link, or message
+    if (!isAdmin(senderId)) {
+      const membership = await verifyUserMembershipLive(senderId);
+      if (!membership.isMember) {
+        console.log(`[ACCESS BLOCKED - UNVERIFIED USER] ${senderId} (${senderName}) attempted: "${text}" (ch: ${membership.channelJoined}, gr: ${membership.groupJoined})`);
+        await sendVerificationPrompt(chatId, senderName, false, {
+          channelJoined: membership.channelJoined,
+          groupJoined: membership.groupJoined
+        });
+        return;
+      }
     }
 
     // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
