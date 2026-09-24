@@ -447,7 +447,8 @@ function detectPlatformName(type, url = "") {
   if (lower.includes("instagram.com") || lower.includes("instagr.am")) return "Instagram";
   if (lower.includes("tiktok.com") || lower.includes("douyin.com")) return "TikTok";
   if (lower.includes("facebook.com") || lower.includes("fb.watch") || lower.includes("fb.com")) return "Facebook";
-  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp")) return "TeraBox";
+  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp") || lower.includes("terasharelink")) return "TeraBox";
+  if (lower.includes("mega.nz") || lower.includes("mega.co.nz") || lower.includes("mega.io")) return "MEGA";
   if (lower.includes("twitter.com") || lower.includes("x.com")) return "Twitter";
   if (lower.includes("pinterest.") || lower.includes("pin.it")) return "Pinterest";
   if (lower.includes("reddit.com")) return "Reddit";
@@ -1654,8 +1655,38 @@ async function resolveYouTube(url, onProgressUpdate = null) {
   }
 }
 
-// 4. TeraBox Resolver
+// 4. TeraBox Resolver (SyntexCore Primary + Multi-Gateway Failover)
 async function resolveTeraBox(url) {
+  // Primary: SyntexCore Dedicated TeraBox API
+  try {
+    const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
+      }),
+      signal: AbortSignal.timeout(12000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const payload = json.data?.data || json.data || json;
+      const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || (payload.list && payload.list[0]?.dlink);
+      if (direct && direct.startsWith("http")) {
+        return {
+          type: "TeraBox",
+          title: payload.file_name || payload.filename || payload.title || "TeraBox File",
+          author: "TeraBox Cloud",
+          videoUrl: direct,
+          directStream: true
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("SyntexCore TeraBox error:", err.message);
+  }
+
+  // Fallback: Public TeraBox Workers & Resolvers
   try {
     const res = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(10000)
@@ -1674,6 +1705,38 @@ async function resolveTeraBox(url) {
       }
     }
   } catch (_) {}
+  return null;
+}
+
+// 5. MEGA Resolver (SyntexCore Dedicated mega-dl API)
+async function resolveMega(url) {
+  try {
+    const res = await fetch("https://syntexcore.site/api/v1/mega-dl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const payload = json.data?.data || json.data || json;
+      const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || (Array.isArray(payload) ? (payload[0]?.download_link || payload[0]?.url) : null);
+      if (direct && direct.startsWith("http")) {
+        return {
+          type: "MEGA",
+          title: payload.file_name || payload.filename || payload.name || payload.title || "MEGA File",
+          author: "MEGA Cloud",
+          videoUrl: direct,
+          directStream: true
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("SyntexCore MEGA error:", err.message);
+  }
   return null;
 }
 
@@ -1870,8 +1933,10 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           parse_mode: "HTML"
         });
       });
-    } else if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink")) {
+    } else if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink") || lower.includes("teraboxapp")) {
       media = await resolveTeraBox(url);
+    } else if (lower.includes("mega.nz") || lower.includes("mega.co.nz") || lower.includes("mega.io")) {
+      media = await resolveMega(url);
     } else {
       media = await resolveCobalt(url);
     }
@@ -2718,6 +2783,7 @@ async function handleUpdate(update) {
         `• <b>Instagram</b> (Reels, Posts, Stories)\n` +
         `• <b>Facebook</b> (Reels, Watch Videos)\n` +
         `• <b>TeraBox</b> (Direct Fast Download)\n` +
+        `• <b>MEGA</b> (Direct High-Speed Download)\n` +
         `• <b>Twitter / X</b> (Clips & Videos)\n\n` +
         `🚀 <b>How to Use:</b>\n` +
         `Simply copy and paste any video or post link here!\n` +
@@ -2812,6 +2878,7 @@ async function handleUpdate(update) {
           `• <b>Facebook:</b> Public Reels and Watch videos.\n` +
           `• <b>Instagram:</b> Reels, Stories, and Carousels.\n` +
           `• <b>TeraBox:</b> Direct fast high-speed cloud download links.\n` +
+          `• <b>MEGA:</b> Direct fast high-speed cloud download links.\n` +
           `• <b>Twitter / X:</b> High-definition MP4 clips.`,
         parse_mode: "HTML",
         reply_markup: {

@@ -733,6 +733,12 @@ class YtDlpClient(
             if (tbResult != null) return tbResult
         }
 
+        // --- MEGA Dedicated Cloud Media Extractor (mega.nz / mega.co.nz / mega.io) ---
+        if ("mega.nz" in lowerUrl || "mega.co.nz" in lowerUrl || "mega.io" in lowerUrl) {
+            val megaResult = extractMegaVideo(trimmed)
+            if (megaResult != null) return megaResult
+        }
+
         // --- Instagram Dedicated Reels, Video & Story Extractor ---
         if ("instagram.com" in lowerUrl || "instagr.am" in lowerUrl) {
             val igResult = extractInstagramVideo(trimmed)
@@ -2998,6 +3004,30 @@ class YtDlpClient(
     private fun extractTeraBoxVideo(tbUrl: String): VideoInfoResponse? {
         val surl = extractTeraBoxSurl(tbUrl)
 
+        // Priority 1: SyntexCore Dedicated TeraBox API
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("url", tbUrl)
+                put("apiKey", "syntx_live_2o8vqnbvwh3xw7p4w887ps")
+            }
+            val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url("https://syntexcore.site/api/v1/terabox-dl")
+                .post(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json")
+                .build()
+
+            val response = okHttpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string()
+                if (!body.isNullOrBlank()) {
+                    val parsed = parseTeraBoxApiResponse(body, tbUrl)
+                    if (parsed != null) return parsed
+                }
+            }
+        } catch (_: Exception) {}
+
         // Method 1: Try public high-speed TeraBox API resolvers
         val apiEndpoints = listOf(
             "https://terabox-dl.qtcloud.workers.dev/api/get-info?url=",
@@ -3222,12 +3252,113 @@ class YtDlpClient(
                     if (data is JSONArray && data.length() > 0) {
                         return buildResponseFromTeraBoxJson(data.getJSONObject(0), tbUrl)
                     } else if (data is JSONObject) {
-                        return buildResponseFromTeraBoxJson(data, tbUrl)
+                        if (data.has("data") && data.get("data") is JSONObject) {
+                            val innerRes = buildResponseFromTeraBoxJson(data.getJSONObject("data"), tbUrl)
+                            if (innerRes != null) return innerRes
+                        }
+                        if (data.has("data") && data.get("data") is JSONArray) {
+                            val innerArr = data.getJSONArray("data")
+                            if (innerArr.length() > 0) {
+                                val innerRes = buildResponseFromTeraBoxJson(innerArr.getJSONObject(0), tbUrl)
+                                if (innerRes != null) return innerRes
+                            }
+                        }
+                        val directRes = buildResponseFromTeraBoxJson(data, tbUrl)
+                        if (directRes != null) return directRes
                     }
                 }
                 return buildResponseFromTeraBoxJson(json, tbUrl)
             }
         } catch (_: Exception) {}
+        return null
+    }
+
+    /**
+     * Dedicated MEGA Cloud Video & File Extractor:
+     * Resolves MEGA file share links via SyntexCore Dedicated API.
+     */
+    private fun extractMegaVideo(megaUrl: String): VideoInfoResponse? {
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("url", megaUrl)
+                put("apiKey", "syntx_live_2o8vqnbvwh3xw7p4w887ps")
+            }
+            val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url("https://syntexcore.site/api/v1/mega-dl")
+                .post(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json")
+                .build()
+
+            val response = okHttpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string()
+                if (!body.isNullOrBlank()) {
+                    val parsed = parseMegaApiResponse(body, megaUrl)
+                    if (parsed != null) return parsed
+                }
+            }
+        } catch (_: Exception) {}
+
+        return null
+    }
+
+    private fun parseMegaApiResponse(body: String, megaUrl: String): VideoInfoResponse? {
+        try {
+            if (body.trim().startsWith("[")) {
+                val arr = JSONArray(body)
+                if (arr.length() > 0) {
+                    val obj = arr.getJSONObject(0)
+                    return buildResponseFromMegaJson(obj, megaUrl)
+                }
+            } else if (body.trim().startsWith("{")) {
+                val json = JSONObject(body)
+                if (json.has("data")) {
+                    val data = json.get("data")
+                    if (data is JSONArray && data.length() > 0) {
+                        return buildResponseFromMegaJson(data.getJSONObject(0), megaUrl)
+                    } else if (data is JSONObject) {
+                        if (data.has("data") && data.get("data") is JSONObject) {
+                            val innerRes = buildResponseFromMegaJson(data.getJSONObject("data"), megaUrl)
+                            if (innerRes != null) return innerRes
+                        }
+                        if (data.has("data") && data.get("data") is JSONArray) {
+                            val innerArr = data.getJSONArray("data")
+                            if (innerArr.length() > 0) {
+                                val innerRes = buildResponseFromMegaJson(innerArr.getJSONObject(0), megaUrl)
+                                if (innerRes != null) return innerRes
+                            }
+                        }
+                        val directRes = buildResponseFromMegaJson(data, megaUrl)
+                        if (directRes != null) return directRes
+                    }
+                }
+                return buildResponseFromMegaJson(json, megaUrl)
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun buildResponseFromMegaJson(json: JSONObject, megaUrl: String): VideoInfoResponse? {
+        val fileName = json.optString("file_name", json.optString("filename", json.optString("name", json.optString("title", "MEGA Cloud Media"))))
+        val downloadLink = json.optString("download_link", json.optString("dlink", json.optString("direct_link", json.optString("downloadUrl", json.optString("url", "")))))
+        val sizeBytes = json.optLong("size_bytes", json.optLong("size", 200_000_000L))
+
+        if (downloadLink.isNotBlank() && downloadLink.startsWith("http")) {
+            return VideoInfoResponse(
+                id = Uri.parse(megaUrl).lastPathSegment ?: "mega_${System.currentTimeMillis() % 10000}",
+                title = fileName,
+                thumbnail = null,
+                duration = 300L,
+                durationString = "05:00",
+                uploader = "MEGA Cloud",
+                extractor = "MEGA",
+                webpageUrl = megaUrl,
+                description = "High-speed direct cloud stream from MEGA.",
+                formats = generateMegaFormats(fileName, downloadLink, sizeBytes)
+            )
+        }
         return null
     }
 
@@ -3439,6 +3570,7 @@ class YtDlpClient(
         val platform = when {
             "terabox" in lowerUrl || "1024tera" in lowerUrl || "terasharelink" in lowerUrl ||
             "mirrobox" in lowerUrl || "nephobox" in lowerUrl || "freeterabox" in lowerUrl -> "TeraBox Cloud"
+            "mega.nz" in lowerUrl || "mega.co.nz" in lowerUrl || "mega.io" in lowerUrl -> "MEGA Cloud"
             "pinterest." in lowerUrl || "pin.it" in lowerUrl -> "Pinterest"
             "youtube.com" in lowerUrl || "youtu.be" in lowerUrl -> "YouTube"
             "facebook.com" in lowerUrl || "fb.watch" in lowerUrl -> "Facebook"
@@ -3456,6 +3588,7 @@ class YtDlpClient(
 
         val sampleTitle = realMeta?.title ?: when (platform) {
             "TeraBox Cloud" -> "TeraBox Shared Media ($videoId)"
+            "MEGA Cloud" -> "MEGA Cloud File ($videoId)"
             "Pinterest" -> "Pinterest Video Pin ($videoId)"
             "YouTube" -> "YouTube Video Stream ($videoId)"
             "Facebook" -> "Facebook Video Reel ($videoId)"
@@ -3472,6 +3605,7 @@ class YtDlpClient(
 
         val sampleFormats = when (platform) {
             "TeraBox Cloud" -> generateTeraBoxFormats(sampleTitle, url)
+            "MEGA Cloud" -> generateMegaFormats(sampleTitle, url)
             "Pinterest" -> generatePinterestFormats(sampleTitle, url)
             "SoundCloud" -> generateAudioOnlyFormats(url)
             "Vimeo" -> generateHighFramerateFormats(sampleTitle, url)
@@ -3737,6 +3871,10 @@ class YtDlpClient(
 
     fun generateTeraBoxFormats(title: String, directUrl: String? = null, sizeBytes: Long? = null): List<FormatInfo> {
         return generateMasterQualityFormats(title, directUrl, directUrl, "tb", maxHeight = 1080, maxFps = 60)
+    }
+
+    fun generateMegaFormats(title: String, directUrl: String? = null, sizeBytes: Long? = null): List<FormatInfo> {
+        return generateMasterQualityFormats(title, directUrl, directUrl, "mega", maxHeight = 1080, maxFps = 60)
     }
 
     fun generateSocialFormats(title: String, directUrl: String? = null): List<FormatInfo> {

@@ -25,7 +25,8 @@ data class VideoInfoResponse(
             webpageUrl?.contains("instagram.com", true) == true -> "Instagram"
             webpageUrl?.contains("twitter.com", true) == true || webpageUrl?.contains("x.com", true) == true -> "Twitter / X"
             webpageUrl?.contains("pinterest.com", true) == true || webpageUrl?.contains("pin.it", true) == true -> "Pinterest"
-            webpageUrl?.contains("terabox.com", true) == true || webpageUrl?.contains("1024tera", true) == true -> "TeraBox"
+            webpageUrl?.contains("terabox", true) == true || webpageUrl?.contains("1024tera", true) == true || webpageUrl?.contains("terasharelink", true) == true -> "TeraBox"
+            webpageUrl?.contains("mega.nz", true) == true || webpageUrl?.contains("mega.co.nz", true) == true || webpageUrl?.contains("mega.io", true) == true -> "MEGA"
             webpageUrl?.contains("reddit.com", true) == true -> "Reddit"
             !extractor.isNullOrBlank() -> extractor
             else -> "Web Platform"

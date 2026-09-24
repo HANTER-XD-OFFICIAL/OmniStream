@@ -156,7 +156,7 @@ fun HomeScreen(
     val detectedPlatform = remember(urlInput) { PlatformDetector.detect(urlInput) }
     val isTeraBoxUrl = remember(urlInput) {
         val lower = urlInput.lowercase()
-        "terabox" in lower || "1024tera" in lower || "terasharelink" in lower
+        "terabox" in lower || "1024tera" in lower || "terasharelink" in lower || "mega.nz" in lower || "mega.co.nz" in lower || "mega.io" in lower
     }
 
     if (showSupportHubModal) {

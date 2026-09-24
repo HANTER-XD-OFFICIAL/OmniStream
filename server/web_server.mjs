@@ -111,8 +111,39 @@ async function resolveTikTok(url) {
   return null;
 }
 
-// 3. TeraBox Cloud Portal Resolver
+// 3. TeraBox Cloud Portal Resolver (SyntexCore Primary + Multi-Gateway Failover)
 async function resolveTeraBox(url) {
+  // Primary: SyntexCore TeraBox API
+  try {
+    const syntexRes = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
+      }),
+      signal: AbortSignal.timeout(12000)
+    });
+    if (syntexRes.ok) {
+      const json = await syntexRes.json();
+      const payload = json.data?.data || json.data || json;
+      const downloadUrl = payload.download_link || payload.url || payload.dlink || payload.direct_link;
+      if (downloadUrl) {
+        return {
+          success: true,
+          platform: 'TeraBox Cloud',
+          title: payload.file_name || payload.filename || payload.title || 'TeraBox Cloud File',
+          author: 'TeraBox Vault',
+          thumbnail: payload.thumb || payload.thumbnail || null,
+          videoUrl: downloadUrl,
+          audioUrl: null,
+          quality: 'VIP Direct'
+        };
+      }
+    }
+  } catch (_) {}
+
+  // Fallback: Worker resolver
   try {
     const res = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(8000)
@@ -128,6 +159,39 @@ async function resolveTeraBox(url) {
           title: file.filename || file.server_filename || 'TeraBox Cloud File',
           author: 'Cloud Vault',
           thumbnail: file.thumb || null,
+          videoUrl: downloadUrl,
+          audioUrl: null,
+          quality: 'VIP Direct'
+        };
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+// 3b. MEGA Cloud Resolver (SyntexCore Dedicated API)
+async function resolveMega(url) {
+  try {
+    const syntexRes = await fetch("https://syntexcore.site/api/v1/mega-dl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (syntexRes.ok) {
+      const json = await syntexRes.json();
+      const payload = json.data?.data || json.data || json;
+      const downloadUrl = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl;
+      if (downloadUrl) {
+        return {
+          success: true,
+          platform: 'MEGA Cloud',
+          title: payload.file_name || payload.filename || payload.name || payload.title || 'MEGA Cloud File',
+          author: 'MEGA Cloud',
+          thumbnail: null,
           videoUrl: downloadUrl,
           audioUrl: null,
           quality: 'VIP Direct'
@@ -519,9 +583,15 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
   }
 
   // Route 4: TeraBox Cloud
-  if (lower.includes('terabox') || lower.includes('1024tera')) {
+  if (lower.includes('terabox') || lower.includes('1024tera') || lower.includes('terasharelink')) {
     const tbRes = await resolveTeraBox(url);
     if (tbRes) return tbRes;
+  }
+
+  // Route 5: MEGA Cloud
+  if (lower.includes('mega.nz') || lower.includes('mega.co.nz') || lower.includes('mega.io')) {
+    const megaRes = await resolveMega(url);
+    if (megaRes) return megaRes;
   }
 
   // Error: Return clear failed status instead of feeding raw webpage URL as video stream
