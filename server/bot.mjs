@@ -394,37 +394,35 @@ async function checkChatMembership(chatIdOrUsername, userId) {
   }
 }
 
-// Existing multi-step joining verification prompt
+// Verification prompt exactly matching the screenshot design requested by the user
 async function sendVerificationPrompt(chatId, senderName = "User", isRetry = false, missingDetails = null) {
-  let header = isRetry
-    ? `⚠️ <b>Verification Incomplete!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-      `Hello <b>${escapeHtml(senderName)}</b>, you must join <b>BOTH</b> our channel and group before using OmniStream Bot:\n\n`
-    : `🔐 <b>Channel & Group Verification Required!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-      `Hello <b>${escapeHtml(senderName)}</b>! To activate your account and unlock all features, you must join our official channel and group:\n\n`;
+  const chJoined = missingDetails?.channelJoined === true;
+  const grJoined = missingDetails?.groupJoined === true;
 
-  let statusDetails = "";
-  if (missingDetails) {
-    const chStatus = missingDetails.channelJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
-    const grStatus = missingDetails.groupJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
-    statusDetails = `📊 <b>Current Status:</b>\n` +
-      `• Channel: ${chStatus}\n` +
-      `• Group: ${grStatus}\n\n`;
-  }
+  const chStatus = chJoined ? "🟢 Verified Member" : "🔴 Not Joined Yet";
+  const grStatus = grJoined ? "🟢 Verified Member" : "🔴 Not Joined Yet";
 
-  const promptText = header + statusDetails +
-    `1️⃣ <b>Step 1: Join Official Channel</b>\n` +
-    `👉 <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n\n` +
-    `2️⃣ <b>Step 2: Join Community Group</b>\n` +
-    `👉 <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n\n` +
-    `3️⃣ <b>Step 3: Click 'Confirm' Below</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `⛔ <i>Access to video downloads, APK files, and all commands is strictly blocked until confirmed.</i>`;
+  const promptText =
+    `🛡️ <b><u>MEMBER VERIFICATION REQUIRED</u></b>\n\n` +
+    `👋 Greetings, <b>${escapeHtml(senderName)}</b>!\n\n` +
+    `To ensure safe, high-speed access and prevent automated abuse, OmniStream requires active membership in both our official channel and discussion group.\n\n` +
+    `📊 <b>Membership Telemetry:</b>\n` +
+    `├── 📢 <b>Channel:</b> ${chStatus}\n` +
+    `└── 👥 <b>Group:</b> ${grStatus}\n\n` +
+    `📢 <b>Official Channel</b>\n` +
+    `» <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n` +
+    `<i>Daily update notes, fresh mirrors & announcements</i>\n\n` +
+    `👥 <b>Community Group</b>\n` +
+    `» <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n` +
+    `<i>24/7 user support, community chat & feature requests</i>\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `⚡ <i>Join both links above, then tap <b>Confirm</b> below to verify your membership and unlock instant video downloading!</i>`;
 
   const inlineKeyboard = {
     inline_keyboard: [
-      [{ text: "📢 1. Join Official Channel", url: REQUIRED_CHANNEL.url }],
-      [{ text: "👥 2. Join Community Group", url: REQUIRED_GROUP.url }],
-      [{ text: "✅ 3. Confirm", callback_data: "confirm_membership" }]
+      [{ text: "📢 Join Channel", url: REQUIRED_CHANNEL.url }],
+      [{ text: "👥 Join Group", url: REQUIRED_GROUP.url }],
+      [{ text: "✨ Confirm", callback_data: "confirm_membership" }]
     ]
   };
 
