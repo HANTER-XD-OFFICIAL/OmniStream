@@ -87,6 +87,28 @@ function isAdmin(userId) {
   return String(userId) === String(ADMIN_ID);
 }
 
+// ==================== REQUIRED CHANNELS & MULTI-STEP VERIFICATION ====================
+// Channels and groups required for bot activation:
+const REQUIRED_CHANNEL = {
+  name: "Official Telegram Channel",
+  username: "@hanter_xdofficial",
+  chatId: "@hanter_xdofficial",
+  url: "https://t.me/hanter_xdofficial"
+};
+
+const REQUIRED_GROUP = {
+  name: "Official Community Group",
+  username: "@hanter_xd_official34",
+  chatId: "@hanter_xd_official34",
+  url: "https://t.me/hanter_xd_official34"
+};
+
+function isUserVerified(userId) {
+  const id = String(userId);
+  if (isAdmin(id)) return true; // Admin is always verified
+  return Boolean(db.users[id]?.isVerified);
+}
+
 // ==================== PERSISTENT DATABASE ====================
 const DB_FILE = path.join(__dirname, 'users_db.json');
 
@@ -154,7 +176,8 @@ function registerOrUpdateUser(from) {
       joinedAt: now,
       lastActive: now,
       downloads: 0,
-      isBlocked: false
+      isBlocked: false,
+      isVerified: isAdmin(id)
     };
     saveDatabase();
   } else {
@@ -308,6 +331,71 @@ async function callTg(method, payload) {
     console.error(`Telegram API error on ${method}:`, err.message);
     return { ok: false, error: err.message };
   }
+}
+
+// Check membership in a Telegram channel or group using getChatMember
+async function checkChatMembership(chatIdOrUsername, userId) {
+  try {
+    const res = await callTg("getChatMember", {
+      chat_id: chatIdOrUsername,
+      user_id: Number(userId)
+    });
+    if (res && res.ok && res.result) {
+      const status = res.result.status;
+      // Valid Telegram member statuses: creator, administrator, member, restricted
+      const isMember = ["creator", "administrator", "member", "restricted"].includes(status);
+      return { ok: true, isMember, status };
+    }
+    // Telegram returned an error (e.g. bot not admin in channel, or chat not found)
+    console.warn(`[MEMBERSHIP] getChatMember for ${chatIdOrUsername} (user: ${userId}) returned:`, res?.description || res?.error);
+    return { ok: false, isMember: null, description: res?.description || "Unable to query chat member" };
+  } catch (err) {
+    console.warn(`[MEMBERSHIP] checkChatMembership exception for ${chatIdOrUsername}:`, err.message);
+    return { ok: false, isMember: null, description: err.message };
+  }
+}
+
+// Send or edit the multi-step verification prompt
+async function sendVerificationPrompt(chatId, senderName = "User", isRetry = false, missingDetails = null) {
+  let header = isRetry
+    ? `⚠️ <b>Verification Incomplete!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `Hello <b>${escapeHtml(senderName)}</b>, you must join <b>BOTH</b> our channel and group before using OmniStream Bot:\n\n`
+    : `🔐 <b>Channel & Group Verification Required!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `Hello <b>${escapeHtml(senderName)}</b>! To activate your account and unlock all features, you must join our official channel and group:\n\n`;
+
+  let statusDetails = "";
+  if (missingDetails) {
+    const chStatus = missingDetails.channelJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
+    const grStatus = missingDetails.groupJoined ? "✅ Joined" : "❌ <b>Not Joined Yet</b>";
+    statusDetails = `📊 <b>Current Status:</b>\n` +
+      `• Channel: ${chStatus}\n` +
+      `• Group: ${grStatus}\n\n`;
+  }
+
+  const promptText = header + statusDetails +
+    `1️⃣ <b>Step 1: Join Official Channel</b>\n` +
+    `👉 <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>\n\n` +
+    `2️⃣ <b>Step 2: Join Community Group</b>\n` +
+    `👉 <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>\n\n` +
+    `3️⃣ <b>Step 3: Click 'Confirm' Below</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `⛔ <i>Access to video downloads, APK files, and all commands is strictly blocked until confirmed.</i>`;
+
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [{ text: "📢 1. Join Official Channel", url: REQUIRED_CHANNEL.url }],
+      [{ text: "👥 2. Join Community Group", url: REQUIRED_GROUP.url }],
+      [{ text: "✅ 3. Confirm", callback_data: "confirm_membership" }]
+    ]
+  };
+
+  return await callTg("sendMessage", {
+    chat_id: chatId,
+    text: promptText,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    reply_markup: inlineKeyboard
+  });
 }
 
 function detectPlatformName(type, url = "") {
@@ -612,6 +700,13 @@ function getReplyKeyboardForUser(userId) {
         [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
         [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
         [{ text: "💬 Message User" }, { text: "📱 Download Official App" }]
+      ],
+      resize_keyboard: true
+    };
+  } else if (!isUserVerified(userId)) {
+    return {
+      keyboard: [
+        [{ text: "🔐 Verify Channel & Group Membership" }]
       ],
       resize_keyboard: true
     };
@@ -1995,7 +2090,8 @@ async function sendUsersList(chatId, messageId = null) {
   for (const u of sorted) {
     const isBlocked = isUserBlocked(u.id);
     const isAdm = isAdmin(u.id);
-    const statusIcon = isAdm ? "👑 [ADMIN]" : (isBlocked ? "🚫 [BLOCKED]" : "🟢 [ACTIVE]");
+    const isVer = isUserVerified(u.id);
+    const statusIcon = isAdm ? "👑 [ADMIN]" : (isBlocked ? "🚫 [BLOCKED]" : (isVer ? "🟢 [VERIFIED]" : "⏳ [UNVERIFIED]"));
     const userDisplay = u.firstName ? escapeHtml(u.firstName) : "User";
     const uname = u.username ? `@${escapeHtml(u.username)}` : "No @username";
     
@@ -2039,6 +2135,104 @@ async function handleUpdate(update) {
       const chatId = cq.message?.chat?.id;
       const msgId = cq.message?.message_id;
       const data = cq.data || "";
+      const senderName = cq.from?.first_name || "User";
+
+      // 0. Handle Confirmation of Channel & Group Membership
+      if (data === "confirm_membership") {
+        if (isUserVerified(senderId)) {
+          await callTg("answerCallbackQuery", {
+            callback_query_id: cqId,
+            text: "✅ You are already verified! You have full access to all features.",
+            show_alert: true
+          });
+          return;
+        }
+
+        await callTg("answerCallbackQuery", {
+          callback_query_id: cqId,
+          text: "🔍 Checking your channel & group membership..."
+        });
+
+        const chRes = await checkChatMembership(REQUIRED_CHANNEL.chatId, senderId);
+        const grRes = await checkChatMembership(REQUIRED_GROUP.chatId, senderId);
+
+        console.log(`[VERIFICATION CHECK] User: ${senderId} (${senderName}) | Channel:`, chRes, "| Group:", grRes);
+
+        // If either check explicitly failed (user is left or kicked)
+        if (chRes.isMember === false || grRes.isMember === false) {
+          await sendVerificationPrompt(chatId, senderName, true, {
+            channelJoined: chRes.isMember === true,
+            groupJoined: grRes.isMember === true
+          });
+          return;
+        }
+
+        // Successfully confirmed membership!
+        registerOrUpdateUser(cq.from);
+        if (db.users[senderId]) {
+          db.users[senderId].isVerified = true;
+          db.users[senderId].verifiedAt = new Date().toISOString();
+        }
+        saveDatabase();
+
+        // 1. Send confirmation success message to user
+        const successUserText = `🎉 <b>Verification Successful!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+          `Welcome to OmniStream, <b>${escapeHtml(senderName)}</b>! You have successfully verified your membership.\n\n` +
+          `✅ <b>Channel:</b> <a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a> (Joined)\n` +
+          `✅ <b>Group:</b> <a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a> (Joined)\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `🚀 <b>All Bot Features & Commands Are Now Unlocked!</b>\n\n` +
+          `• Send any media link (YouTube, TikTok, Facebook, Instagram, TeraBox) to download.\n` +
+          `• Tap <b>📱 Download Official App</b> below to get the APK file.\n` +
+          `• Send <b>/help</b> anytime for full instructions.`;
+
+        await callTg("sendMessage", {
+          chat_id: chatId,
+          text: successUserText,
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+          reply_markup: getReplyKeyboardForUser(senderId)
+        });
+
+        // 2. Notify the Administrator immediately:
+        // "Once the confirmation is complete, send a notification to me, the admin, stating that the user has successfully joined."
+        const uHandle = cq.from?.username ? `@${escapeHtml(cq.from.username)}` : "No @username";
+        const adminAlertText = `🎉 <b>User Successfully Verified & Joined!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+          `👤 <b>Name:</b> ${escapeHtml(senderName)}\n` +
+          `🏷 <b>Username:</b> ${uHandle}\n` +
+          `🆔 <b>User ID:</b> <code>${senderId}</code>\n` +
+          `📢 <b>Channel:</b> Joined (<a href="${REQUIRED_CHANNEL.url}">@hanter_xdofficial</a>)\n` +
+          `👥 <b>Group:</b> Joined (<a href="${REQUIRED_GROUP.url}">@hanter_xd_official34</a>)\n` +
+          `📅 <b>Verified Time:</b> ${new Date().toLocaleString()}\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `✅ <i>The user has confirmed membership and now has full access to the bot.</i>`;
+
+        callTg("sendMessage", {
+          chat_id: ADMIN_ID,
+          text: adminAlertText,
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: `💬 Message ${escapeHtml(senderName)}`, callback_data: `admin_msg_user_${senderId}` }],
+              [{ text: "👑 Admin Panel", callback_data: "admin_refresh" }]
+            ]
+          }
+        }).catch(err => console.warn("Failed to notify admin of user verification:", err.message));
+
+        return;
+      }
+
+      // Block all other callback interactions if user is not verified
+      if (!isAdmin(senderId) && !isUserVerified(senderId)) {
+        await callTg("answerCallbackQuery", {
+          callback_query_id: cqId,
+          text: "⚠️ Please join both our Channel and Group and click Confirm to unlock this bot!",
+          show_alert: true
+        });
+        await sendVerificationPrompt(chatId, senderName, false);
+        return;
+      }
 
       // Allow any user to download APK directly (latest or specific tag)
       if (data === "get_apk") {
@@ -2093,11 +2287,16 @@ async function handleUpdate(update) {
           await callTg("answerCallbackQuery", { callback_query_id: cqId });
           const uptime = formatUptime(process.uptime());
           const mem = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
+          const totalUsers = Object.keys(db.users).length;
+          const verifiedUsers = Object.values(db.users).filter(u => isUserVerified(u.id)).length;
+          const unverifiedUsers = Math.max(0, totalUsers - verifiedUsers);
           const statsText = `📊 <b>OmniStream Detailed System Statistics</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
             `• <b>Engine:</b> Node.js ${process.version} (ESM Mode)\n` +
             `• <b>RAM Usage:</b> ${mem} MB\n` +
             `• <b>Uptime:</b> ${uptime}\n` +
-            `• <b>Total Users:</b> ${Object.keys(db.users).length}\n` +
+            `• <b>Total Users:</b> ${totalUsers}\n` +
+            `• <b>Verified Users:</b> ${verifiedUsers}\n` +
+            `• <b>Pending Verification:</b> ${unverifiedUsers}\n` +
             `• <b>Blocked Users:</b> ${db.blockedUsers.length}\n` +
             `• <b>Latest App Tag:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
             `• <b>Total Links:</b> ${db.stats.totalLinks}\n` +
@@ -2275,12 +2474,16 @@ async function handleUpdate(update) {
       if (text === "📊 Bot Stats" || text === "/stats") {
         const uptime = formatUptime(process.uptime());
         const totalUsers = Object.keys(db.users).length;
+        const verifiedUsers = Object.values(db.users).filter(u => isUserVerified(u.id)).length;
+        const unverifiedUsers = Math.max(0, totalUsers - verifiedUsers);
         const blockedCount = db.blockedUsers.length;
         const mem = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
         const statsMsg = `📊 <b>OmniStream Bot Live Statistics</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
           `• <b>Uptime:</b> ${uptime}\n` +
           `• <b>Memory Usage:</b> ${mem} MB\n` +
           `• <b>Total Registered Users:</b> ${totalUsers}\n` +
+          `• <b>Verified Users:</b> ${verifiedUsers}\n` +
+          `• <b>Pending Verification:</b> ${unverifiedUsers}\n` +
           `• <b>Active Users:</b> ${Math.max(0, totalUsers - blockedCount)}\n` +
           `• <b>Blocked Users:</b> ${blockedCount}\n` +
           `• <b>Latest App Release:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
@@ -2448,17 +2651,6 @@ async function handleUpdate(update) {
       }
     }
 
-    // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
-    if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app") || text.startsWith("/latest") || text.startsWith("/update")) {
-      await handleSendApk(chatId, senderId);
-      return;
-    }
-
-    if (text === "🏷️ Release Tags" || text.startsWith("/releases") || text.startsWith("/tags") || text.startsWith("/tag_list")) {
-      await handleSendReleasesList(chatId, senderId);
-      return;
-    }
-
     // ==================== GENERAL USER COMMANDS ====================
 
     if (text.startsWith("/start")) {
@@ -2495,13 +2687,37 @@ async function handleUpdate(update) {
       // 2. Send Official Welcome Sound Theme from Music/OmniStream Pro.wav
       await sendWelcomeAudio(chatId);
 
-      // 3. Send persistent bottom menu keyboard with "Download Official App" option
-      await callTg("sendMessage", {
-        chat_id: chatId,
-        text: `⚡ <i>Tap <b>📱 Download Official App</b> below to get the APK file directly in this chat!</i>`,
-        parse_mode: "HTML",
-        reply_markup: getReplyKeyboardForUser(senderId)
-      });
+      // 3. Immediately after, require membership if not verified
+      if (!isUserVerified(senderId)) {
+        await sendVerificationPrompt(chatId, senderName, false);
+      } else {
+        // Send persistent bottom menu keyboard with "Download Official App" option
+        await callTg("sendMessage", {
+          chat_id: chatId,
+          text: `⚡ <i>Tap <b>📱 Download Official App</b> below to get the APK file directly in this chat!</i>`,
+          parse_mode: "HTML",
+          reply_markup: getReplyKeyboardForUser(senderId)
+        });
+      }
+      return;
+    }
+
+    // ==================== MEMBERSHIP GATEWAY (BLOCK UNVERIFIED ACCESS) ====================
+    // The bot must block access to all other commands and features until the user joins both and clicks 'Confirm'
+    if (!isAdmin(senderId) && !isUserVerified(senderId)) {
+      console.log(`[ACCESS BLOCKED - UNVERIFIED USER] ${senderId} (${senderName}) attempted: "${text}"`);
+      await sendVerificationPrompt(chatId, senderName, false);
+      return;
+    }
+
+    // ==================== APP DOWNLOAD COMMAND & MENU TRIGGER ====================
+    if (text === "📱 Download Official App" || text.startsWith("/app") || text.startsWith("/apk") || text.startsWith("/download_app") || text.startsWith("/latest") || text.startsWith("/update")) {
+      await handleSendApk(chatId, senderId);
+      return;
+    }
+
+    if (text === "🏷️ Release Tags" || text.startsWith("/releases") || text.startsWith("/tags") || text.startsWith("/tag_list")) {
+      await handleSendReleasesList(chatId, senderId);
       return;
     }
 
