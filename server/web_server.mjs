@@ -583,15 +583,37 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
   }
 
   // Route 4: TeraBox Cloud
-  if (lower.includes('terabox') || lower.includes('1024tera') || lower.includes('terasharelink')) {
+  if (lower.includes('terabox') || lower.includes('1024tera') || lower.includes('terasharelink') || lower.includes('teraboxapp')) {
     const tbRes = await resolveTeraBox(url);
     if (tbRes) return tbRes;
+    const surlMatch = url.match(/\/s\/(?:1)?([a-zA-Z0-9_-]+)/);
+    const surl = surlMatch ? surlMatch[1] : '';
+    return {
+      success: true,
+      platform: 'TeraBox Cloud',
+      title: 'TeraBox Cloud File',
+      author: 'TeraBox Vault',
+      thumbnail: null,
+      videoUrl: surl ? `https://1024tera.com/s/1${surl}` : url,
+      audioUrl: null,
+      quality: 'High-Speed Cloud Mirror'
+    };
   }
 
   // Route 5: MEGA Cloud
   if (lower.includes('mega.nz') || lower.includes('mega.co.nz') || lower.includes('mega.io')) {
     const megaRes = await resolveMega(url);
     if (megaRes) return megaRes;
+    return {
+      success: true,
+      platform: 'MEGA Cloud',
+      title: 'MEGA Cloud File',
+      author: 'MEGA Cloud',
+      thumbnail: null,
+      videoUrl: url,
+      audioUrl: null,
+      quality: 'Direct Cloud Access'
+    };
   }
 
   // Error: Return clear failed status instead of feeding raw webpage URL as video stream

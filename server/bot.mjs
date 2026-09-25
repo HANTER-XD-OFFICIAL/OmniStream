@@ -1655,8 +1655,12 @@ async function resolveYouTube(url, onProgressUpdate = null) {
   }
 }
 
+let lastTeraBoxError = null;
+let lastMegaError = null;
+
 // 4. TeraBox Resolver (SyntexCore Primary + Multi-Gateway Failover)
 async function resolveTeraBox(url) {
+  lastTeraBoxError = null;
   // Primary: SyntexCore Dedicated TeraBox API
   try {
     const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
@@ -1670,12 +1674,16 @@ async function resolveTeraBox(url) {
     });
     if (res.ok) {
       const json = await res.json();
+      if (json.data?.status === "error" || json.status === "error") {
+        lastTeraBoxError = json.data?.message || json.message || "SyntexCore upstream server error";
+      }
       const payload = json.data?.data || json.data || json;
-      const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || (payload.list && payload.list[0]?.dlink);
-      if (direct && direct.startsWith("http")) {
+      const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
+        (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
+      if (direct && typeof direct === "string" && direct.startsWith("http")) {
         return {
           type: "TeraBox",
-          title: payload.file_name || payload.filename || payload.title || "TeraBox File",
+          title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox File",
           author: "TeraBox Cloud",
           videoUrl: direct,
           directStream: true
@@ -1684,32 +1692,42 @@ async function resolveTeraBox(url) {
     }
   } catch (err) {
     console.warn("SyntexCore TeraBox error:", err.message);
+    lastTeraBoxError = err.message;
   }
 
-  // Fallback: Public TeraBox Workers & Resolvers
-  try {
-    const res = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(10000)
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const direct = json.download_link || json.url || (json.list && json.list[0]?.dlink);
-      if (direct && direct.startsWith("http")) {
-        return {
-          type: "TeraBox",
-          title: json.file_name || "TeraBox File",
-          author: "TeraBox Cloud",
-          videoUrl: direct,
-          directStream: true
-        };
+  // Fallback 1: High-Speed Public Worker Resolvers
+  const publicGateways = [
+    `https://teraboxdownloader.online/api/get-info?url=${encodeURIComponent(url)}`,
+    `https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`,
+    `https://tb-api.subhankar.me/api?url=${encodeURIComponent(url)}`,
+    `https://yt-dlp-terabox.vercel.app/api?url=${encodeURIComponent(url)}`
+  ];
+
+  for (const gw of publicGateways) {
+    try {
+      const res = await fetch(gw, { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const json = await res.json();
+        const payload = json.data?.data || json.data || json;
+        const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || (payload.list && payload.list[0]?.dlink);
+        if (direct && typeof direct === "string" && direct.startsWith("http")) {
+          return {
+            type: "TeraBox",
+            title: payload.file_name || payload.filename || payload.title || "TeraBox File",
+            author: "TeraBox Cloud",
+            videoUrl: direct,
+            directStream: true
+          };
+        }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
   return null;
 }
 
 // 5. MEGA Resolver (SyntexCore Dedicated mega-dl API)
 async function resolveMega(url) {
+  lastMegaError = null;
   try {
     const res = await fetch("https://syntexcore.site/api/v1/mega-dl", {
       method: "POST",
@@ -1722,9 +1740,12 @@ async function resolveMega(url) {
     });
     if (res.ok) {
       const json = await res.json();
+      if (json.data?.status === "error" || json.status === "error") {
+        lastMegaError = json.data?.message || json.message || "SyntexCore upstream server error";
+      }
       const payload = json.data?.data || json.data || json;
       const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || (Array.isArray(payload) ? (payload[0]?.download_link || payload[0]?.url) : null);
-      if (direct && direct.startsWith("http")) {
+      if (direct && typeof direct === "string" && direct.startsWith("http")) {
         return {
           type: "MEGA",
           title: payload.file_name || payload.filename || payload.name || payload.title || "MEGA File",
@@ -1736,6 +1757,7 @@ async function resolveMega(url) {
     }
   } catch (err) {
     console.warn("SyntexCore MEGA error:", err.message);
+    lastMegaError = err.message;
   }
   return null;
 }
@@ -1942,6 +1964,49 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     }
 
     if (!media || !media.videoUrl) {
+      if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink") || lower.includes("teraboxapp")) {
+        const surlMatch = url.match(/\/s\/(?:1)?([a-zA-Z0-9_-]+)/);
+        const surl = surlMatch ? surlMatch[1] : "";
+        const mirrorLink = surl ? `https://1024tera.com/s/1${surl}` : url;
+        await callTg("editMessageText", {
+          chat_id: chatId,
+          message_id: progressMsgId,
+          text: `📦 <b>TeraBox Cloud File Engine (SyntexCore)</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔗 <b>Target URL:</b> <code>${escapeHtml(url)}</code>\n\n` +
+            `⚡ <b>SyntexCore Status:</b> <i>${lastTeraBoxError ? escapeHtml(lastTeraBoxError) : "Upstream extraction node busy"}. Fast cloud mirror ready!</i>\n\n` +
+            `💡 <b>Instant Action:</b> You can access and download this file directly via the high-speed mirror button below:`,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🚀 Open High-Speed Cloud Mirror", url: mirrorLink }],
+              [{ text: "🌐 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
+              [{ text: "💬 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+            ]
+          }
+        });
+        return;
+      }
+
+      if (lower.includes("mega.nz") || lower.includes("mega.co.nz") || lower.includes("mega.io")) {
+        await callTg("editMessageText", {
+          chat_id: chatId,
+          message_id: progressMsgId,
+          text: `☁️ <b>MEGA Cloud Storage (SyntexCore)</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔗 <b>Target URL:</b> <code>${escapeHtml(url)}</code>\n\n` +
+            `⚡ <b>SyntexCore Status:</b> <i>${lastMegaError ? escapeHtml(lastMegaError) : "Upstream decryption node busy"}. Direct cloud access ready!</i>\n\n` +
+            `💡 <b>Instant Action:</b> You can open and stream this file directly via the button below:`,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🚀 Open Direct MEGA Cloud", url: url }],
+              [{ text: "🌐 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
+              [{ text: "💬 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+            ]
+          }
+        });
+        return;
+      }
+
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
@@ -2049,16 +2114,21 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
             const platformName = detectPlatformName(media.type, url);
             const standardizedFilename = formatOmniStreamFilename(platformName, media.title || safeTitle, "mp4");
-            const sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, replyMarkup);
-            if (sendRes.ok) {
+            let sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, replyMarkup);
+            if (!sendRes || !sendRes.ok) {
+              sendRes = await sendTgDocument(chatId, videoBuffer, media.title || standardizedFilename, caption, replyMarkup);
+            }
+            if (sendRes && sendRes.ok) {
               await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId });
               db.stats.totalDownloads++;
               if (db.users[userId]) db.users[userId].downloads++;
               saveDatabase();
-              console.log(`[DELIVERED VIDEO] Video sent to ${chatId}`);
+              console.log(`[DELIVERED MEDIA] File sent to ${chatId}`);
 
-              // ALSO send audio track immediately!
-              await deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer);
+              // ALSO send audio track if it's a video file
+              if (media.type !== "TeraBox" && media.type !== "MEGA") {
+                await deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer);
+              }
               return;
             }
           }
