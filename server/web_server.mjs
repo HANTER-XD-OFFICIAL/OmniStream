@@ -126,19 +126,21 @@ async function resolveTeraBox(url) {
     });
     if (syntexRes.ok) {
       const json = await syntexRes.json();
-      const payload = json.data?.data || json.data || json;
-      const downloadUrl = payload.download_link || payload.url || payload.dlink || payload.direct_link;
-      if (downloadUrl) {
-        return {
-          success: true,
-          platform: 'TeraBox Cloud',
-          title: payload.file_name || payload.filename || payload.title || 'TeraBox Cloud File',
-          author: 'TeraBox Vault',
-          thumbnail: payload.thumb || payload.thumbnail || null,
-          videoUrl: downloadUrl,
-          audioUrl: null,
-          quality: 'VIP Direct'
-        };
+      if (json.data?.status !== "error" && json.status !== "error") {
+        const payload = json.data?.data || json.data || json;
+        const downloadUrl = payload.download_link || payload.url || payload.dlink || payload.direct_link;
+        if (downloadUrl && typeof downloadUrl === 'string' && downloadUrl.startsWith('http')) {
+          return {
+            success: true,
+            platform: 'TeraBox Cloud',
+            title: payload.file_name || payload.filename || payload.title || 'TeraBox Cloud File',
+            author: 'TeraBox Vault',
+            thumbnail: payload.thumb || payload.thumbnail || null,
+            videoUrl: downloadUrl,
+            audioUrl: null,
+            quality: 'VIP Direct'
+          };
+        }
       }
     }
   } catch (_) {}
