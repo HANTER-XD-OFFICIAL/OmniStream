@@ -183,22 +183,46 @@ async function resolveMega(url) {
     });
     if (syntexRes.ok) {
       const json = await syntexRes.json();
-      const payload = json.data?.data || json.data || json;
-      const downloadUrl = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl;
-      if (downloadUrl) {
+      if (json.data?.status !== "error" && json.status !== "error") {
+        const payload = json.data?.data || json.data || json;
+        const downloadUrl = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl;
+        if (downloadUrl) {
+          return {
+            success: true,
+            platform: 'MEGA Cloud',
+            title: payload.file_name || payload.filename || payload.name || payload.title || 'MEGA Cloud File',
+            author: 'MEGA Cloud',
+            thumbnail: null,
+            videoUrl: downloadUrl,
+            audioUrl: null,
+            quality: 'VIP Direct'
+          };
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Fallback: megajs native metadata
+  try {
+    const { File: MegaFile } = await import('megajs');
+    if (MegaFile) {
+      const file = MegaFile.fromURL(url);
+      await file.loadAttributes();
+      if (file.name) {
         return {
           success: true,
           platform: 'MEGA Cloud',
-          title: payload.file_name || payload.filename || payload.name || payload.title || 'MEGA Cloud File',
+          title: file.name,
           author: 'MEGA Cloud',
           thumbnail: null,
-          videoUrl: downloadUrl,
+          videoUrl: url,
           audioUrl: null,
           quality: 'VIP Direct'
         };
       }
     }
   } catch (_) {}
+
   return null;
 }
 

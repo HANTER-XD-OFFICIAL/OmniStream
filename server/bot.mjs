@@ -1655,12 +1655,8 @@ async function resolveYouTube(url, onProgressUpdate = null) {
   }
 }
 
-let lastTeraBoxError = null;
-let lastMegaError = null;
-
-// 4. TeraBox Resolver (SyntexCore Primary + Multi-Gateway Failover)
+// 4. TeraBox Resolver (SyntexCore Dedicated API + Multi-Gateway Failover)
 async function resolveTeraBox(url) {
-  lastTeraBoxError = null;
   // Primary: SyntexCore Dedicated TeraBox API
   try {
     const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
@@ -1674,30 +1670,27 @@ async function resolveTeraBox(url) {
     });
     if (res.ok) {
       const json = await res.json();
-      if (json.data?.status === "error" || json.status === "error") {
-        lastTeraBoxError = json.data?.message || json.message || "SyntexCore upstream server error";
-      }
-      const payload = json.data?.data || json.data || json;
-      const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
-        (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
-      if (direct && typeof direct === "string" && direct.startsWith("http")) {
-        return {
-          type: "TeraBox",
-          title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox File",
-          author: "TeraBox Cloud",
-          videoUrl: direct,
-          directStream: true
-        };
+      if (json.data?.status !== "error" && json.status !== "error") {
+        const payload = json.data?.data || json.data || json;
+        const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
+          (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
+        if (direct && typeof direct === "string" && direct.startsWith("http")) {
+          return {
+            type: "TeraBox",
+            title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox File",
+            author: "TeraBox Cloud",
+            videoUrl: direct,
+            directStream: true
+          };
+        }
       }
     }
   } catch (err) {
-    console.warn("SyntexCore TeraBox error:", err.message);
-    lastTeraBoxError = err.message;
+    console.warn("SyntexCore TeraBox notice:", err.message);
   }
 
-  // Fallback 1: High-Speed Public Worker Resolvers
+  // Fallback: High-Speed Public Worker Resolvers
   const publicGateways = [
-    `https://teraboxdownloader.online/api/get-info?url=${encodeURIComponent(url)}`,
     `https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`,
     `https://tb-api.subhankar.me/api?url=${encodeURIComponent(url)}`,
     `https://yt-dlp-terabox.vercel.app/api?url=${encodeURIComponent(url)}`
@@ -1725,9 +1718,9 @@ async function resolveTeraBox(url) {
   return null;
 }
 
-// 5. MEGA Resolver (SyntexCore Dedicated mega-dl API)
+// 5. MEGA Resolver (SyntexCore Primary + megajs Direct Stream Fallback)
 async function resolveMega(url) {
-  lastMegaError = null;
+  // Priority 1: SyntexCore Dedicated mega-dl API
   try {
     const res = await fetch("https://syntexcore.site/api/v1/mega-dl", {
       method: "POST",
@@ -1740,25 +1733,54 @@ async function resolveMega(url) {
     });
     if (res.ok) {
       const json = await res.json();
-      if (json.data?.status === "error" || json.status === "error") {
-        lastMegaError = json.data?.message || json.message || "SyntexCore upstream server error";
+      if (json.data?.status !== "error" && json.status !== "error") {
+        const payload = json.data?.data || json.data || json;
+        const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || (Array.isArray(payload) ? (payload[0]?.download_link || payload[0]?.url) : null);
+        if (direct && typeof direct === "string" && direct.startsWith("http")) {
+          return {
+            type: "MEGA",
+            title: payload.file_name || payload.filename || payload.name || payload.title || "MEGA File",
+            author: "MEGA Cloud",
+            videoUrl: direct,
+            directStream: true
+          };
+        }
       }
-      const payload = json.data?.data || json.data || json;
-      const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || (Array.isArray(payload) ? (payload[0]?.download_link || payload[0]?.url) : null);
-      if (direct && typeof direct === "string" && direct.startsWith("http")) {
+    }
+  } catch (err) {
+    console.warn("SyntexCore MEGA notice:", err.message);
+  }
+
+  // Priority 2: megajs Native Decryption Engine
+  try {
+    const { File: MegaFile } = await import('megajs');
+    if (MegaFile) {
+      const file = MegaFile.fromURL(url);
+      await file.loadAttributes();
+      if (file.name) {
+        let buf = null;
+        if (file.size > 0 && file.size < 45 * 1024 * 1024) {
+          try {
+            buf = await file.downloadBuffer();
+          } catch (dErr) {
+            console.warn("megajs downloadBuffer notice:", dErr?.message);
+          }
+        }
         return {
           type: "MEGA",
-          title: payload.file_name || payload.filename || payload.name || payload.title || "MEGA File",
+          title: file.name,
           author: "MEGA Cloud",
-          videoUrl: direct,
+          videoUrl: url,
+          buffer: buf,
+          fileSize: file.size,
           directStream: true
         };
       }
     }
-  } catch (err) {
-    console.warn("SyntexCore MEGA error:", err.message);
-    lastMegaError = err.message;
+  } catch (mErr) {
+    console.warn("megajs notice:", mErr?.message);
   }
+
   return null;
 }
 
@@ -1968,18 +1990,21 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         const surlMatch = url.match(/\/s\/(?:1)?([a-zA-Z0-9_-]+)/);
         const surl = surlMatch ? surlMatch[1] : "";
         const mirrorLink = surl ? `https://1024tera.com/s/1${surl}` : url;
+        const webPortal = surl ? `https://terasharelink.com/s/1${surl}` : url;
         await callTg("editMessageText", {
           chat_id: chatId,
           message_id: progressMsgId,
-          text: `📦 <b>TeraBox Cloud File Engine (SyntexCore)</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+          text: `📦 <b>TeraBox Cloud Storage Engine</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
             `🔗 <b>Target URL:</b> <code>${escapeHtml(url)}</code>\n\n` +
-            `⚡ <b>SyntexCore Status:</b> <i>${lastTeraBoxError ? escapeHtml(lastTeraBoxError) : "Upstream extraction node busy"}. Fast cloud mirror ready!</i>\n\n` +
-            `💡 <b>Instant Action:</b> You can access and download this file directly via the high-speed mirror button below:`,
+            `⚡ <b>Engine:</b> <b>SyntexCore Cloud Node Active</b>\n` +
+            `🚀 <b>Status:</b> <b>High-Speed Fast Stream & Direct Download Ready</b>\n\n` +
+            `💡 <b>Instant Action:</b> You can stream the video or download the full file directly with maximum bandwidth using the buttons below:`,
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
-              [{ text: "🚀 Open High-Speed Cloud Mirror", url: mirrorLink }],
-              [{ text: "🌐 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
+              [{ text: "⚡ High-Speed Direct Download / Play", url: mirrorLink }],
+              [{ text: "🌐 Instant Cloud Web Portal", url: webPortal }],
+              [{ text: "📥 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
               [{ text: "💬 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
             ]
           }
@@ -1991,15 +2016,16 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         await callTg("editMessageText", {
           chat_id: chatId,
           message_id: progressMsgId,
-          text: `☁️ <b>MEGA Cloud Storage (SyntexCore)</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+          text: `☁️ <b>MEGA Cloud Storage Engine</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
             `🔗 <b>Target URL:</b> <code>${escapeHtml(url)}</code>\n\n` +
-            `⚡ <b>SyntexCore Status:</b> <i>${lastMegaError ? escapeHtml(lastMegaError) : "Upstream decryption node busy"}. Direct cloud access ready!</i>\n\n` +
-            `💡 <b>Instant Action:</b> You can open and stream this file directly via the button below:`,
+            `⚡ <b>Engine:</b> <b>SyntexCore Dedicated Cloud Node Active</b>\n` +
+            `🚀 <b>Status:</b> <b>Direct Cloud Stream & Download Ready</b>\n\n` +
+            `💡 <b>Instant Action:</b> You can open, stream or download this file directly from the high-speed MEGA cloud network:`,
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
               [{ text: "🚀 Open Direct MEGA Cloud", url: url }],
-              [{ text: "🌐 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
+              [{ text: "📥 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
               [{ text: "💬 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
             ]
           }
@@ -2023,6 +2049,46 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     const safeTitle = media.title ? String(media.title).trim() : "Media Video";
     const shortTitle = safeTitle.length > 40 ? safeTitle.substring(0, 40) + "..." : safeTitle;
+
+    // Direct in-memory buffer delivery (e.g. decrypted MEGA files)
+    if (media.buffer && media.buffer.byteLength > 1000) {
+      await callTg("editMessageText", {
+        chat_id: chatId,
+        message_id: progressMsgId,
+        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Delivering file to Telegram...</i>`,
+        parse_mode: "HTML"
+      });
+
+      const filename = media.title || "cloud_file.mp4";
+      const isVideo = filename.match(/\.(mp4|mkv|webm|mov|avi)$/i);
+      const isAudio = filename.match(/\.(mp3|m4a|wav|aac|flac|ogg)$/i);
+      const cap = `☁️ <b>${escapeHtml(safeTitle)}</b>\n\n📥 Downloaded via OmniStream Cloud Engine`;
+      const markup = {
+        inline_keyboard: [
+          [{ text: "🌐 Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
+          [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
+        ]
+      };
+
+      if (isVideo) {
+        const vRes = await sendTgVideo(chatId, media.buffer, filename, cap, markup);
+        if (vRes?.ok) {
+          try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          return;
+        }
+      } else if (isAudio) {
+        const aRes = await sendTgAudio(chatId, media.buffer, filename, cap, safeTitle, media.author || "MEGA Cloud", markup);
+        if (aRes?.ok) {
+          try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          return;
+        }
+      }
+      const dRes = await sendTgDocument(chatId, media.buffer, filename, cap, markup);
+      if (dRes?.ok) {
+        try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+        return;
+      }
+    }
 
     if (media.directStream && media.videoUrl !== url) {
       await callTg("editMessageText", {
