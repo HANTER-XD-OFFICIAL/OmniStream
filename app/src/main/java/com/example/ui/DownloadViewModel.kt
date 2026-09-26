@@ -193,15 +193,26 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 s.telegramBotToken
             }
             val sizeMb = if (item.totalBytes > 0) String.format(java.util.Locale.US, "%.1f MB", item.totalBytes / (1024.0 * 1024.0)) else "Unknown"
-            val msg = """
-                📥 <b>Download Completed on OmniStream</b>
-                🎬 <b>Title:</b> ${item.title.take(60)}
+            val caption = """
+                🎬 <b>${item.title.take(60)}</b>
                 👤 <b>Creator:</b> ${item.authorOrChannel}
                 📊 <b>Quality:</b> ${item.resolution} (${item.ext})
                 💾 <b>Size:</b> $sizeMb
-                📁 <b>Saved to:</b> Internal Storage/Download/OmniStream
+                ⚡ <i>Downloaded via OmniStream (@OmniStream34_bot)</i>
             """.trimIndent()
-            telegramBotClient.sendMessage(activeToken, s.telegramChatId, msg)
+
+            if (item.mediaType == MediaType.VIDEO && item.downloadUrl.startsWith("http")) {
+                val videoResult = telegramBotClient.sendVideo(
+                    token = activeToken,
+                    chatId = s.telegramChatId,
+                    videoUrl = item.downloadUrl,
+                    caption = caption,
+                    workerSecret = s.workerApiSecret
+                )
+                if (videoResult.isSuccess) return@launch
+            }
+
+            telegramBotClient.sendMessage(activeToken, s.telegramChatId, caption, workerSecret = s.workerApiSecret)
         }
     }
 

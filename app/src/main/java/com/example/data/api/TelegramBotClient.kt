@@ -165,4 +165,73 @@ class TelegramBotClient {
             Result.failure(e)
         }
     }
+
+    suspend fun sendVideo(
+        token: String,
+        chatId: String,
+        videoUrl: String,
+        caption: String = "",
+        parseMode: String = "HTML",
+        workerSecret: String? = null
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        var cleanToken = token.trim()
+        val cleanChatId = chatId.trim()
+        val cleanVideoUrl = videoUrl.trim()
+        if (cleanToken.isBlank() || SecureTokenStore.isKnownRevokedToken(cleanToken)) {
+            cleanToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true, workerSecret = workerSecret)
+        }
+        if (cleanToken.isBlank() || cleanChatId.isBlank() || cleanVideoUrl.isBlank()) {
+            val detail = when {
+                cleanChatId.isBlank() -> "Chat ID is required."
+                cleanVideoUrl.isBlank() -> "Extracted Video URL is required."
+                else -> (SecureTokenStore.lastWorkerError ?: "Bot Token is required.")
+            }
+            return@withContext Result.failure(IllegalArgumentException(detail))
+        }
+
+        try {
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val jsonBody = JSONObject().apply {
+                put("chat_id", cleanChatId)
+                put("video", cleanVideoUrl)
+                if (caption.isNotBlank()) {
+                    put("caption", caption)
+                    put("parse_mode", parseMode)
+                }
+                put("supports_streaming", true)
+            }
+
+            var url = "https://api.telegram.org/bot$cleanToken/sendVideo"
+            var request = Request.Builder()
+                .url(url)
+                .post(jsonBody.toString().toRequestBody(mediaType))
+                .build()
+
+            var response = client.newCall(request).execute()
+            var body = response.body?.string().orEmpty()
+
+            if (response.code == 401) {
+                val freshToken = SecureTokenStore.resolveBotToken(client, forceRefresh = true, workerSecret = workerSecret)
+                if (freshToken.isNotBlank() && freshToken != cleanToken) {
+                    cleanToken = freshToken
+                    SecureTokenStore.updateCachedToken(cleanToken)
+                    url = "https://api.telegram.org/bot$cleanToken/sendVideo"
+                    request = Request.Builder()
+                        .url(url)
+                        .post(jsonBody.toString().toRequestBody(mediaType))
+                        .build()
+                    response = client.newCall(request).execute()
+                    body = response.body?.string().orEmpty()
+                }
+            }
+
+            if (response.isSuccessful && body.contains("\"ok\":true")) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("Telegram API sendVideo rejected: $body"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
