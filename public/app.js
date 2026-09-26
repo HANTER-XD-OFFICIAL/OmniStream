@@ -211,16 +211,6 @@ const PLATFORMS_CATALOG = [
     features: "VK Videos, Clips, Creator Feeds & Community HD Media",
     sampleUrl: "https://vk.com/video-123456_789012",
     badge: "VK HD"
-  },
-  {
-    id: "terabox",
-    name: "TeraBox Cloud (VIP)",
-    category: "video",
-    color: "#00C48C",
-    domains: ["terabox.com", "1024tera.com", "teraboxapp.com", "terabox.app"],
-    features: "Fast Direct Cloud File Stream Bypass Engine",
-    sampleUrl: "https://terabox.com/s/1sampleKey123",
-    badge: "VIP Cloud"
   }
 ];
 
@@ -1008,7 +998,6 @@ function detectPlatformName(platform, url = "") {
   if (lower.includes("instagram.com") || lower.includes("instagr.am")) return "Instagram";
   if (lower.includes("tiktok.com") || lower.includes("douyin.com")) return "TikTok";
   if (lower.includes("facebook.com") || lower.includes("fb.watch") || lower.includes("fb.com")) return "Facebook";
-  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp")) return "TeraBox";
   if (lower.includes("twitter.com") || lower.includes("x.com")) return "Twitter";
   if (lower.includes("pinterest.") || lower.includes("pin.it")) return "Pinterest";
   if (lower.includes("reddit.com")) return "Reddit";
@@ -1576,30 +1565,6 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
             videoUrl: playUrl,
             audioUrl: d.music || d.music_info?.play,
             quality: d.hdplay ? '1080p HD' : '720p HD'
-          };
-        }
-      }
-    } catch (_) {}
-  }
-
-  // 2. TeraBox Cloud Direct
-  if (lower.includes('terabox') || lower.includes('1024tera')) {
-    try {
-      const resp = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        const file = data?.list?.[0] || data?.files?.[0] || data;
-        const downloadUrl = file?.download_link || file?.dlink || file?.direct_link || file?.url;
-        if (downloadUrl) {
-          return {
-            success: true,
-            platform: 'TeraBox Cloud',
-            title: file.filename || file.server_filename || 'TeraBox Cloud File',
-            author: 'Cloud Vault',
-            thumbnail: file.thumb || null,
-            videoUrl: downloadUrl,
-            audioUrl: null,
-            quality: 'VIP Direct'
           };
         }
       }

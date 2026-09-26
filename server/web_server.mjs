@@ -111,34 +111,7 @@ async function resolveTikTok(url) {
   return null;
 }
 
-// 3. TeraBox Cloud Portal Resolver
-async function resolveTeraBox(url) {
-  try {
-    const res = await fetch(`https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(8000)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const file = data?.list?.[0] || data?.files?.[0] || data;
-      const downloadUrl = file?.download_link || file?.dlink || file?.direct_link || file?.url;
-      if (downloadUrl) {
-        return {
-          success: true,
-          platform: 'TeraBox Cloud',
-          title: file.filename || file.server_filename || 'TeraBox Cloud File',
-          author: 'Cloud Vault',
-          thumbnail: file.thumb || null,
-          videoUrl: downloadUrl,
-          audioUrl: null,
-          quality: 'VIP Direct'
-        };
-      }
-    }
-  } catch (_) {}
-  return null;
-}
-
-// 3b. MEGA Cloud Resolver
+// 3. MEGA Cloud Resolver
 async function resolveMega(url) {
   // megajs native metadata
   try {
@@ -544,25 +517,7 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
     if (ttRes) return ttRes;
   }
 
-  // Route 4: TeraBox Cloud
-  if (lower.includes('terabox') || lower.includes('1024tera') || lower.includes('terasharelink') || lower.includes('teraboxapp')) {
-    const tbRes = await resolveTeraBox(url);
-    if (tbRes) return tbRes;
-    const surlMatch = url.match(/\/s\/(?:1)?([a-zA-Z0-9_-]+)/);
-    const surl = surlMatch ? surlMatch[1] : '';
-    return {
-      success: true,
-      platform: 'TeraBox Cloud',
-      title: 'TeraBox Cloud File',
-      author: 'TeraBox Vault',
-      thumbnail: null,
-      videoUrl: surl ? `https://1024tera.com/s/1${surl}` : url,
-      audioUrl: null,
-      quality: 'High-Speed Cloud Mirror'
-    };
-  }
-
-  // Route 5: MEGA Cloud
+  // Route 4: MEGA Cloud
   if (lower.includes('mega.nz') || lower.includes('mega.co.nz') || lower.includes('mega.io')) {
     const megaRes = await resolveMega(url);
     if (megaRes) return megaRes;

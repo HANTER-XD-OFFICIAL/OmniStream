@@ -154,10 +154,6 @@ fun HomeScreen(
     var pendingDownloadAudioOnly by remember { mutableStateOf<Boolean?>(null) }
 
     val detectedPlatform = remember(urlInput) { PlatformDetector.detect(urlInput) }
-    val isTeraBoxUrl = remember(urlInput) {
-        val lower = urlInput.lowercase()
-        "terabox" in lower || "1024tera" in lower || "terasharelink" in lower || "mega.nz" in lower || "mega.co.nz" in lower || "mega.io" in lower
-    }
 
     if (showSupportHubModal) {
         com.example.ui.components.DeveloperSupportHubDialog(
@@ -1122,8 +1118,8 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("TeraBox Direct Token Resolver", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                    Text("Bypasses speed throttle on TeraBox links", color = TextMuted, fontSize = 11.sp)
+                                    Text("Cloud Direct Token Resolver", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("Bypasses speed throttle on cloud & social links", color = TextMuted, fontSize = 11.sp)
                                 }
                                 Switch(
                                     checked = true,
@@ -1693,8 +1689,8 @@ private fun HomeEngineCapabilitiesCard(
                 EngineSpecRow(
                     icon = Icons.Default.Speed,
                     iconTint = Color(0xFF38BDF8),
-                    title = "TeraBox Cloud Stream Bypass",
-                    desc = "Resolves private & shared TeraBox links directly into fast download streams."
+                    title = "High-Speed Cloud Stream Bypass",
+                    desc = "Resolves direct social & cloud links into high-speed download streams."
                 )
                 EngineSpecRow(
                     icon = Icons.Default.Shield,
@@ -1814,7 +1810,7 @@ private fun HomeHowItWorksCard() {
                 GuideStepTile(
                     stepNum = "1",
                     title = "Copy Link",
-                    desc = "From YouTube, TikTok, TeraBox, FB, etc.",
+                    desc = "From YouTube, TikTok, Instagram, FB, etc.",
                     accentColor = CyanBright,
                     modifier = Modifier.weight(1f)
                 )

@@ -238,17 +238,7 @@ object PlatformDetector {
             category = PlatformCategory.VIDEO_SHARING,
             sampleUrl = "https://vk.com/video-123456_789012"
         ),
-        // 22. TeraBox Cloud
-        SupportedPlatformItem(
-            name = "TeraBox Cloud",
-            domainPattern = "terabox.com, 1024tera.com, terasharelink.com",
-            brandColor = Color(0xFF0086FF),
-            features = "SyntexCore API High-Speed Cloud Video & File Extraction",
-            category = PlatformCategory.CLOUD_STORAGE,
-            sampleUrl = "https://terabox.com/s/1ZdiYMWn2JsklSZxGdKJEBw",
-            isPopular = true
-        ),
-        // 23. MEGA Cloud
+        // 22. MEGA Cloud
         SupportedPlatformItem(
             name = "MEGA Cloud",
             domainPattern = "mega.nz, mega.co.nz, mega.io",
@@ -263,10 +253,6 @@ object PlatformDetector {
     fun detect(url: String): PlatformMeta {
         val lower = url.lowercase().trim()
         return when {
-            // TeraBox Cloud
-            "terabox" in lower || "1024tera" in lower || "terasharelink" in lower || "tibibox" in lower || "4funbox" in lower || "mirrobox" in lower || "nephobox" in lower || "freeterabox" in lower ->
-                PlatformMeta("TeraBox", Color(0xFF0086FF), "TeraBox SyntexCore Fast", PlatformCategory.CLOUD_STORAGE)
-
             // MEGA Cloud
             "mega.nz" in lower || "mega.co.nz" in lower || "mega.io" in lower ->
                 PlatformMeta("MEGA", Color(0xFFD9272E), "MEGA SyntexCore Fast", PlatformCategory.CLOUD_STORAGE)

@@ -25,7 +25,6 @@ data class VideoInfoResponse(
             webpageUrl?.contains("instagram.com", true) == true -> "Instagram"
             webpageUrl?.contains("twitter.com", true) == true || webpageUrl?.contains("x.com", true) == true -> "Twitter / X"
             webpageUrl?.contains("pinterest.com", true) == true || webpageUrl?.contains("pin.it", true) == true -> "Pinterest"
-            webpageUrl?.contains("terabox", true) == true || webpageUrl?.contains("1024tera", true) == true || webpageUrl?.contains("terasharelink", true) == true -> "TeraBox"
             webpageUrl?.contains("mega.nz", true) == true || webpageUrl?.contains("mega.co.nz", true) == true || webpageUrl?.contains("mega.io", true) == true -> "MEGA"
             webpageUrl?.contains("reddit.com", true) == true -> "Reddit"
             !extractor.isNullOrBlank() -> extractor
@@ -57,7 +56,6 @@ data class VideoInfoResponse(
             "Twitter / X" -> "1080p HD"
             "Pinterest" -> "1080p HD"
             "YouTube" -> "4K / 8K Ultra HD"
-            "TeraBox" -> "Source Quality"
             "Reddit" -> "1080p HD"
             else -> "Source Quality"
         }

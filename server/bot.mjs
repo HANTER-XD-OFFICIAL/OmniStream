@@ -1704,17 +1704,19 @@ function isTeraBoxDomain(url) {
     lower.includes("mirrobox") ||
     lower.includes("momerybox") ||
     lower.includes("tibibox") ||
-    lower.includes("dubox")
+    lower.includes("dubox") ||
+    lower.includes("terafiles") ||
+    lower.includes("tera-box")
   );
 }
 
 // Helper: Extract clean TeraBox shorturl (without leading '1' prefix when needed)
 function extractCleanTeraBoxSurl(inputUrl) {
   if (!inputUrl) return "";
-  const qMatch = inputUrl.match(/[?&]surl=([a-zA-Z0-9_-]+)/i);
+  const qMatch = inputUrl.match(/[?&](?:surl|shorturl)=([a-zA-Z0-9_-]+)/i);
   if (qMatch && qMatch[1]) {
     const raw = qMatch[1];
-    return raw.startsWith("1") && raw.length >= 23 ? raw.slice(1) : raw;
+    return raw.startsWith("1") && raw.length >= 22 ? raw.slice(1) : raw;
   }
   const sMatch = inputUrl.match(/\/s\/([a-zA-Z0-9_-]+)/i);
   if (sMatch && sMatch[1]) {
@@ -1763,103 +1765,148 @@ async function resolveTeraBox(url) {
     } catch (_) {}
   }
 
-  const canonicalUrl = cleanSurl ? `https://www.terabox.com/sharing/link?surl=${cleanSurl}` : resolvedInputUrl;
+  const surlNoOne = cleanSurl && cleanSurl.startsWith("1") && cleanSurl.length >= 20 ? cleanSurl.slice(1) : cleanSurl;
+  const canonicalUrl = surlNoOne ? `https://www.terabox.com/sharing/link?surl=${surlNoOne}` : resolvedInputUrl;
 
   // Primary: SyntexCore Dedicated TeraBox API (Exclusively for Telegram Bot)
-  try {
-    const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: canonicalUrl,
-        apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
-      }),
-      signal: AbortSignal.timeout(10000)
-    });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.data?.status !== "error" && json.status !== "error") {
-        const payload = json.data?.data || json.data || json;
-        const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
-          (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
-        if (direct && typeof direct === "string" && direct.startsWith("http")) {
-          return {
-            type: "TeraBox",
-            title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox Video.mp4",
-            author: "TeraBox Cloud",
-            videoUrl: direct,
-            directStream: true
-          };
+  for (const targetApiUrl of [...new Set([canonicalUrl, url])]) {
+    try {
+      const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: targetApiUrl,
+          apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
+        }),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.status !== "error" && json.status !== "error") {
+          const payload = json.data?.data || json.data || json;
+          const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
+            (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
+          if (direct && typeof direct === "string" && direct.startsWith("http")) {
+            return {
+              type: "TeraBox",
+              title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox Video.mp4",
+              author: "TeraBox Cloud",
+              videoUrl: direct,
+              directStream: true
+            };
+          }
         }
       }
+    } catch (err) {
+      console.warn("SyntexCore TeraBox notice:", err.message);
     }
-  } catch (err) {
-    console.warn("SyntexCore TeraBox notice:", err.message);
   }
 
   // Secondary: Native TeraBox Direct Stream & MP4 Remux Engine (100% Cookie + jsToken + HLS/TS Extractor)
   if (cleanSurl) {
     const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-    const mirrorHosts = ["https://www.1024tera.com", "https://www.terabox.app", "https://www.terabox.com"];
-    const surlNoOne = cleanSurl.startsWith("1") && cleanSurl.length > 20 ? cleanSurl.slice(1) : cleanSurl;
-    const surlCandidates = [...new Set([cleanSurl, surlNoOne, `1${surlNoOne}`])];
+    const mirrorHosts = [
+      "https://www.1024tera.com",
+      "https://www.terabox.app",
+      "https://www.terabox.com",
+      "https://www.1024terabox.com",
+      "https://www.freeterabox.com"
+    ];
+    const surlCandidates = [...new Set([surlNoOne, cleanSurl, `1${surlNoOne}`])].filter(Boolean);
 
     for (const host of mirrorHosts) {
       try {
-        const pageUrl = `${host}/sharing/link?surl=${cleanSurl}`;
-        const pageRes = await fetch(pageUrl, {
-          headers: {
-            "User-Agent": ua,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9"
-          },
-          signal: AbortSignal.timeout(10000)
-        });
-        const activeOrigin = pageRes.url ? new URL(pageRes.url).origin : host;
-        const rawCookies = typeof pageRes.headers.getSetCookie === "function" ? pageRes.headers.getSetCookie() : [];
-        const cookieHeader = rawCookies.map(c => c.split(";")[0]).join("; ");
-        const html = await pageRes.text();
-        const jtMatch = html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) || html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
-        const jsToken = jtMatch ? jtMatch[1] : "";
+        let activeOrigin = host;
+        let cookieHeader = "";
+        let jsToken = "";
+        let pageReferer = `${host}/sharing/link?surl=${surlNoOne}`;
+
+        const entryUrls = [
+          `${host}/sharing/link?surl=${surlNoOne}`,
+          `${host}/s/1${surlNoOne}`
+        ];
+
+        for (const entryUrl of entryUrls) {
+          try {
+            const pageRes = await fetch(entryUrl, {
+              headers: {
+                "User-Agent": ua,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9"
+              },
+              signal: AbortSignal.timeout(10000)
+            });
+            activeOrigin = pageRes.url ? new URL(pageRes.url).origin : host;
+            pageReferer = pageRes.url || entryUrl;
+            const rawCookies = typeof pageRes.headers.getSetCookie === "function" ? pageRes.headers.getSetCookie() : [];
+            if (rawCookies.length > 0) {
+              cookieHeader = rawCookies.map(c => c.split(";")[0]).join("; ");
+            }
+            const html = await pageRes.text();
+            const jtMatch = html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) || html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
+            if (jtMatch && jtMatch[1]) {
+              jsToken = jtMatch[1];
+              break;
+            }
+          } catch (_) {}
+        }
 
         if (!jsToken) continue;
 
         let listData = null;
-        let activeSurl = cleanSurl;
+        let activeSurl = surlNoOne;
         for (const candidateSurl of surlCandidates) {
-          const listUrl = `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`;
-          const listRes = await fetch(listUrl, {
-            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageRes.url || pageUrl },
-            signal: AbortSignal.timeout(10000)
-          });
-          if (listRes.ok) {
-            const parsed = await listRes.json();
-            if (parsed && parsed.errno === 0 && Array.isArray(parsed.list) && parsed.list.length > 0) {
-              listData = parsed;
-              activeSurl = candidateSurl;
-              break;
-            }
+          const listEndpoints = [
+            `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`,
+            `${activeOrigin}/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`
+          ];
+          for (const listUrl of listEndpoints) {
+            try {
+              const listRes = await fetch(listUrl, {
+                headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageReferer },
+                signal: AbortSignal.timeout(10000)
+              });
+              if (listRes.ok) {
+                const parsed = await listRes.json();
+                if (parsed && parsed.errno === 0 && Array.isArray(parsed.list) && parsed.list.length > 0) {
+                  listData = parsed;
+                  activeSurl = candidateSurl;
+                  break;
+                }
+              }
+            } catch (_) {}
           }
+          if (listData) break;
         }
 
         if (!listData || !Array.isArray(listData.list) || listData.list.length === 0) continue;
 
-        const uk = listData.uk;
-        const shareid = listData.share_id;
-        const ts = listData.server_time;
-        let fileItem = listData.list.find(item => String(item.isdir) === "0") || listData.list[0];
+        const uk = listData.uk || listData.list[0]?.uk;
+        const shareid = listData.share_id || listData.shareid;
+        const ts = listData.server_time || Math.floor(Date.now() / 1000);
+
+        const pickBestFile = (items) => {
+          const files = items.filter(item => String(item.isdir) === "0");
+          const videoFile = files.find(item =>
+            String(item.category) === "1" ||
+            /\.(mp4|mkv|webm|mov|avi|flv|ts|m4v|3gp)$/i.test(item.server_filename || "")
+          );
+          return videoFile || files[0] || items[0];
+        };
+
+        let fileItem = pickBestFile(listData.list);
 
         // Traverse up to 3 folder levels if shared link is a directory
         for (let depth = 0; depth < 3 && fileItem && String(fileItem.isdir) === "1" && fileItem.path; depth++) {
           const subUrl = `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${activeSurl}&dir=${encodeURIComponent(fileItem.path)}&root=0&uk=${uk}&shareid=${shareid}`;
           const subRes = await fetch(subUrl, {
-            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageRes.url || pageUrl },
+            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageReferer },
             signal: AbortSignal.timeout(10000)
           });
           if (subRes.ok) {
             const subData = await subRes.json();
             if (subData && subData.errno === 0 && Array.isArray(subData.list) && subData.list.length > 0) {
-              fileItem = subData.list.find(item => String(item.isdir) === "0") || subData.list[0];
+              fileItem = pickBestFile(subData.list);
             } else {
               break;
             }
@@ -1876,101 +1923,164 @@ async function resolveTeraBox(url) {
           fileName = `${fileName}.mp4`;
         }
 
+        const remuxTsBufferToMp4 = async (tsBuf, sourceStreamUrl) => {
+          const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          const tmpTs = path.join(os.tmpdir(), `tb_${uniqueId}.ts`);
+          const tmpMp4 = path.join(os.tmpdir(), `tb_${uniqueId}.mp4`);
+          try {
+            const ffmpegBin = await getFfmpegBinary();
+            fs.writeFileSync(tmpTs, tsBuf);
+            await execFileAsync(ffmpegBin, [
+              "-y",
+              "-i", tmpTs,
+              "-c", "copy",
+              "-bsf:a", "aac_adtstoasc",
+              "-movflags", "+faststart",
+              tmpMp4
+            ], { timeout: 45000 });
+            const mp4Buf = fs.readFileSync(tmpMp4);
+            try { fs.unlinkSync(tmpTs); } catch (_) {}
+            try { fs.unlinkSync(tmpMp4); } catch (_) {}
+            if (mp4Buf.byteLength > 1000) {
+              return {
+                type: "TeraBox",
+                title: fileName,
+                author: "TeraBox Cloud",
+                duration: fileItem.duration ? Number(fileItem.duration) : undefined,
+                videoUrl: sourceStreamUrl,
+                buffer: mp4Buf,
+                directStream: true
+              };
+            }
+          } catch (ffErr) {
+            try { fs.unlinkSync(tmpTs); } catch (_) {}
+            try { fs.unlinkSync(tmpMp4); } catch (_) {}
+            console.warn("TeraBox ffmpeg remux fallback:", ffErr.message);
+            return {
+              type: "TeraBox",
+              title: fileName,
+              author: "TeraBox Cloud",
+              duration: fileItem.duration ? Number(fileItem.duration) : undefined,
+              videoUrl: sourceStreamUrl,
+              buffer: tsBuf,
+              directStream: true
+            };
+          }
+          return null;
+        };
+
+        const downloadCandidateStream = async (candidate) => {
+          const { segLines, totalBytes } = candidate;
+          const firstSeg = segLines[0];
+          let fullStreamUrl = firstSeg;
+          const hasByteRangeParams = /len=\d+/.test(firstSeg) && /range=\d+-\d+/.test(firstSeg);
+
+          if (hasByteRangeParams && totalBytes > 0) {
+            const targetBytes = Math.min(totalBytes, 47 * 1024 * 1024);
+            fullStreamUrl = firstSeg
+              .replace(/len=\d+/, `len=${targetBytes}`)
+              .replace(/range=\d+-\d+/, `range=0-${targetBytes - 1}`);
+            try {
+              const vidRes = await fetch(fullStreamUrl, {
+                headers: {
+                  "User-Agent": ua,
+                  "Cookie": cookieHeader,
+                  "Referer": `${activeOrigin}/`
+                },
+                signal: AbortSignal.timeout(60000)
+              });
+              if (vidRes.ok) {
+                const tsBuf = Buffer.from(await vidRes.arrayBuffer());
+                if (tsBuf.byteLength > 1000) {
+                  const remuxed = await remuxTsBufferToMp4(tsBuf, fullStreamUrl);
+                  if (remuxed) return remuxed;
+                }
+              }
+            } catch (_) {}
+          }
+
+          // Fallback for multi-segment HLS where range rewrite isn't supported: fetch & concat TS segments up to 46MB
+          const chunks = [];
+          let accumulated = 0;
+          const maxAccumulated = 46 * 1024 * 1024;
+          const batchSize = 4;
+          for (let i = 0; i < segLines.length && accumulated < maxAccumulated; i += batchSize) {
+            const batch = segLines.slice(i, i + batchSize);
+            const batchBuffers = await Promise.all(batch.map(async (segUrl) => {
+              try {
+                const r = await fetch(segUrl, {
+                  headers: {
+                    "User-Agent": ua,
+                    "Cookie": cookieHeader,
+                    "Referer": `${activeOrigin}/`
+                  },
+                  signal: AbortSignal.timeout(20000)
+                });
+                if (r.ok) return Buffer.from(await r.arrayBuffer());
+              } catch (_) {}
+              return null;
+            }));
+            for (const b of batchBuffers) {
+              if (!b || b.byteLength === 0) continue;
+              if (accumulated + b.byteLength > maxAccumulated && chunks.length > 0) {
+                accumulated = maxAccumulated;
+                break;
+              }
+              chunks.push(b);
+              accumulated += b.byteLength;
+            }
+          }
+
+          if (chunks.length > 0 && accumulated > 1000) {
+            const combinedTs = Buffer.concat(chunks);
+            const remuxed = await remuxTsBufferToMp4(combinedTs, firstSeg);
+            if (remuxed) return remuxed;
+          }
+          return null;
+        };
+
         // Stream extraction via M3U8_AUTO qualities + full ts_size range rewrite
-        const streamTypes = ["M3U8_AUTO_720", "M3U8_AUTO_480", "M3U8_AUTO_360", "M3U8_FLV_264_480", "M3U8_AUTO_1080"];
+        const streamTypes = ["M3U8_AUTO_720", "M3U8_AUTO_480", "M3U8_AUTO_360", "M3U8_FLV_264_480", "M3U8_AUTO_240", "M3U8_AUTO_1080"];
         let fallbackSegCandidate = null;
 
         for (const stype of streamTypes) {
           try {
             const streamUrl = `${activeOrigin}/share/streaming?uk=${uk}&shareid=${shareid}&type=${stype}&fid=${fsId}&sign=1&timestamp=${ts}&jsToken=${jsToken}&esl=1&isplayer=1&ehps=0&clienttype=0&app_id=250528&web=1&channel=dubox`;
             const sRes = await fetch(streamUrl, {
-              headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageRes.url || pageUrl },
+              headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageReferer },
               signal: AbortSignal.timeout(10000)
             });
             if (!sRes.ok) continue;
             const m3u8 = await sRes.text();
             if (!m3u8.includes("#EXTM3U")) continue;
 
-            const segLines = m3u8.split(/\r?\n/).filter(l => l.startsWith("http"));
+            const segLines = m3u8.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith("http") || l.startsWith("/"));
             if (segLines.length === 0) continue;
+            const normalizedSegLines = segLines.map(l => l.startsWith("/") ? `${activeOrigin}${l}` : l);
 
-            const firstSeg = segLines[0];
-            const lastSeg = segLines[segLines.length - 1];
+            const firstSeg = normalizedSegLines[0];
+            const lastSeg = normalizedSegLines[normalizedSegLines.length - 1];
             const tsSizeMatch = firstSeg.match(/ts_size=(\d+)/);
             const lastRangeMatch = lastSeg.match(/range=\d+-(\d+)/);
-            let totalBytes = tsSizeMatch ? parseInt(tsSizeMatch[1], 10) : (lastRangeMatch ? parseInt(lastRangeMatch[1], 10) + 1 : 0);
+            const totalBytes = tsSizeMatch ? parseInt(tsSizeMatch[1], 10) : (lastRangeMatch ? parseInt(lastRangeMatch[1], 10) + 1 : 0);
 
-            if (totalBytes > 48 * 1024 * 1024 && stype !== "M3U8_AUTO_360") {
-              if (!fallbackSegCandidate) {
-                fallbackSegCandidate = { firstSeg, totalBytes };
+            if (totalBytes > 48 * 1024 * 1024) {
+              if (!fallbackSegCandidate || totalBytes < fallbackSegCandidate.totalBytes) {
+                fallbackSegCandidate = { segLines: normalizedSegLines, totalBytes };
               }
               continue;
             }
 
-            let fullStreamUrl = firstSeg;
-            if (totalBytes > 0) {
-              const targetBytes = Math.min(totalBytes, 47 * 1024 * 1024);
-              fullStreamUrl = fullStreamUrl
-                .replace(/len=\d+/, `len=${targetBytes}`)
-                .replace(/range=\d+-\d+/, `range=0-${targetBytes - 1}`);
-            }
+            const result = await downloadCandidateStream({ segLines: normalizedSegLines, totalBytes });
+            if (result) return result;
+          } catch (_) {}
+        }
 
-            const vidRes = await fetch(fullStreamUrl, {
-              headers: {
-                "User-Agent": ua,
-                "Cookie": cookieHeader,
-                "Referer": `${activeOrigin}/`
-              },
-              signal: AbortSignal.timeout(60000)
-            });
-
-            if (vidRes.ok) {
-              const tsBuf = Buffer.from(await vidRes.arrayBuffer());
-              if (tsBuf.byteLength > 1000) {
-                const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                const tmpTs = path.join(os.tmpdir(), `tb_${uniqueId}.ts`);
-                const tmpMp4 = path.join(os.tmpdir(), `tb_${uniqueId}.mp4`);
-                try {
-                  const ffmpegBin = await getFfmpegBinary();
-                  fs.writeFileSync(tmpTs, tsBuf);
-                  await execFileAsync(ffmpegBin, [
-                    "-y",
-                    "-i", tmpTs,
-                    "-c", "copy",
-                    "-bsf:a", "aac_adtstoasc",
-                    "-movflags", "+faststart",
-                    tmpMp4
-                  ], { timeout: 45000 });
-                  const mp4Buf = fs.readFileSync(tmpMp4);
-                  try { fs.unlinkSync(tmpTs); } catch (_) {}
-                  try { fs.unlinkSync(tmpMp4); } catch (_) {}
-                  if (mp4Buf.byteLength > 1000) {
-                    return {
-                      type: "TeraBox",
-                      title: fileName,
-                      author: "TeraBox Cloud",
-                      duration: fileItem.duration ? Number(fileItem.duration) : undefined,
-                      videoUrl: fullStreamUrl,
-                      buffer: mp4Buf,
-                      directStream: true
-                    };
-                  }
-                } catch (ffErr) {
-                  try { fs.unlinkSync(tmpTs); } catch (_) {}
-                  try { fs.unlinkSync(tmpMp4); } catch (_) {}
-                  console.warn("TeraBox ffmpeg remux fallback:", ffErr.message);
-                  return {
-                    type: "TeraBox",
-                    title: fileName,
-                    author: "TeraBox Cloud",
-                    duration: fileItem.duration ? Number(fileItem.duration) : undefined,
-                    videoUrl: fullStreamUrl,
-                    buffer: tsBuf,
-                    directStream: true
-                  };
-                }
-              }
-            }
+        // If all available transcode qualities were >48MB, download & remux the smallest one (capped at 47MB)
+        if (fallbackSegCandidate) {
+          try {
+            const fallbackResult = await downloadCandidateStream(fallbackSegCandidate);
+            if (fallbackResult) return fallbackResult;
           } catch (_) {}
         }
 

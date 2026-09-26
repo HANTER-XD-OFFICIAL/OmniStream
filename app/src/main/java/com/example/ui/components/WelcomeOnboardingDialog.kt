@@ -431,7 +431,7 @@ fun WelcomeOnboardingDialog(
                                 icon = Icons.Default.CloudDownload,
                                 iconColor = CyanBright,
                                 title = "21+ Global Platforms Supported",
-                                desc = "YouTube, TikTok (No WM), Facebook, Instagram, Twitter/X, Pinterest, Reddit, Bilibili & TeraBox"
+                                desc = "YouTube, TikTok (No WM), Facebook, Instagram, Twitter/X, Pinterest, Reddit, Bilibili & MEGA"
                             )
 
                             WelcomeFeatureTile(
