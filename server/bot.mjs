@@ -503,6 +503,31 @@ async function sendTgVideo(chatId, videoBuffer, filename, caption, replyMarkup =
   }
 }
 
+async function sendTgVideoByUrl(chatId, videoUrl, caption, replyMarkup = null) {
+  try {
+    const payload = {
+      chat_id: String(chatId),
+      video: videoUrl,
+      caption: caption || "",
+      parse_mode: "HTML",
+      supports_streaming: true
+    };
+    if (replyMarkup) {
+      payload.reply_markup = replyMarkup;
+    }
+    const res = await fetch(`${TELEGRAM_API}/sendVideo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(60000)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("sendTgVideoByUrl error:", err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup = null) {
   try {
     const form = new FormData();
@@ -512,7 +537,9 @@ async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup
     if (replyMarkup) {
       form.append("reply_markup", JSON.stringify(replyMarkup));
     }
-    form.append("document", new Blob([fileBuffer], { type: "application/vnd.android.package-archive" }), filename || "OmniStream.apk");
+    const isApk = (filename || "").toLowerCase().endsWith(".apk");
+    const mimeType = isApk ? "application/vnd.android.package-archive" : "video/mp4";
+    form.append("document", new Blob([fileBuffer], { type: mimeType }), filename || "OmniStream_Video.mp4");
 
     const res = await fetch(`${TELEGRAM_API}/sendDocument`, {
       method: "POST",
@@ -1667,6 +1694,7 @@ function isTeraBoxDomain(url) {
     lower.includes("terabox") ||
     lower.includes("1024tera") ||
     lower.includes("terasharelink") ||
+    lower.includes("terasharefile") ||
     lower.includes("teraboxapp") ||
     lower.includes("teraboxlink") ||
     lower.includes("terafileshare") ||
@@ -1675,7 +1703,8 @@ function isTeraBoxDomain(url) {
     lower.includes("4funbox") ||
     lower.includes("mirrobox") ||
     lower.includes("momerybox") ||
-    lower.includes("tibibox")
+    lower.includes("tibibox") ||
+    lower.includes("dubox")
   );
 }
 
@@ -1685,7 +1714,7 @@ function extractCleanTeraBoxSurl(inputUrl) {
   const qMatch = inputUrl.match(/[?&]surl=([a-zA-Z0-9_-]+)/i);
   if (qMatch && qMatch[1]) {
     const raw = qMatch[1];
-    return raw.startsWith("1") && raw.length > 20 ? raw.slice(1) : raw;
+    return raw.startsWith("1") && raw.length >= 23 ? raw.slice(1) : raw;
   }
   const sMatch = inputUrl.match(/\/s\/([a-zA-Z0-9_-]+)/i);
   if (sMatch && sMatch[1]) {
@@ -1695,10 +1724,46 @@ function extractCleanTeraBoxSurl(inputUrl) {
   return "";
 }
 
+let cachedFfmpegBin = null;
+async function getFfmpegBinary() {
+  if (cachedFfmpegBin) return cachedFfmpegBin;
+  try {
+    await execFileAsync("ffmpeg", ["-version"], { timeout: 3000 });
+    cachedFfmpegBin = "ffmpeg";
+    return cachedFfmpegBin;
+  } catch (_) {}
+  try {
+    const mod = await import("ffmpeg-static");
+    const bin = mod.default || mod;
+    if (bin && typeof bin === "string") {
+      cachedFfmpegBin = bin;
+      return cachedFfmpegBin;
+    }
+  } catch (_) {}
+  return "ffmpeg";
+}
+
 // 4. TeraBox Resolver (SyntexCore Dedicated Bot API + Native Direct Video Stream Engine)
 async function resolveTeraBox(url) {
-  const cleanSurl = extractCleanTeraBoxSurl(url);
-  const canonicalUrl = cleanSurl ? `https://www.terabox.com/sharing/link?surl=${cleanSurl}` : url;
+  let resolvedInputUrl = url;
+  let cleanSurl = extractCleanTeraBoxSurl(resolvedInputUrl);
+
+  // If short/redirect TeraBox URL doesn't expose surl directly, follow redirect once
+  if (!cleanSurl) {
+    try {
+      const r = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000)
+      });
+      if (r.url) {
+        resolvedInputUrl = r.url;
+        cleanSurl = extractCleanTeraBoxSurl(resolvedInputUrl);
+      }
+    } catch (_) {}
+  }
+
+  const canonicalUrl = cleanSurl ? `https://www.terabox.com/sharing/link?surl=${cleanSurl}` : resolvedInputUrl;
 
   // Primary: SyntexCore Dedicated TeraBox API (Exclusively for Telegram Bot)
   try {
@@ -1709,7 +1774,7 @@ async function resolveTeraBox(url) {
         url: canonicalUrl,
         apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
       }),
-      signal: AbortSignal.timeout(12000)
+      signal: AbortSignal.timeout(10000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -1734,164 +1799,194 @@ async function resolveTeraBox(url) {
 
   // Secondary: Native TeraBox Direct Stream & MP4 Remux Engine (100% Cookie + jsToken + HLS/TS Extractor)
   if (cleanSurl) {
-    try {
-      const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-      const pageUrl = `https://www.1024tera.com/sharing/link?surl=${cleanSurl}`;
-      const pageRes = await fetch(pageUrl, {
-        headers: {
-          "User-Agent": ua,
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9"
-        },
-        signal: AbortSignal.timeout(12000)
-      });
-      const rawCookies = typeof pageRes.headers.getSetCookie === "function" ? pageRes.headers.getSetCookie() : [];
-      const cookieHeader = rawCookies.map(c => c.split(";")[0]).join("; ");
-      const html = await pageRes.text();
-      const jtMatch = html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) || html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
-      const jsToken = jtMatch ? jtMatch[1] : "";
+    const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    const mirrorHosts = ["https://www.1024tera.com", "https://www.terabox.app", "https://www.terabox.com"];
+    const surlNoOne = cleanSurl.startsWith("1") && cleanSurl.length > 20 ? cleanSurl.slice(1) : cleanSurl;
+    const surlCandidates = [...new Set([cleanSurl, surlNoOne, `1${surlNoOne}`])];
 
-      if (jsToken) {
+    for (const host of mirrorHosts) {
+      try {
+        const pageUrl = `${host}/sharing/link?surl=${cleanSurl}`;
+        const pageRes = await fetch(pageUrl, {
+          headers: {
+            "User-Agent": ua,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9"
+          },
+          signal: AbortSignal.timeout(10000)
+        });
+        const activeOrigin = pageRes.url ? new URL(pageRes.url).origin : host;
+        const rawCookies = typeof pageRes.headers.getSetCookie === "function" ? pageRes.headers.getSetCookie() : [];
+        const cookieHeader = rawCookies.map(c => c.split(";")[0]).join("; ");
+        const html = await pageRes.text();
+        const jtMatch = html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) || html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
+        const jsToken = jtMatch ? jtMatch[1] : "";
+
+        if (!jsToken) continue;
+
         let listData = null;
-        for (const candidateSurl of [cleanSurl, `1${cleanSurl}`]) {
-          const listUrl = `https://www.1024tera.com/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`;
+        let activeSurl = cleanSurl;
+        for (const candidateSurl of surlCandidates) {
+          const listUrl = `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`;
           const listRes = await fetch(listUrl, {
-            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageUrl },
+            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageRes.url || pageUrl },
             signal: AbortSignal.timeout(10000)
           });
           if (listRes.ok) {
             const parsed = await listRes.json();
             if (parsed && parsed.errno === 0 && Array.isArray(parsed.list) && parsed.list.length > 0) {
               listData = parsed;
+              activeSurl = candidateSurl;
               break;
             }
           }
         }
 
-        if (listData && Array.isArray(listData.list) && listData.list.length > 0) {
-          const uk = listData.uk;
-          const shareid = listData.share_id;
-          const ts = listData.server_time;
-          let fileItem = listData.list.find(item => String(item.isdir) === "0") || listData.list[0];
+        if (!listData || !Array.isArray(listData.list) || listData.list.length === 0) continue;
 
-          // If shared link is a folder, open the folder to grab the video inside
-          if (String(fileItem.isdir) === "1" && fileItem.path) {
-            const subUrl = `https://www.1024tera.com/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${cleanSurl}&dir=${encodeURIComponent(fileItem.path)}&root=0&uk=${uk}&shareid=${shareid}`;
-            const subRes = await fetch(subUrl, {
-              headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageUrl },
+        const uk = listData.uk;
+        const shareid = listData.share_id;
+        const ts = listData.server_time;
+        let fileItem = listData.list.find(item => String(item.isdir) === "0") || listData.list[0];
+
+        // Traverse up to 3 folder levels if shared link is a directory
+        for (let depth = 0; depth < 3 && fileItem && String(fileItem.isdir) === "1" && fileItem.path; depth++) {
+          const subUrl = `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${activeSurl}&dir=${encodeURIComponent(fileItem.path)}&root=0&uk=${uk}&shareid=${shareid}`;
+          const subRes = await fetch(subUrl, {
+            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageRes.url || pageUrl },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (subRes.ok) {
+            const subData = await subRes.json();
+            if (subData && subData.errno === 0 && Array.isArray(subData.list) && subData.list.length > 0) {
+              fileItem = subData.list.find(item => String(item.isdir) === "0") || subData.list[0];
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
+        }
+
+        if (!fileItem || String(fileItem.isdir) === "1") continue;
+
+        const fsId = fileItem.fs_id;
+        let fileName = fileItem.server_filename || "TeraBox_Video.mp4";
+        if (!fileName.match(/\.(mp4|mkv|webm|mov|avi)$/i)) {
+          fileName = `${fileName}.mp4`;
+        }
+
+        // Stream extraction via M3U8_AUTO qualities + full ts_size range rewrite
+        const streamTypes = ["M3U8_AUTO_720", "M3U8_AUTO_480", "M3U8_AUTO_360", "M3U8_FLV_264_480", "M3U8_AUTO_1080"];
+        let fallbackSegCandidate = null;
+
+        for (const stype of streamTypes) {
+          try {
+            const streamUrl = `${activeOrigin}/share/streaming?uk=${uk}&shareid=${shareid}&type=${stype}&fid=${fsId}&sign=1&timestamp=${ts}&jsToken=${jsToken}&esl=1&isplayer=1&ehps=0&clienttype=0&app_id=250528&web=1&channel=dubox`;
+            const sRes = await fetch(streamUrl, {
+              headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageRes.url || pageUrl },
               signal: AbortSignal.timeout(10000)
             });
-            if (subRes.ok) {
-              const subData = await subRes.json();
-              if (subData && subData.errno === 0 && Array.isArray(subData.list) && subData.list.length > 0) {
-                fileItem = subData.list.find(item => String(item.isdir) === "0") || subData.list[0];
+            if (!sRes.ok) continue;
+            const m3u8 = await sRes.text();
+            if (!m3u8.includes("#EXTM3U")) continue;
+
+            const segLines = m3u8.split(/\r?\n/).filter(l => l.startsWith("http"));
+            if (segLines.length === 0) continue;
+
+            const firstSeg = segLines[0];
+            const lastSeg = segLines[segLines.length - 1];
+            const tsSizeMatch = firstSeg.match(/ts_size=(\d+)/);
+            const lastRangeMatch = lastSeg.match(/range=\d+-(\d+)/);
+            let totalBytes = tsSizeMatch ? parseInt(tsSizeMatch[1], 10) : (lastRangeMatch ? parseInt(lastRangeMatch[1], 10) + 1 : 0);
+
+            if (totalBytes > 48 * 1024 * 1024 && stype !== "M3U8_AUTO_360") {
+              if (!fallbackSegCandidate) {
+                fallbackSegCandidate = { firstSeg, totalBytes };
               }
+              continue;
             }
-          }
 
-          const fsId = fileItem.fs_id;
-          let fileName = fileItem.server_filename || "TeraBox_Video.mp4";
-          if (!fileName.match(/\.(mp4|mkv|webm|mov|avi)$/i)) {
-            fileName = `${fileName}.mp4`;
-          }
+            let fullStreamUrl = firstSeg;
+            if (totalBytes > 0) {
+              const targetBytes = Math.min(totalBytes, 47 * 1024 * 1024);
+              fullStreamUrl = fullStreamUrl
+                .replace(/len=\d+/, `len=${targetBytes}`)
+                .replace(/range=\d+-\d+/, `range=0-${targetBytes - 1}`);
+            }
 
-          if (fileItem.dlink && typeof fileItem.dlink === "string" && fileItem.dlink.startsWith("http")) {
-            return {
-              type: "TeraBox",
-              title: fileName,
-              author: "TeraBox Cloud",
-              videoUrl: fileItem.dlink,
-              directStream: true
-            };
-          }
+            const vidRes = await fetch(fullStreamUrl, {
+              headers: {
+                "User-Agent": ua,
+                "Cookie": cookieHeader,
+                "Referer": `${activeOrigin}/`
+              },
+              signal: AbortSignal.timeout(60000)
+            });
 
-          // Stream extraction via M3U8_AUTO qualities + full ts_size range rewrite
-          const streamTypes = ["M3U8_AUTO_1080", "M3U8_AUTO_720", "M3U8_AUTO_480", "M3U8_FLV_264_480", "M3U8_AUTO_360"];
-          for (const stype of streamTypes) {
-            try {
-              const streamUrl = `https://www.1024tera.com/share/streaming?uk=${uk}&shareid=${shareid}&type=${stype}&fid=${fsId}&sign=1&timestamp=${ts}&jsToken=${jsToken}&esl=1&isplayer=1&ehps=0&clienttype=0&app_id=250528&web=1&channel=dubox`;
-              const sRes = await fetch(streamUrl, {
-                headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageUrl },
-                signal: AbortSignal.timeout(12000)
-              });
-              if (!sRes.ok) continue;
-              const m3u8 = await sRes.text();
-              if (!m3u8.includes("#EXTM3U")) continue;
-
-              const segLines = m3u8.split(/\r?\n/).filter(l => l.startsWith("http"));
-              if (segLines.length === 0) continue;
-
-              const firstSeg = segLines[0];
-              const tsSizeMatch = firstSeg.match(/ts_size=(\d+)/);
-              let fullStreamUrl = firstSeg;
-              if (tsSizeMatch) {
-                const totalBytes = parseInt(tsSizeMatch[1], 10);
-                if (totalBytes > 0 && totalBytes <= 48 * 1024 * 1024) {
-                  fullStreamUrl = fullStreamUrl
-                    .replace(/len=\d+/, `len=${totalBytes}`)
-                    .replace(/range=0-\d+/, `range=0-${totalBytes - 1}`);
-                }
-              }
-
-              const vidRes = await fetch(fullStreamUrl, {
-                headers: {
-                  "User-Agent": ua,
-                  "Cookie": cookieHeader,
-                  "Referer": "https://www.1024tera.com/"
-                },
-                signal: AbortSignal.timeout(60000)
-              });
-
-              if (vidRes.ok) {
-                const tsBuf = Buffer.from(await vidRes.arrayBuffer());
-                if (tsBuf.byteLength > 1000) {
-                  const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                  const tmpTs = path.join(os.tmpdir(), `tb_${uniqueId}.ts`);
-                  const tmpMp4 = path.join(os.tmpdir(), `tb_${uniqueId}.mp4`);
-                  try {
-                    fs.writeFileSync(tmpTs, tsBuf);
-                    await execFileAsync("ffmpeg", [
-                      "-y",
-                      "-i", tmpTs,
-                      "-c", "copy",
-                      "-bsf:a", "aac_adtstoasc",
-                      "-movflags", "+faststart",
-                      tmpMp4
-                    ], { timeout: 45000 });
-                    const mp4Buf = fs.readFileSync(tmpMp4);
-                    try { fs.unlinkSync(tmpTs); } catch (_) {}
-                    try { fs.unlinkSync(tmpMp4); } catch (_) {}
-                    if (mp4Buf.byteLength > 1000) {
-                      return {
-                        type: "TeraBox",
-                        title: fileName,
-                        author: "TeraBox Cloud",
-                        videoUrl: "buffer://terabox-direct",
-                        buffer: mp4Buf,
-                        directStream: true
-                      };
-                    }
-                  } catch (ffErr) {
-                    try { fs.unlinkSync(tmpTs); } catch (_) {}
-                    try { fs.unlinkSync(tmpMp4); } catch (_) {}
-                    console.warn("TeraBox ffmpeg remux fallback:", ffErr.message);
+            if (vidRes.ok) {
+              const tsBuf = Buffer.from(await vidRes.arrayBuffer());
+              if (tsBuf.byteLength > 1000) {
+                const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                const tmpTs = path.join(os.tmpdir(), `tb_${uniqueId}.ts`);
+                const tmpMp4 = path.join(os.tmpdir(), `tb_${uniqueId}.mp4`);
+                try {
+                  const ffmpegBin = await getFfmpegBinary();
+                  fs.writeFileSync(tmpTs, tsBuf);
+                  await execFileAsync(ffmpegBin, [
+                    "-y",
+                    "-i", tmpTs,
+                    "-c", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    "-movflags", "+faststart",
+                    tmpMp4
+                  ], { timeout: 45000 });
+                  const mp4Buf = fs.readFileSync(tmpMp4);
+                  try { fs.unlinkSync(tmpTs); } catch (_) {}
+                  try { fs.unlinkSync(tmpMp4); } catch (_) {}
+                  if (mp4Buf.byteLength > 1000) {
                     return {
                       type: "TeraBox",
                       title: fileName,
                       author: "TeraBox Cloud",
-                      videoUrl: "buffer://terabox-ts",
-                      buffer: tsBuf,
+                      duration: fileItem.duration ? Number(fileItem.duration) : undefined,
+                      videoUrl: fullStreamUrl,
+                      buffer: mp4Buf,
                       directStream: true
                     };
                   }
+                } catch (ffErr) {
+                  try { fs.unlinkSync(tmpTs); } catch (_) {}
+                  try { fs.unlinkSync(tmpMp4); } catch (_) {}
+                  console.warn("TeraBox ffmpeg remux fallback:", ffErr.message);
+                  return {
+                    type: "TeraBox",
+                    title: fileName,
+                    author: "TeraBox Cloud",
+                    duration: fileItem.duration ? Number(fileItem.duration) : undefined,
+                    videoUrl: fullStreamUrl,
+                    buffer: tsBuf,
+                    directStream: true
+                  };
                 }
               }
-            } catch (_) {}
-          }
+            }
+          } catch (_) {}
         }
+
+        if (fileItem.dlink && typeof fileItem.dlink === "string" && fileItem.dlink.startsWith("http")) {
+          return {
+            type: "TeraBox",
+            title: fileName,
+            author: "TeraBox Cloud",
+            videoUrl: fileItem.dlink,
+            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": `${activeOrigin}/` },
+            directStream: true
+          };
+        }
+      } catch (err) {
+        console.warn(`Native TeraBox stream extractor notice (${host}):`, err.message);
       }
-    } catch (err) {
-      console.warn("Native TeraBox stream extractor notice:", err.message);
     }
   }
 
@@ -2191,57 +2286,11 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       media = await resolveCobalt(url);
     }
 
-    if (!media || !media.videoUrl) {
-      if (isTeraBoxDomain(lower)) {
-        const surl = extractCleanTeraBoxSurl(url);
-        const mirrorLink = surl ? `https://1024tera.com/s/1${surl}` : url;
-        const webPortal = surl ? `https://terasharelink.com/s/1${surl}` : url;
-        await callTg("editMessageText", {
-          chat_id: chatId,
-          message_id: progressMsgId,
-          text: `📦 <b>TeraBox Cloud Storage Engine</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-            `🔗 <b>Target URL:</b> <code>${escapeHtml(url)}</code>\n\n` +
-            `⚡ <b>Engine:</b> <b>SyntexCore Cloud Node Active</b>\n` +
-            `🚀 <b>Status:</b> <b>High-Speed Fast Stream & Direct Download Ready</b>\n\n` +
-            `💡 <b>Instant Action:</b> You can stream the video or download the full file directly with maximum bandwidth using the buttons below:`,
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "⚡ High-Speed Direct Download / Play", url: mirrorLink }],
-              [{ text: "🌐 Instant Cloud Web Portal", url: webPortal }],
-              [{ text: "📥 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
-              [{ text: "💬 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
-            ]
-          }
-        });
-        return;
-      }
-
-      if (lower.includes("mega.nz") || lower.includes("mega.co.nz") || lower.includes("mega.io")) {
-        await callTg("editMessageText", {
-          chat_id: chatId,
-          message_id: progressMsgId,
-          text: `☁️ <b>MEGA Cloud Storage Engine</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-            `🔗 <b>Target URL:</b> <code>${escapeHtml(url)}</code>\n\n` +
-            `⚡ <b>Engine:</b> <b>SyntexCore Dedicated Cloud Node Active</b>\n` +
-            `🚀 <b>Status:</b> <b>Direct Cloud Stream & Download Ready</b>\n\n` +
-            `💡 <b>Instant Action:</b> You can open, stream or download this file directly from the high-speed MEGA cloud network:`,
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🚀 Open Direct MEGA Cloud", url: url }],
-              [{ text: "📥 Official Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
-              [{ text: "💬 Developer Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
-            ]
-          }
-        });
-        return;
-      }
-
+    if (!media || (!media.videoUrl && !media.buffer)) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video stream from this link.\n\n📱 <i>Tip: Verify the link is publicly accessible or try again in a moment.</i>`,
+        text: `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video file from this link. Please verify the video is publicly accessible and try again.`,
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [
@@ -2254,38 +2303,34 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     const safeTitle = media.title ? String(media.title).trim() : "Media Video";
     const shortTitle = safeTitle.length > 40 ? safeTitle.substring(0, 40) + "..." : safeTitle;
+    const platformName = detectPlatformName(media.type, url);
+    const standardizedFilename = formatOmniStreamFilename(platformName, media.title || safeTitle, "mp4");
+    const defaultMarkup = {
+      inline_keyboard: [
+        [{ text: "👨‍💻 Developer Profile", url: DEV_TELEGRAM }]
+      ]
+    };
 
-    // Direct in-memory buffer delivery (e.g. decrypted MEGA files)
+    // 1. Direct in-memory buffer delivery via Telegram Bot API sendVideo (e.g. TeraBox & MEGA direct files)
     if (media.buffer && media.buffer.byteLength > 1000) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Delivering file to Telegram...</i>`,
+        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Sending video file directly to Telegram...</i>`,
         parse_mode: "HTML"
       });
 
-      const filename = media.title || "cloud_file.mp4";
-      const isVideo = filename.match(/\.(mp4|mkv|webm|mov|avi)$/i);
+      const sizeMb = (media.buffer.byteLength / (1024 * 1024)).toFixed(1);
+      const filename = media.title || standardizedFilename;
       const isAudio = filename.match(/\.(mp3|m4a|wav|aac|flac|ogg)$/i);
-      const cap = `☁️ <b>${escapeHtml(safeTitle)}</b>\n\n📥 Downloaded via OmniStream Cloud Engine`;
-      const markup = {
-        inline_keyboard: [
-          [{ text: "🌐 Web Downloader", url: "https://hanter-xd-official.github.io/OmniStream/" }],
-          [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
-        ]
-      };
+      const cap = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
+        `👤 <b>Platform:</b> ${escapeHtml(media.type || platformName)}\n` +
+        (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
+        `💾 <b>Size:</b> ${sizeMb} MB\n\n` +
+        `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
 
-      if (isVideo) {
-        const vRes = await sendTgVideo(chatId, media.buffer, filename, cap, markup);
-        if (vRes?.ok) {
-          db.stats.totalDownloads++;
-          if (db.users[userId]) db.users[userId].downloads++;
-          saveDatabase();
-          try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
-          return;
-        }
-      } else if (isAudio) {
-        const aRes = await sendTgAudio(chatId, media.buffer, filename, cap, safeTitle, media.author || "MEGA Cloud", markup);
+      if (isAudio) {
+        const aRes = await sendTgAudio(chatId, media.buffer, filename, cap, safeTitle, media.author || platformName, defaultMarkup);
         if (aRes?.ok) {
           db.stats.totalDownloads++;
           if (db.users[userId]) db.users[userId].downloads++;
@@ -2293,8 +2338,18 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
           return;
         }
+      } else {
+        const vRes = await sendTgVideo(chatId, media.buffer, standardizedFilename, cap, defaultMarkup);
+        if (vRes?.ok) {
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
+          saveDatabase();
+          try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          return;
+        }
       }
-      const dRes = await sendTgDocument(chatId, media.buffer, filename, cap, markup);
+
+      const dRes = await sendTgDocument(chatId, media.buffer, standardizedFilename, cap, defaultMarkup);
       if (dRes?.ok) {
         db.stats.totalDownloads++;
         if (db.users[userId]) db.users[userId].downloads++;
@@ -2304,7 +2359,8 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       }
     }
 
-    if (media.directStream && media.videoUrl !== url) {
+    // 2. Extracted URL delivery using Telegram Bot API sendVideo method (binary upload + direct URL sendVideo)
+    if (media.videoUrl && media.videoUrl.startsWith("http") && media.videoUrl !== url) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
@@ -2312,54 +2368,19 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         parse_mode: "HTML"
       });
 
+      const baseCaption = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
+        `👤 <b>Platform:</b> ${escapeHtml(media.type || platformName)}\n` +
+        (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
+        `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
+
+      // Try fetching the stream into buffer and uploading via sendVideo
       try {
-        let contentLength = 0;
-        try {
-          const headRes = await fetch(media.videoUrl, {
-            method: "HEAD",
-            headers: { "User-Agent": "Mozilla/5.0" },
-            signal: AbortSignal.timeout(6000)
-          });
-          if (headRes.ok) {
-            contentLength = parseInt(headRes.headers.get("content-length") || "0", 10);
-          }
-        } catch (_) {}
-
-        if (contentLength > 45 * 1024 * 1024) {
-          const sizeMb = (contentLength / (1024 * 1024)).toFixed(1);
-          const largeText = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
-            `👤 <b>Platform:</b> ${escapeHtml(media.type || "Media Video")}\n` +
-            `💾 <b>Video Size:</b> ${sizeMb} MB (Exceeds 50MB Bot Limit)\n\n` +
-            `⚡ <i>Video download link is ready below. Extracting & sending audio track directly to chat...</i>`;
-
-          await callTg("editMessageText", {
-            chat_id: chatId,
-            message_id: progressMsgId,
-            text: largeText,
-            parse_mode: "HTML",
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: `📥 Download Full HD Video (${sizeMb} MB)`, url: media.videoUrl }],
-                [{ text: "🌐 Official Web App", url: "https://hanter-xd-official.github.io/OmniStream/" }],
-                [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
-              ]
-            }
-          });
-          db.stats.totalDownloads++;
-          if (db.users[userId]) db.users[userId].downloads++;
-          saveDatabase();
-
-          // Deliver audio track directly to chat!
-          const platformName = detectPlatformName(media.type, url);
-          await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
-          return;
-        }
-
+        const reqHeaders = media.headers || {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+          "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
+        };
         let vidRes = await fetch(media.videoUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
-          },
+          headers: reqHeaders,
           signal: AbortSignal.timeout(60000)
         });
 
@@ -2377,35 +2398,24 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           const sizeBytes = videoBuffer.byteLength;
           const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
 
-          if (sizeBytes <= 48 * 1024 * 1024 && sizeBytes > 1000) {
+          if (sizeBytes <= 49 * 1024 * 1024 && sizeBytes > 1000) {
             const caption = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
-              `👤 <b>Platform:</b> ${escapeHtml(media.type || "Web Video")}\n` +
+              `👤 <b>Platform:</b> ${escapeHtml(media.type || platformName)}\n` +
               (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
-              `💾 <b>Size:</b> ${sizeMb} MB\n` +
-              `🎵 <b>Audio:</b> Extracted & delivering below\n\n` +
+              `💾 <b>Size:</b> ${sizeMb} MB\n\n` +
               `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
 
-            const replyMarkup = {
-              inline_keyboard: [
-                [{ text: "🌐 Direct HD Stream Link", url: media.videoUrl }],
-                [{ text: "👨‍💻 Developer Profile", url: DEV_TELEGRAM }]
-              ]
-            };
-
-            const platformName = detectPlatformName(media.type, url);
-            const standardizedFilename = formatOmniStreamFilename(platformName, media.title || safeTitle, "mp4");
-            let sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, replyMarkup);
+            let sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup);
             if (!sendRes || !sendRes.ok) {
-              sendRes = await sendTgDocument(chatId, videoBuffer, media.title || standardizedFilename, caption, replyMarkup);
+              sendRes = await sendTgDocument(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup);
             }
             if (sendRes && sendRes.ok) {
-              await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId });
+              try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
               db.stats.totalDownloads++;
               if (db.users[userId]) db.users[userId].downloads++;
               saveDatabase();
-              console.log(`[DELIVERED MEDIA] File sent to ${chatId}`);
+              console.log(`[DELIVERED MEDIA] Video file sent to ${chatId}`);
 
-              // ALSO send audio track if it's a video file
               if (media.type !== "TeraBox" && media.type !== "MEGA") {
                 await deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer);
               }
@@ -2414,35 +2424,31 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           }
         }
       } catch (dlErr) {
-        console.warn("Direct buffer fetch failed, falling back to download card:", dlErr.message);
+        console.warn("Direct buffer fetch notice, trying sendVideo with extracted URL:", dlErr.message);
+      }
+
+      // Fallback: Call Telegram Bot API sendVideo directly with the extracted videoUrl
+      const urlVideoRes = await sendTgVideoByUrl(chatId, media.videoUrl, baseCaption, defaultMarkup);
+      if (urlVideoRes && urlVideoRes.ok) {
+        try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+        db.stats.totalDownloads++;
+        if (db.users[userId]) db.users[userId].downloads++;
+        saveDatabase();
+        console.log(`[DELIVERED MEDIA] Video sent via sendVideo URL to ${chatId}`);
+        if (media.type !== "TeraBox" && media.type !== "MEGA") {
+          await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
+        }
+        return;
       }
     }
-
-    const fallbackText = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
-      `👤 <b>Platform:</b> ${escapeHtml(media.type || "Media Video")}\n` +
-      `⚡ <i>Click below to download or stream high definition media directly:</i>`;
-
-    const buttons = [
-      [{ text: "📥 Download / Watch Video (HD)", url: media.videoUrl }],
-      [{ text: "🌐 Official Web App", url: "https://hanter-xd-official.github.io/OmniStream/" }],
-      [{ text: "💬 Support (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
-    ];
 
     await callTg("editMessageText", {
       chat_id: chatId,
       message_id: progressMsgId,
-      text: fallbackText,
+      text: `⚠️ <b>Video Delivery Notice</b>\n\nCould not send the video file directly to Telegram (the file may exceed Telegram's 50MB bot upload limit or require authentication).`,
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: buttons }
+      reply_markup: defaultMarkup
     });
-
-    db.stats.totalDownloads++;
-    if (db.users[userId]) db.users[userId].downloads++;
-    saveDatabase();
-
-    // Deliver audio track in fallback mode as well
-    const fallbackPlatformName = detectPlatformName(media?.type, url);
-    await deliverAudioTrack(chatId, url, media, safeTitle, fallbackPlatformName);
 
   } catch (err) {
     console.error("[PROCESS ERROR]:", err.message);
@@ -3286,6 +3292,8 @@ async function handleUpdate(update) {
 // ==================== POLLING LOOP ====================
 
 let lastUpdateId = 0;
+const processedUpdateIds = new Set();
+let lastConflictAt = 0;
 
 async function pollUpdates() {
   if (!BOT_TOKEN) {
@@ -3299,23 +3307,42 @@ async function pollUpdates() {
 
   while (true) {
     try {
-      const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId}&timeout=25`, {
-        signal: AbortSignal.timeout(35000)
+      const recentlyConflicted = Date.now() - lastConflictAt < 120000;
+      const pollTimeout = recentlyConflicted ? 2 : 20;
+      const res = await fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId}&timeout=${pollTimeout}`, {
+        signal: AbortSignal.timeout((pollTimeout + 8) * 1000)
       });
 
       if (res.ok) {
         const data = await res.json();
-        if (data && data.ok && Array.isArray(data.result)) {
+        if (data && data.ok && Array.isArray(data.result) && data.result.length > 0) {
           for (const update of data.result) {
-            lastUpdateId = update.update_id + 1;
-            handleUpdate(update).catch(e => console.error("Update task error:", e?.message));
+            if (update.update_id >= lastUpdateId) {
+              lastUpdateId = update.update_id + 1;
+            }
+            if (!processedUpdateIds.has(update.update_id)) {
+              processedUpdateIds.add(update.update_id);
+              if (processedUpdateIds.size > 2000) {
+                const firstKey = processedUpdateIds.values().next().value;
+                processedUpdateIds.delete(firstKey);
+              }
+              handleUpdate(update).catch(e => console.error("Update task error:", e?.message));
+            }
           }
+          // Immediately commit offset on Telegram server so no stale instance can read the same update
+          fetch(`${TELEGRAM_API}/getUpdates?offset=${lastUpdateId}&timeout=0`, {
+            signal: AbortSignal.timeout(4000)
+          }).catch(() => {});
         }
+      } else if (res.status === 409) {
+        lastConflictAt = Date.now();
+        // Preempt any stale external poller immediately (within 10ms) so it stays in its 2000ms backoff
+        await new Promise(r => setTimeout(r, 10));
       } else {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1000));
       }
     } catch (err) {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 250));
     }
   }
 }
