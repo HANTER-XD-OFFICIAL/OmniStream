@@ -3020,30 +3020,6 @@ class YtDlpClient(
     private fun extractTeraBoxVideo(tbUrl: String): VideoInfoResponse? {
         val surl = extractTeraBoxSurl(tbUrl)
 
-        // Priority 1: SyntexCore Dedicated TeraBox API
-        try {
-            val jsonPayload = JSONObject().apply {
-                put("url", tbUrl)
-                put("apiKey", "syntx_live_2o8vqnbvwh3xw7p4w887ps")
-            }
-            val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url("https://syntexcore.site/api/v1/terabox-dl")
-                .post(requestBody)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "application/json")
-                .build()
-
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string()
-                if (!body.isNullOrBlank()) {
-                    val parsed = parseTeraBoxApiResponse(body, tbUrl)
-                    if (parsed != null) return parsed
-                }
-            }
-        } catch (_: Exception) {}
-
         // Method 1: Try public high-speed TeraBox API resolvers
         val apiEndpoints = listOf(
             "https://terabox-dl.qtcloud.workers.dev/api/get-info?url=",
@@ -3304,33 +3280,9 @@ class YtDlpClient(
     }
 
     /**
-     * Dedicated MEGA Cloud Video & File Extractor:
-     * Resolves MEGA file share links via SyntexCore Dedicated API.
+     * Dedicated MEGA Cloud Video & File Extractor
      */
     private fun extractMegaVideo(megaUrl: String): VideoInfoResponse? {
-        try {
-            val jsonPayload = JSONObject().apply {
-                put("url", megaUrl)
-                put("apiKey", "syntx_live_2o8vqnbvwh3xw7p4w887ps")
-            }
-            val requestBody = jsonPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url("https://syntexcore.site/api/v1/mega-dl")
-                .post(requestBody)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "application/json")
-                .build()
-
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string()
-                if (!body.isNullOrBlank()) {
-                    val parsed = parseMegaApiResponse(body, megaUrl)
-                    if (parsed != null) return parsed
-                }
-            }
-        } catch (_: Exception) {}
-
         val fileId = Regex("""file/([a-zA-Z0-9_-]+)""").find(megaUrl)?.groupValues?.getOrNull(1)
             ?: Regex("""#([a-zA-Z0-9_-]+)""").find(megaUrl)?.groupValues?.getOrNull(1)
             ?: "mega_file"

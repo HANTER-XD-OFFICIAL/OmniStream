@@ -7,8 +7,13 @@
 import process from 'node:process';
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -447,7 +452,7 @@ function detectPlatformName(type, url = "") {
   if (lower.includes("instagram.com") || lower.includes("instagr.am")) return "Instagram";
   if (lower.includes("tiktok.com") || lower.includes("douyin.com")) return "TikTok";
   if (lower.includes("facebook.com") || lower.includes("fb.watch") || lower.includes("fb.com")) return "Facebook";
-  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp") || lower.includes("terasharelink")) return "TeraBox";
+  if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("teraboxapp") || lower.includes("terasharelink") || lower.includes("teraboxlink") || lower.includes("terafileshare") || lower.includes("freeterabox") || lower.includes("nephobox") || lower.includes("4funbox") || lower.includes("mirrobox") || lower.includes("momerybox") || lower.includes("tibibox")) return "TeraBox";
   if (lower.includes("mega.nz") || lower.includes("mega.co.nz") || lower.includes("mega.io")) return "MEGA";
   if (lower.includes("twitter.com") || lower.includes("x.com")) return "Twitter";
   if (lower.includes("pinterest.") || lower.includes("pin.it")) return "Pinterest";
@@ -1655,15 +1660,53 @@ async function resolveYouTube(url, onProgressUpdate = null) {
   }
 }
 
-// 4. TeraBox Resolver (SyntexCore Dedicated API + Multi-Gateway Failover)
+// Helper: Check if URL belongs to any TeraBox domain/mirror
+function isTeraBoxDomain(url) {
+  const lower = (url || "").toLowerCase();
+  return (
+    lower.includes("terabox") ||
+    lower.includes("1024tera") ||
+    lower.includes("terasharelink") ||
+    lower.includes("teraboxapp") ||
+    lower.includes("teraboxlink") ||
+    lower.includes("terafileshare") ||
+    lower.includes("freeterabox") ||
+    lower.includes("nephobox") ||
+    lower.includes("4funbox") ||
+    lower.includes("mirrobox") ||
+    lower.includes("momerybox") ||
+    lower.includes("tibibox")
+  );
+}
+
+// Helper: Extract clean TeraBox shorturl (without leading '1' prefix when needed)
+function extractCleanTeraBoxSurl(inputUrl) {
+  if (!inputUrl) return "";
+  const qMatch = inputUrl.match(/[?&]surl=([a-zA-Z0-9_-]+)/i);
+  if (qMatch && qMatch[1]) {
+    const raw = qMatch[1];
+    return raw.startsWith("1") && raw.length > 20 ? raw.slice(1) : raw;
+  }
+  const sMatch = inputUrl.match(/\/s\/([a-zA-Z0-9_-]+)/i);
+  if (sMatch && sMatch[1]) {
+    const raw = sMatch[1];
+    return raw.startsWith("1") && raw.length > 15 ? raw.slice(1) : raw;
+  }
+  return "";
+}
+
+// 4. TeraBox Resolver (SyntexCore Dedicated Bot API + Native Direct Video Stream Engine)
 async function resolveTeraBox(url) {
-  // Primary: SyntexCore Dedicated TeraBox API
+  const cleanSurl = extractCleanTeraBoxSurl(url);
+  const canonicalUrl = cleanSurl ? `https://www.terabox.com/sharing/link?surl=${cleanSurl}` : url;
+
+  // Primary: SyntexCore Dedicated TeraBox API (Exclusively for Telegram Bot)
   try {
     const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        url,
+        url: canonicalUrl,
         apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
       }),
       signal: AbortSignal.timeout(12000)
@@ -1677,7 +1720,7 @@ async function resolveTeraBox(url) {
         if (direct && typeof direct === "string" && direct.startsWith("http")) {
           return {
             type: "TeraBox",
-            title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox File",
+            title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox Video.mp4",
             author: "TeraBox Cloud",
             videoUrl: direct,
             directStream: true
@@ -1687,6 +1730,169 @@ async function resolveTeraBox(url) {
     }
   } catch (err) {
     console.warn("SyntexCore TeraBox notice:", err.message);
+  }
+
+  // Secondary: Native TeraBox Direct Stream & MP4 Remux Engine (100% Cookie + jsToken + HLS/TS Extractor)
+  if (cleanSurl) {
+    try {
+      const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+      const pageUrl = `https://www.1024tera.com/sharing/link?surl=${cleanSurl}`;
+      const pageRes = await fetch(pageUrl, {
+        headers: {
+          "User-Agent": ua,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9"
+        },
+        signal: AbortSignal.timeout(12000)
+      });
+      const rawCookies = typeof pageRes.headers.getSetCookie === "function" ? pageRes.headers.getSetCookie() : [];
+      const cookieHeader = rawCookies.map(c => c.split(";")[0]).join("; ");
+      const html = await pageRes.text();
+      const jtMatch = html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) || html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
+      const jsToken = jtMatch ? jtMatch[1] : "";
+
+      if (jsToken) {
+        let listData = null;
+        for (const candidateSurl of [cleanSurl, `1${cleanSurl}`]) {
+          const listUrl = `https://www.1024tera.com/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`;
+          const listRes = await fetch(listUrl, {
+            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageUrl },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (listRes.ok) {
+            const parsed = await listRes.json();
+            if (parsed && parsed.errno === 0 && Array.isArray(parsed.list) && parsed.list.length > 0) {
+              listData = parsed;
+              break;
+            }
+          }
+        }
+
+        if (listData && Array.isArray(listData.list) && listData.list.length > 0) {
+          const uk = listData.uk;
+          const shareid = listData.share_id;
+          const ts = listData.server_time;
+          let fileItem = listData.list.find(item => String(item.isdir) === "0") || listData.list[0];
+
+          // If shared link is a folder, open the folder to grab the video inside
+          if (String(fileItem.isdir) === "1" && fileItem.path) {
+            const subUrl = `https://www.1024tera.com/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${cleanSurl}&dir=${encodeURIComponent(fileItem.path)}&root=0&uk=${uk}&shareid=${shareid}`;
+            const subRes = await fetch(subUrl, {
+              headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageUrl },
+              signal: AbortSignal.timeout(10000)
+            });
+            if (subRes.ok) {
+              const subData = await subRes.json();
+              if (subData && subData.errno === 0 && Array.isArray(subData.list) && subData.list.length > 0) {
+                fileItem = subData.list.find(item => String(item.isdir) === "0") || subData.list[0];
+              }
+            }
+          }
+
+          const fsId = fileItem.fs_id;
+          let fileName = fileItem.server_filename || "TeraBox_Video.mp4";
+          if (!fileName.match(/\.(mp4|mkv|webm|mov|avi)$/i)) {
+            fileName = `${fileName}.mp4`;
+          }
+
+          if (fileItem.dlink && typeof fileItem.dlink === "string" && fileItem.dlink.startsWith("http")) {
+            return {
+              type: "TeraBox",
+              title: fileName,
+              author: "TeraBox Cloud",
+              videoUrl: fileItem.dlink,
+              directStream: true
+            };
+          }
+
+          // Stream extraction via M3U8_AUTO qualities + full ts_size range rewrite
+          const streamTypes = ["M3U8_AUTO_1080", "M3U8_AUTO_720", "M3U8_AUTO_480", "M3U8_FLV_264_480", "M3U8_AUTO_360"];
+          for (const stype of streamTypes) {
+            try {
+              const streamUrl = `https://www.1024tera.com/share/streaming?uk=${uk}&shareid=${shareid}&type=${stype}&fid=${fsId}&sign=1&timestamp=${ts}&jsToken=${jsToken}&esl=1&isplayer=1&ehps=0&clienttype=0&app_id=250528&web=1&channel=dubox`;
+              const sRes = await fetch(streamUrl, {
+                headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageUrl },
+                signal: AbortSignal.timeout(12000)
+              });
+              if (!sRes.ok) continue;
+              const m3u8 = await sRes.text();
+              if (!m3u8.includes("#EXTM3U")) continue;
+
+              const segLines = m3u8.split(/\r?\n/).filter(l => l.startsWith("http"));
+              if (segLines.length === 0) continue;
+
+              const firstSeg = segLines[0];
+              const tsSizeMatch = firstSeg.match(/ts_size=(\d+)/);
+              let fullStreamUrl = firstSeg;
+              if (tsSizeMatch) {
+                const totalBytes = parseInt(tsSizeMatch[1], 10);
+                if (totalBytes > 0 && totalBytes <= 48 * 1024 * 1024) {
+                  fullStreamUrl = fullStreamUrl
+                    .replace(/len=\d+/, `len=${totalBytes}`)
+                    .replace(/range=0-\d+/, `range=0-${totalBytes - 1}`);
+                }
+              }
+
+              const vidRes = await fetch(fullStreamUrl, {
+                headers: {
+                  "User-Agent": ua,
+                  "Cookie": cookieHeader,
+                  "Referer": "https://www.1024tera.com/"
+                },
+                signal: AbortSignal.timeout(60000)
+              });
+
+              if (vidRes.ok) {
+                const tsBuf = Buffer.from(await vidRes.arrayBuffer());
+                if (tsBuf.byteLength > 1000) {
+                  const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                  const tmpTs = path.join(os.tmpdir(), `tb_${uniqueId}.ts`);
+                  const tmpMp4 = path.join(os.tmpdir(), `tb_${uniqueId}.mp4`);
+                  try {
+                    fs.writeFileSync(tmpTs, tsBuf);
+                    await execFileAsync("ffmpeg", [
+                      "-y",
+                      "-i", tmpTs,
+                      "-c", "copy",
+                      "-bsf:a", "aac_adtstoasc",
+                      "-movflags", "+faststart",
+                      tmpMp4
+                    ], { timeout: 45000 });
+                    const mp4Buf = fs.readFileSync(tmpMp4);
+                    try { fs.unlinkSync(tmpTs); } catch (_) {}
+                    try { fs.unlinkSync(tmpMp4); } catch (_) {}
+                    if (mp4Buf.byteLength > 1000) {
+                      return {
+                        type: "TeraBox",
+                        title: fileName,
+                        author: "TeraBox Cloud",
+                        videoUrl: "buffer://terabox-direct",
+                        buffer: mp4Buf,
+                        directStream: true
+                      };
+                    }
+                  } catch (ffErr) {
+                    try { fs.unlinkSync(tmpTs); } catch (_) {}
+                    try { fs.unlinkSync(tmpMp4); } catch (_) {}
+                    console.warn("TeraBox ffmpeg remux fallback:", ffErr.message);
+                    return {
+                      type: "TeraBox",
+                      title: fileName,
+                      author: "TeraBox Cloud",
+                      videoUrl: "buffer://terabox-ts",
+                      buffer: tsBuf,
+                      directStream: true
+                    };
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Native TeraBox stream extractor notice:", err.message);
+    }
   }
 
   // Fallback: High-Speed Public Worker Resolvers
@@ -1706,7 +1912,7 @@ async function resolveTeraBox(url) {
         if (direct && typeof direct === "string" && direct.startsWith("http")) {
           return {
             type: "TeraBox",
-            title: payload.file_name || payload.filename || payload.title || "TeraBox File",
+            title: payload.file_name || payload.filename || payload.title || "TeraBox File.mp4",
             author: "TeraBox Cloud",
             videoUrl: direct,
             directStream: true
@@ -1977,7 +2183,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           parse_mode: "HTML"
         });
       });
-    } else if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink") || lower.includes("teraboxapp")) {
+    } else if (isTeraBoxDomain(lower)) {
       media = await resolveTeraBox(url);
     } else if (lower.includes("mega.nz") || lower.includes("mega.co.nz") || lower.includes("mega.io")) {
       media = await resolveMega(url);
@@ -1986,9 +2192,8 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     }
 
     if (!media || !media.videoUrl) {
-      if (lower.includes("terabox") || lower.includes("1024tera") || lower.includes("terasharelink") || lower.includes("teraboxapp")) {
-        const surlMatch = url.match(/\/s\/(?:1)?([a-zA-Z0-9_-]+)/);
-        const surl = surlMatch ? surlMatch[1] : "";
+      if (isTeraBoxDomain(lower)) {
+        const surl = extractCleanTeraBoxSurl(url);
         const mirrorLink = surl ? `https://1024tera.com/s/1${surl}` : url;
         const webPortal = surl ? `https://terasharelink.com/s/1${surl}` : url;
         await callTg("editMessageText", {
@@ -2073,18 +2278,27 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       if (isVideo) {
         const vRes = await sendTgVideo(chatId, media.buffer, filename, cap, markup);
         if (vRes?.ok) {
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
+          saveDatabase();
           try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
           return;
         }
       } else if (isAudio) {
         const aRes = await sendTgAudio(chatId, media.buffer, filename, cap, safeTitle, media.author || "MEGA Cloud", markup);
         if (aRes?.ok) {
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
+          saveDatabase();
           try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
           return;
         }
       }
       const dRes = await sendTgDocument(chatId, media.buffer, filename, cap, markup);
       if (dRes?.ok) {
+        db.stats.totalDownloads++;
+        if (db.users[userId]) db.users[userId].downloads++;
+        saveDatabase();
         try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
         return;
       }
