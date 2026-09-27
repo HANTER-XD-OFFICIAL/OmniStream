@@ -1693,8 +1693,7 @@ function isTeraBoxDomain(url) {
   return (
     lower.includes("terabox") ||
     lower.includes("1024tera") ||
-    lower.includes("terasharelink") ||
-    lower.includes("terasharefile") ||
+    lower.includes("terashare") ||
     lower.includes("teraboxapp") ||
     lower.includes("teraboxlink") ||
     lower.includes("terafileshare") ||
@@ -1704,9 +1703,14 @@ function isTeraBoxDomain(url) {
     lower.includes("mirrobox") ||
     lower.includes("momerybox") ||
     lower.includes("tibibox") ||
+    lower.includes("gibibox") ||
     lower.includes("dubox") ||
     lower.includes("terafiles") ||
-    lower.includes("tera-box")
+    lower.includes("tera-box") ||
+    lower.includes("1024box") ||
+    lower.includes("tera1024") ||
+    /[?&](?:surl|shorturl)=[a-zA-Z0-9_-]{8,}/i.test(url) ||
+    /\/wap\/share\/filelist/i.test(url)
   );
 }
 
@@ -1716,12 +1720,17 @@ function extractCleanTeraBoxSurl(inputUrl) {
   const qMatch = inputUrl.match(/[?&](?:surl|shorturl)=([a-zA-Z0-9_-]+)/i);
   if (qMatch && qMatch[1]) {
     const raw = qMatch[1];
-    return raw.startsWith("1") && raw.length >= 22 ? raw.slice(1) : raw;
+    // Query param surl is normally 22 chars without prefix '1'; only strip '1' if 23+ chars
+    return raw.startsWith("1") && raw.length >= 23 ? raw.slice(1) : raw;
   }
   const sMatch = inputUrl.match(/\/s\/([a-zA-Z0-9_-]+)/i);
   if (sMatch && sMatch[1]) {
     const raw = sMatch[1];
-    return raw.startsWith("1") && raw.length > 15 ? raw.slice(1) : raw;
+    // Path /s/1<surl> prepends '1' (making a 22-char surl 23 chars long)
+    if (raw.startsWith("1") && (raw.length >= 23 || (raw.length > 12 && raw.length !== 22))) {
+      return raw.slice(1);
+    }
+    return raw;
   }
   return "";
 }
@@ -1745,16 +1754,16 @@ async function getFfmpegBinary() {
   return "ffmpeg";
 }
 
-// 4. TeraBox Resolver (SyntexCore Dedicated Bot API + Native Direct Video Stream Engine)
+// 4. TeraBox Resolver (Native Direct Video Stream Engine + Multi-Gateway Fallback)
 async function resolveTeraBox(url) {
   let resolvedInputUrl = url;
   let cleanSurl = extractCleanTeraBoxSurl(resolvedInputUrl);
 
-  // If short/redirect TeraBox URL doesn't expose surl directly, follow redirect once
+  // If short/redirect TeraBox URL doesn't expose surl directly, follow redirect and inspect URL + HTML
   if (!cleanSurl) {
     try {
       const r = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
         redirect: "follow",
         signal: AbortSignal.timeout(8000)
       });
@@ -1762,47 +1771,18 @@ async function resolveTeraBox(url) {
         resolvedInputUrl = r.url;
         cleanSurl = extractCleanTeraBoxSurl(resolvedInputUrl);
       }
+      if (!cleanSurl) {
+        const htmlText = await r.text();
+        cleanSurl = extractCleanTeraBoxSurl(htmlText);
+      }
     } catch (_) {}
   }
 
-  const surlNoOne = cleanSurl && cleanSurl.startsWith("1") && cleanSurl.length >= 20 ? cleanSurl.slice(1) : cleanSurl;
+  // Do not double-strip '1' if cleanSurl is already a 22-char surl starting with '1'
+  const surlNoOne = cleanSurl && cleanSurl.startsWith("1") && cleanSurl.length >= 23 ? cleanSurl.slice(1) : cleanSurl;
   const canonicalUrl = surlNoOne ? `https://www.terabox.com/sharing/link?surl=${surlNoOne}` : resolvedInputUrl;
 
-  // Primary: SyntexCore Dedicated TeraBox API (Exclusively for Telegram Bot)
-  for (const targetApiUrl of [...new Set([canonicalUrl, url])]) {
-    try {
-      const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: targetApiUrl,
-          apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
-        }),
-        signal: AbortSignal.timeout(8000)
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data?.status !== "error" && json.status !== "error") {
-          const payload = json.data?.data || json.data || json;
-          const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
-            (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
-          if (direct && typeof direct === "string" && direct.startsWith("http")) {
-            return {
-              type: "TeraBox",
-              title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox Video.mp4",
-              author: "TeraBox Cloud",
-              videoUrl: direct,
-              directStream: true
-            };
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("SyntexCore TeraBox notice:", err.message);
-    }
-  }
-
-  // Secondary: Native TeraBox Direct Stream & MP4 Remux Engine (100% Cookie + jsToken + HLS/TS Extractor)
+  // Priority 1: Native TeraBox Direct Stream & MP4 Remux Engine (100% Cookie + jsToken + HLS/TS Extractor)
   if (cleanSurl) {
     const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     const mirrorHosts = [
@@ -1812,18 +1792,40 @@ async function resolveTeraBox(url) {
       "https://www.1024terabox.com",
       "https://www.freeterabox.com"
     ];
-    const surlCandidates = [...new Set([surlNoOne, cleanSurl, `1${surlNoOne}`])].filter(Boolean);
+    const altSurlNoOne = surlNoOne.startsWith("1") && surlNoOne.length >= 20 ? surlNoOne.slice(1) : null;
+    const surlCandidates = [...new Set([
+      surlNoOne,
+      `1${surlNoOne}`,
+      cleanSurl,
+      altSurlNoOne,
+      altSurlNoOne ? `1${altSurlNoOne}` : null
+    ])].filter(Boolean);
 
     for (const host of mirrorHosts) {
       try {
         let activeOrigin = host;
-        let cookieHeader = "";
+        let cookieMap = new Map();
         let jsToken = "";
         let pageReferer = `${host}/sharing/link?surl=${surlNoOne}`;
 
+        const collectCookies = (resObj) => {
+          const raw = typeof resObj?.headers?.getSetCookie === "function" ? resObj.headers.getSetCookie() : [];
+          for (const c of raw) {
+            const pair = c.split(";")[0]?.trim();
+            if (pair && pair.includes("=")) {
+              const eqIdx = pair.indexOf("=");
+              const k = pair.slice(0, eqIdx).trim();
+              const v = pair.slice(eqIdx + 1).trim();
+              if (v) cookieMap.set(k, v);
+            }
+          }
+        };
+        const getCookieHeader = () => Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+
         const entryUrls = [
           `${host}/sharing/link?surl=${surlNoOne}`,
-          `${host}/s/1${surlNoOne}`
+          `${host}/s/1${surlNoOne}`,
+          ...(altSurlNoOne ? [`${host}/sharing/link?surl=${altSurlNoOne}`, `${host}/s/1${altSurlNoOne}`] : [])
         ];
 
         for (const entryUrl of entryUrls) {
@@ -1838,12 +1840,12 @@ async function resolveTeraBox(url) {
             });
             activeOrigin = pageRes.url ? new URL(pageRes.url).origin : host;
             pageReferer = pageRes.url || entryUrl;
-            const rawCookies = typeof pageRes.headers.getSetCookie === "function" ? pageRes.headers.getSetCookie() : [];
-            if (rawCookies.length > 0) {
-              cookieHeader = rawCookies.map(c => c.split(";")[0]).join("; ");
-            }
+            collectCookies(pageRes);
             const html = await pageRes.text();
-            const jtMatch = html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) || html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
+            const jtMatch =
+              html.match(/fn%28%22([a-fA-F0-9]+)%22%29/) ||
+              html.match(/jsToken\s*=\s*["']([a-fA-F0-9]+)["']/) ||
+              html.match(/window\.jsToken\s*=\s*["']([a-fA-F0-9]+)["']/);
             if (jtMatch && jtMatch[1]) {
               jsToken = jtMatch[1];
               break;
@@ -1854,23 +1856,32 @@ async function resolveTeraBox(url) {
         if (!jsToken) continue;
 
         let listData = null;
-        let activeSurl = surlNoOne;
+        let randsk = "";
+        let cleanShorturlForList = surlNoOne;
+
         for (const candidateSurl of surlCandidates) {
           const listEndpoints = [
-            `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`,
-            `${activeOrigin}/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`
+            `${activeOrigin}/api/shorturlinfo?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`,
+            `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${candidateSurl}&root=1`
           ];
           for (const listUrl of listEndpoints) {
             try {
               const listRes = await fetch(listUrl, {
-                headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageReferer },
+                headers: { "User-Agent": ua, "Cookie": getCookieHeader(), "Referer": pageReferer },
                 signal: AbortSignal.timeout(10000)
               });
+              collectCookies(listRes);
               if (listRes.ok) {
                 const parsed = await listRes.json();
                 if (parsed && parsed.errno === 0 && Array.isArray(parsed.list) && parsed.list.length > 0) {
                   listData = parsed;
-                  activeSurl = candidateSurl;
+                  if (parsed.randsk) {
+                    randsk = parsed.randsk;
+                    cookieMap.set("BDCLND", parsed.randsk);
+                  }
+                  cleanShorturlForList = candidateSurl.startsWith("1") && candidateSurl.length >= 23
+                    ? candidateSurl.slice(1)
+                    : candidateSurl;
                   break;
                 }
               }
@@ -1883,7 +1894,8 @@ async function resolveTeraBox(url) {
 
         const uk = listData.uk || listData.list[0]?.uk;
         const shareid = listData.share_id || listData.shareid;
-        const ts = listData.server_time || Math.floor(Date.now() / 1000);
+        const ts = listData.server_time || listData.timestamp || Math.floor(Date.now() / 1000);
+        const sekeyParam = randsk ? `&sekey=${encodeURIComponent(decodeURIComponent(randsk))}` : "";
 
         const pickBestFile = (items) => {
           const files = items.filter(item => String(item.isdir) === "0");
@@ -1898,21 +1910,32 @@ async function resolveTeraBox(url) {
 
         // Traverse up to 3 folder levels if shared link is a directory
         for (let depth = 0; depth < 3 && fileItem && String(fileItem.isdir) === "1" && fileItem.path; depth++) {
-          const subUrl = `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${activeSurl}&dir=${encodeURIComponent(fileItem.path)}&root=0&uk=${uk}&shareid=${shareid}`;
-          const subRes = await fetch(subUrl, {
-            headers: { "User-Agent": ua, "Cookie": cookieHeader, "Referer": pageReferer },
-            signal: AbortSignal.timeout(10000)
-          });
-          if (subRes.ok) {
-            const subData = await subRes.json();
-            if (subData && subData.errno === 0 && Array.isArray(subData.list) && subData.list.length > 0) {
-              fileItem = pickBestFile(subData.list);
-            } else {
-              break;
+          let subFound = false;
+          const subSurlOptions = [...new Set([cleanShorturlForList, surlNoOne, `1${cleanShorturlForList}`])];
+          for (const subSurl of subSurlOptions) {
+            const subEndpoints = [
+              `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${subSurl}&dir=${encodeURIComponent(fileItem.path)}&page=1&num=100&by=name&order=asc&uk=${uk}&shareid=${shareid}${sekeyParam}`,
+              `${activeOrigin}/share/list?app_id=250528&web=1&channel=dubox&clienttype=0&jsToken=${jsToken}&shorturl=${subSurl}&dir=${encodeURIComponent(fileItem.path)}&root=0&uk=${uk}&shareid=${shareid}${sekeyParam}`
+            ];
+            for (const subUrl of subEndpoints) {
+              try {
+                const subRes = await fetch(subUrl, {
+                  headers: { "User-Agent": ua, "Cookie": getCookieHeader(), "Referer": pageReferer },
+                  signal: AbortSignal.timeout(10000)
+                });
+                if (subRes.ok) {
+                  const subData = await subRes.json();
+                  if (subData && subData.errno === 0 && Array.isArray(subData.list) && subData.list.length > 0) {
+                    fileItem = pickBestFile(subData.list);
+                    subFound = true;
+                    break;
+                  }
+                }
+              } catch (_) {}
             }
-          } else {
-            break;
+            if (subFound) break;
           }
+          if (!subFound) break;
         }
 
         if (!fileItem || String(fileItem.isdir) === "1") continue;
@@ -1922,6 +1945,7 @@ async function resolveTeraBox(url) {
         if (!fileName.match(/\.(mp4|mkv|webm|mov|avi)$/i)) {
           fileName = `${fileName}.mp4`;
         }
+        const cookieHeader = getCookieHeader();
 
         const remuxTsBufferToMp4 = async (tsBuf, sourceStreamUrl) => {
           const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -2100,7 +2124,41 @@ async function resolveTeraBox(url) {
     }
   }
 
-  // Fallback: High-Speed Public Worker Resolvers
+  // Priority 2: SyntexCore Dedicated TeraBox API (Exclusively for Telegram Bot)
+  for (const targetApiUrl of [...new Set([canonicalUrl, url])]) {
+    try {
+      const res = await fetch("https://syntexcore.site/api/v1/terabox-dl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: targetApiUrl,
+          apiKey: "syntx_live_2o8vqnbvwh3xw7p4w887ps"
+        }),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data?.status !== "error" && json.status !== "error") {
+          const payload = json.data?.data || json.data || json;
+          const direct = payload.download_link || payload.url || payload.dlink || payload.direct_link || payload.downloadUrl || payload.download ||
+            (payload.list && payload.list[0]?.dlink) || (payload.files && payload.files[0]?.url) || (payload.file && (payload.file.download_link || payload.file.url));
+          if (direct && typeof direct === "string" && direct.startsWith("http")) {
+            return {
+              type: "TeraBox",
+              title: payload.file_name || payload.filename || payload.title || payload.name || "TeraBox Video.mp4",
+              author: "TeraBox Cloud",
+              videoUrl: direct,
+              directStream: true
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("SyntexCore TeraBox notice:", err.message);
+    }
+  }
+
+  // Priority 3: High-Speed Public Worker Resolvers
   const publicGateways = [
     `https://terabox-dl.qtcloud.workers.dev/api/get-info?url=${encodeURIComponent(url)}`,
     `https://tb-api.subhankar.me/api?url=${encodeURIComponent(url)}`,
