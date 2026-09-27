@@ -30,12 +30,14 @@ process.on('unhandledRejection', (reason) => {
 // Bot Token is read securely from environment variables (BOT_TOKEN, TELEGRAM_BOT_TOKEN, or TELEGRAM_TOKEN)
 // or securely resolved from the Cloudflare Worker secret endpoint.
 // No tokens or sensitive secrets are hardcoded in the source code or repository.
-let BOT_TOKEN = (process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || "").trim();
-const REMOTE_WORKER_SECRET_URL = "https://omnistream-telegram-api.alexraselchodhury.workers.dev/";
+const rawEnvToken = (process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || "").trim();
+const isUrlToken = rawEnvToken.startsWith("http://") || rawEnvToken.startsWith("https://");
+let BOT_TOKEN = (!isUrlToken && rawEnvToken !== "YOUR_TELEGRAM_BOT_TOKEN" && rawEnvToken.includes(":")) ? rawEnvToken : "";
+const REMOTE_WORKER_SECRET_URL = isUrlToken ? rawEnvToken : "https://omnistream-telegram-api.alexraselchodhury.workers.dev/";
 const WORKER_AUTH_SECRET = (process.env.API_SECRET || process.env.WORKER_API_SECRET || "432872").trim();
 
 async function resolveSecretToken() {
-  if (BOT_TOKEN && BOT_TOKEN !== "YOUR_TELEGRAM_BOT_TOKEN") return BOT_TOKEN;
+  if (BOT_TOKEN && BOT_TOKEN.includes(":") && !BOT_TOKEN.startsWith("http")) return BOT_TOKEN;
   try {
     const encodedSecret = encodeURIComponent(WORKER_AUTH_SECRET);
     const targetUrl = `${REMOTE_WORKER_SECRET_URL}?auth=${encodedSecret}&secret=${encodedSecret}&password=${encodedSecret}`;
