@@ -129,13 +129,13 @@ async def send_video_main():
     workdir = "/tmp/pyrogram_session"
     os.makedirs(workdir, exist_ok=True)
 
+    # Use in-memory session to prevent SQLite database lock collisions on concurrent uploads
     app = Client(
         name=session_name,
         api_id=api_id,
         api_hash=api_hash,
         bot_token=bot_token,
-        workdir=workdir,
-        in_memory=False
+        in_memory=True
     )
 
     try:

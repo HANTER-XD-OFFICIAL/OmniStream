@@ -1724,11 +1724,15 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       }
     } catch (_) {}
 
+    const apiKey = (process.env.LOADER_API_KEY || process.env.LOADER_TO_API_KEY || "").trim();
     const hosts = ["https://loader.to", "https://en.loader.to"];
     for (const host of hosts) {
       try {
         const encUrl = encodeURIComponent(url);
-        const startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`;
+        let startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`;
+        if (apiKey) {
+          startUrl += `&api=${encodeURIComponent(apiKey)}`;
+        }
         const startRes = await fetch(startUrl, {
           headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": `${host}/` },
           signal: AbortSignal.timeout(12000)
@@ -1775,12 +1779,27 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       } catch (_) {}
     }
 
+    // Secondary fallback: Cobalt engine
+    try {
+      const cobRes = await resolveCobalt(url);
+      if (cobRes && cobRes.videoUrl && cobRes.videoUrl.startsWith("http")) {
+        return {
+          type: "YouTube",
+          title: cobRes.title || oEmbedTitle,
+          author: cobRes.author || oEmbedAuthor,
+          cover: cobRes.cover || oEmbedThumb,
+          videoUrl: cobRes.videoUrl,
+          directStream: true
+        };
+      }
+    } catch (_) {}
+
     return {
       type: "YouTube",
       title: oEmbedTitle,
       author: oEmbedAuthor,
       cover: oEmbedThumb,
-      videoUrl: url,
+      videoUrl: null,
       directStream: false
     };
   } catch (err) {
@@ -2557,10 +2576,15 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     }
 
     if (!media || (!media.videoUrl && !media.buffer)) {
+      const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
+      const noticeText = isYt
+        ? `⚠️ <b>YouTube Conversion Notice</b>\n\nCould not extract a downloadable stream for this YouTube video.\n\nYouTube requires converter authentication on cloud servers.\n💡 <i>To enable YouTube conversions, add <code>LOADER_API_KEY</code> in your Render environment variables.</i>\n\n✅ <i>TikTok, Instagram, Facebook, Twitter, TeraBox, and MEGA are fully supported and ready to download!</i>`
+        : `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video file from this link. Please verify the video is publicly accessible and try again.`;
+
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video file from this link. Please verify the video is publicly accessible and try again.`,
+        text: noticeText,
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [
@@ -2712,10 +2736,15 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       }
     }
 
+    const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
+    const deliveryNotice = isYt
+      ? `⚠️ <b>YouTube Delivery Notice</b>\n\nCould not transfer the video file to Telegram.\n💡 <i>Please verify your Render environment variables (TELEGRAM_API_ID, TELEGRAM_API_HASH, LOADER_API_KEY) and try again.</i>`
+      : `⚠️ <b>Video Delivery Notice</b>\n\nCould not send the video file directly to Telegram (the file may exceed Telegram's 2GB upload limit or require authentication).`;
+
     await callTg("editMessageText", {
       chat_id: chatId,
       message_id: progressMsgId,
-      text: `⚠️ <b>Video Delivery Notice</b>\n\nCould not send the video file directly to Telegram (the file may exceed Telegram's 2GB upload limit or require authentication).`,
+      text: deliveryNotice,
       parse_mode: "HTML",
       reply_markup: defaultMarkup
     });
