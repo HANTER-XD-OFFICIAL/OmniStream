@@ -61,23 +61,47 @@ async def send_video_main():
         sys.exit(1)
 
     api_id_val = (
-        os.environ.get("TELEGRAM_API_ID")
+        data.get("api_id")
+        or os.environ.get("TELEGRAM_API_ID")
         or os.environ.get("API_ID")
-        or data.get("api_id")
-        or "2040"
+        or os.environ.get("TG_API_ID")
+        or os.environ.get("APP_ID")
+        or os.environ.get("TELEGRAM_APP_ID")
+        or ""
     )
     api_hash_val = (
-        os.environ.get("TELEGRAM_API_HASH")
+        data.get("api_hash")
+        or os.environ.get("TELEGRAM_API_HASH")
         or os.environ.get("API_HASH")
-        or data.get("api_hash")
-        or "b18441a1ff607e10a989891a5462e627"
+        or os.environ.get("TG_API_HASH")
+        or os.environ.get("APP_HASH")
+        or os.environ.get("TELEGRAM_APP_HASH")
+        or ""
     )
+
+    if not api_id_val or not api_hash_val:
+        print(json.dumps({
+            "ok": False,
+            "error": "Missing TELEGRAM_API_ID or TELEGRAM_API_HASH. Please configure them in your Render dashboard environment variables."
+        }))
+        sys.exit(1)
 
     try:
         api_id = int(str(api_id_val).strip())
-    except Exception:
-        api_id = 2040
+    except Exception as conv_err:
+        print(json.dumps({
+            "ok": False,
+            "error": f"Invalid TELEGRAM_API_ID in Render environment variables (must be a valid integer): {api_id_val}"
+        }))
+        sys.exit(1)
+
     api_hash = str(api_hash_val).strip()
+    if not api_hash:
+        print(json.dumps({
+            "ok": False,
+            "error": "TELEGRAM_API_HASH in Render environment variables cannot be empty."
+        }))
+        sys.exit(1)
 
     chat_id_raw = data.get("chat_id")
     try:

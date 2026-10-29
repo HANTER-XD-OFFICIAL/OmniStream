@@ -84,6 +84,16 @@ if (!BOT_TOKEN) {
   console.warn("   Example: BOT_TOKEN=\"123456789:ABCdefGHIjklMNOpqrSTUvwxYZ\"");
 }
 
+// Pyrogram MTProto 2GB Engine Credentials (pulled from Render environment variables)
+const TELEGRAM_API_ID = (process.env.TELEGRAM_API_ID || process.env.API_ID || process.env.TG_API_ID || process.env.APP_ID || process.env.TELEGRAM_APP_ID || "").trim();
+const TELEGRAM_API_HASH = (process.env.TELEGRAM_API_HASH || process.env.API_HASH || process.env.TG_API_HASH || process.env.APP_HASH || process.env.TELEGRAM_APP_HASH || "").trim();
+
+if (TELEGRAM_API_ID && TELEGRAM_API_HASH) {
+  console.log("⚡ [PYROGRAM MTPROTO] Render environment variables TELEGRAM_API_ID & TELEGRAM_API_HASH detected successfully (2GB Video Engine Active).");
+} else {
+  console.log("ℹ️ [PYROGRAM MTPROTO] TELEGRAM_API_ID & TELEGRAM_API_HASH can be set in Render dashboard for 2GB MTProto uploads.");
+}
+
 // Official Administrator configuration (Developer: MD Rasel)
 const ADMIN_ID = String(process.env.ADMIN_ID || "6204875999");
 const DEV_TELEGRAM = "https://t.me/HANTER_XD_OFFICIAL";
@@ -497,6 +507,9 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
       fs.writeFileSync(tempFilePath, buf);
     }
 
+    const resolvedApiId = (TELEGRAM_API_ID || process.env.TELEGRAM_API_ID || process.env.API_ID || process.env.TG_API_ID || process.env.APP_ID || "").trim();
+    const resolvedApiHash = (TELEGRAM_API_HASH || process.env.TELEGRAM_API_HASH || process.env.API_HASH || process.env.TG_API_HASH || process.env.APP_HASH || "").trim();
+
     const payload = {
       chat_id: String(chatId),
       video_path: tempFilePath,
@@ -504,8 +517,8 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
       duration: duration ? Number(duration) : 0,
       reply_markup: replyMarkup || null,
       bot_token: BOT_TOKEN,
-      api_id: process.env.TELEGRAM_API_ID || process.env.API_ID || "2040",
-      api_hash: process.env.TELEGRAM_API_HASH || process.env.API_HASH || "b18441a1ff607e10a989891a5462e627"
+      api_id: resolvedApiId,
+      api_hash: resolvedApiHash
     };
 
     const payloadFile = path.join(os.tmpdir(), `payload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.json`);
@@ -514,7 +527,13 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
 
     const scriptPath = path.join(__dirname, "pyrogram_sender.py");
     const { stdout, stderr } = await execFileAsync("python3", [scriptPath, `@${payloadFile}`], {
-      timeout: 1800000 // 30 minutes for large videos up to 2GB
+      timeout: 1800000, // 30 minutes for large videos up to 2GB
+      env: {
+        ...process.env,
+        TELEGRAM_API_ID: resolvedApiId,
+        TELEGRAM_API_HASH: resolvedApiHash,
+        BOT_TOKEN: BOT_TOKEN
+      }
     });
 
     if (tempPayloadPath && fs.existsSync(tempPayloadPath)) {
