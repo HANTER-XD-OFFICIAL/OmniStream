@@ -481,7 +481,82 @@ function formatOmniStreamFilename(platform, title, ext = "mp4") {
   return `OmniStream_${cleanPlatform}_${cleanTitle}.${ext}`;
 }
 
-async function sendTgVideo(chatId, videoBuffer, filename, caption, replyMarkup = null) {
+// ==================== PYROGRAM 2GB MTPROTO VIDEO ENGINE ====================
+// Uses Pyrogram (client.send_video) to bypass Telegram's 50MB Bot API upload limit and send videos up to 2GB
+async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, replyMarkup = null, duration = null) {
+  let tempFilePath = null;
+  let tempPayloadPath = null;
+  try {
+    if (typeof videoSource === "string" && fs.existsSync(videoSource)) {
+      tempFilePath = videoSource;
+    } else {
+      const ext = filename?.split('.').pop() || 'mp4';
+      const uniqueId = `pyro_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      tempFilePath = path.join(os.tmpdir(), uniqueId);
+      const buf = Buffer.isBuffer(videoSource) ? videoSource : Buffer.from(videoSource);
+      fs.writeFileSync(tempFilePath, buf);
+    }
+
+    const payload = {
+      chat_id: String(chatId),
+      video_path: tempFilePath,
+      caption: caption || "",
+      duration: duration ? Number(duration) : 0,
+      reply_markup: replyMarkup || null,
+      bot_token: BOT_TOKEN,
+      api_id: process.env.TELEGRAM_API_ID || process.env.API_ID || "2040",
+      api_hash: process.env.TELEGRAM_API_HASH || process.env.API_HASH || "b18441a1ff607e10a989891a5462e627"
+    };
+
+    const payloadFile = path.join(os.tmpdir(), `payload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.json`);
+    tempPayloadPath = payloadFile;
+    fs.writeFileSync(payloadFile, JSON.stringify(payload));
+
+    const scriptPath = path.join(__dirname, "pyrogram_sender.py");
+    const { stdout, stderr } = await execFileAsync("python3", [scriptPath, `@${payloadFile}`], {
+      timeout: 1800000 // 30 minutes for large videos up to 2GB
+    });
+
+    if (tempPayloadPath && fs.existsSync(tempPayloadPath)) {
+      try { fs.unlinkSync(tempPayloadPath); } catch (_) {}
+    }
+
+    const lines = stdout.trim().split("\n");
+    const lastLine = lines[lines.length - 1];
+    const parsed = JSON.parse(lastLine);
+    if (parsed && parsed.ok) {
+      console.log(`[PYROGRAM] Video sent successfully via client.send_video to ${chatId}`);
+      return { ok: true, result: parsed.result };
+    } else {
+      console.warn("[PYROGRAM] client.send_video notice:", parsed?.error || stderr);
+      return { ok: false, error: parsed?.error || "Pyrogram upload failed" };
+    }
+  } catch (err) {
+    console.warn("[PYROGRAM] Error in sendTgVideoViaPyrogram:", err.message);
+    return { ok: false, error: err.message };
+  } finally {
+    if (tempPayloadPath && fs.existsSync(tempPayloadPath)) {
+      try { fs.unlinkSync(tempPayloadPath); } catch (_) {}
+    }
+    if (tempFilePath && tempFilePath !== videoSource && fs.existsSync(tempFilePath)) {
+      try { fs.unlinkSync(tempFilePath); } catch (_) {}
+    }
+  }
+}
+
+async function sendTgVideo(chatId, videoBufferOrPath, filename, caption, replyMarkup = null, duration = null) {
+  // 1. Primary: Use Pyrogram (client.send_video) to bypass 50MB Bot API limit (supports up to 2GB)
+  try {
+    const pyroRes = await sendTgVideoViaPyrogram(chatId, videoBufferOrPath, filename, caption, replyMarkup, duration);
+    if (pyroRes && pyroRes.ok) {
+      return pyroRes;
+    }
+    console.warn("[PYROGRAM] Pyrogram client.send_video returned not-ok, falling back to HTTP if under 50MB:", pyroRes?.error);
+  } catch (pyroErr) {
+    console.warn("[PYROGRAM] Pyrogram execution fallback:", pyroErr.message);
+  }
+
+  // 2. Fallback: Telegram Bot API HTTP sendVideo (limited to 50MB)
   try {
     const form = new FormData();
     form.append("chat_id", String(chatId));
@@ -491,7 +566,13 @@ async function sendTgVideo(chatId, videoBuffer, filename, caption, replyMarkup =
     if (replyMarkup) {
       form.append("reply_markup", JSON.stringify(replyMarkup));
     }
-    form.append("video", new Blob([videoBuffer], { type: "video/mp4" }), filename || "video.mp4");
+    const buf = typeof videoBufferOrPath === "string" && fs.existsSync(videoBufferOrPath)
+      ? fs.readFileSync(videoBufferOrPath)
+      : videoBufferOrPath;
+    if (buf && buf.byteLength && buf.byteLength > 50 * 1024 * 1024) {
+      return { ok: false, error: "File exceeds 50MB Bot API limit and Pyrogram was not available" };
+    }
+    form.append("video", new Blob([buf], { type: "video/mp4" }), filename || "video.mp4");
 
     const res = await fetch(`${TELEGRAM_API}/sendVideo`, {
       method: "POST",
@@ -2002,7 +2083,7 @@ async function resolveTeraBox(url) {
           const hasByteRangeParams = /len=\d+/.test(firstSeg) && /range=\d+-\d+/.test(firstSeg);
 
           if (hasByteRangeParams && totalBytes > 0) {
-            const targetBytes = Math.min(totalBytes, 47 * 1024 * 1024);
+            const targetBytes = Math.min(totalBytes, 2000 * 1024 * 1024);
             fullStreamUrl = firstSeg
               .replace(/len=\d+/, `len=${targetBytes}`)
               .replace(/range=\d+-\d+/, `range=0-${targetBytes - 1}`);
@@ -2025,10 +2106,10 @@ async function resolveTeraBox(url) {
             } catch (_) {}
           }
 
-          // Fallback for multi-segment HLS where range rewrite isn't supported: fetch & concat TS segments up to 46MB
+          // Fallback for multi-segment HLS where range rewrite isn't supported: fetch & concat TS segments up to 2GB
           const chunks = [];
           let accumulated = 0;
-          const maxAccumulated = 46 * 1024 * 1024;
+          const maxAccumulated = 2000 * 1024 * 1024;
           const batchSize = 4;
           for (let i = 0; i < segLines.length && accumulated < maxAccumulated; i += batchSize) {
             const batch = segLines.slice(i, i + batchSize);
@@ -2090,7 +2171,7 @@ async function resolveTeraBox(url) {
             const lastRangeMatch = lastSeg.match(/range=\d+-(\d+)/);
             const totalBytes = tsSizeMatch ? parseInt(tsSizeMatch[1], 10) : (lastRangeMatch ? parseInt(lastRangeMatch[1], 10) + 1 : 0);
 
-            if (totalBytes > 48 * 1024 * 1024) {
+            if (totalBytes > 2000 * 1024 * 1024) {
               if (!fallbackSegCandidate || totalBytes < fallbackSegCandidate.totalBytes) {
                 fallbackSegCandidate = { segLines: normalizedSegLines, totalBytes };
               }
@@ -2102,7 +2183,7 @@ async function resolveTeraBox(url) {
           } catch (_) {}
         }
 
-        // If all available transcode qualities were >48MB, download & remux the smallest one (capped at 47MB)
+        // If all available transcode qualities were >2GB, download & remux the smallest one
         if (fallbackSegCandidate) {
           try {
             const fallbackResult = await downloadCandidateStream(fallbackSegCandidate);
@@ -2230,7 +2311,7 @@ async function resolveMega(url) {
       await file.loadAttributes();
       if (file.name) {
         let buf = null;
-        if (file.size > 0 && file.size < 45 * 1024 * 1024) {
+        if (file.size > 0 && file.size < 2000 * 1024 * 1024) {
           try {
             buf = await file.downloadBuffer();
           } catch (dErr) {
@@ -2509,7 +2590,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           return;
         }
       } else {
-        const vRes = await sendTgVideo(chatId, media.buffer, standardizedFilename, cap, defaultMarkup);
+        const vRes = await sendTgVideo(chatId, media.buffer, standardizedFilename, cap, defaultMarkup, media.duration);
         if (vRes?.ok) {
           db.stats.totalDownloads++;
           if (db.users[userId]) db.users[userId].downloads++;
@@ -2568,14 +2649,14 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           const sizeBytes = videoBuffer.byteLength;
           const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
 
-          if (sizeBytes <= 49 * 1024 * 1024 && sizeBytes > 1000) {
+          if (sizeBytes <= 2000 * 1024 * 1024 && sizeBytes > 1000) {
             const caption = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
               `👤 <b>Platform:</b> ${escapeHtml(media.type || platformName)}\n` +
               (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
               `💾 <b>Size:</b> ${sizeMb} MB\n\n` +
               `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
 
-            let sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup);
+            let sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup, media.duration);
             if (!sendRes || !sendRes.ok) {
               sendRes = await sendTgDocument(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup);
             }
@@ -2615,7 +2696,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     await callTg("editMessageText", {
       chat_id: chatId,
       message_id: progressMsgId,
-      text: `⚠️ <b>Video Delivery Notice</b>\n\nCould not send the video file directly to Telegram (the file may exceed Telegram's 50MB bot upload limit or require authentication).`,
+      text: `⚠️ <b>Video Delivery Notice</b>\n\nCould not send the video file directly to Telegram (the file may exceed Telegram's 2GB upload limit or require authentication).`,
       parse_mode: "HTML",
       reply_markup: defaultMarkup
     });
