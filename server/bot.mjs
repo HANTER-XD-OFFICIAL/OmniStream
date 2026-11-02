@@ -2670,9 +2670,13 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           `YouTube anti-bot security blocked extraction for this video on your Cobalt backend:\n` +
           `<code>Status: error.api.youtube.login</code>\n\n` +
           `📌 <b>কারণ:</b>\n` +
-          `বোটটি সফলভাবে আপনার API (<code>omnistream-api.alexraselchodhury.workers.dev</code>)-তে রিকোয়েস্ট পাঠিয়েছে, কিন্তু YouTube এই ভিডিওটির জন্য Render সার্ভারের IP-তে সাইন-ইন / বোট ভেরিফিকেশন দাবি করছে।\n\n` +
-          `💡 <b>সমাধান (Render Dashboard):</b>\n` +
-          `Render-এ আপনার <b>cobalt-latest-a04h</b> সার্ভিসের Environment Variables-এ <code>YOUTUBE_SESSION_SERVER</code> অথবা YouTube session cookies যোগ করলে যেকোনো ভিডিও কোনো বাধা ছাড়াই কনভার্ট হবে।`;
+          `বোটটি সফলভাবে আপনার API (<code>omnistream-api.alexraselchodhury.workers.dev</code>)-তে রিকোয়েস্ট পাঠিয়েছে, কিন্তু YouTube এই ভিডিওটির জন্য Render সার্ভারের IP-তে সাইন-ইন দাবি করছে।\n\n` +
+          `💡 <b>সবচেয়ে সহজ ১ মিনিটের স্থায়ী সমাধান (Render Dashboard):</b>\n` +
+          `১. Render Dashboard-এ আপনার <b>cobalt-latest-a04h</b> সার্ভিসে যান।\n` +
+          `২. <b>Environment</b> ট্যাবে যোগ করুন:\n` +
+          `   • <b>Key:</b> <code>CUSTOM_INNERTUBE_CLIENT</code>\n` +
+          `   • <b>Value:</b> <code>IOS</code>\n` +
+          `৩. <b>(বাধ্যতামূলক ধাপ):</b> ভেরিয়েবল সেভ করার পর পেজের ওপরে <b>Manual Deploy ➔ Deploy latest commit</b> অথবা <b>Restart Service</b> বাটনে ক্লিক করুন (কারণ রিস্টার্ট না দেওয়া পর্যন্ত পুরোনো কন্টেইনারই চালু থাকে)।`;
       } else if (isYt) {
         noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`;
       } else {
