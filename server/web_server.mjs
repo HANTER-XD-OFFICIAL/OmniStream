@@ -378,54 +378,116 @@ async function resolveCobalt(url, mode = 'auto', quality = '1080') {
   return null;
 }
 
+function normalizeYouTubeUrl(rawUrl) {
+  if (!rawUrl) return { canonicalUrl: rawUrl, originalUrl: rawUrl, videoId: null };
+  const clean = rawUrl.trim();
+  const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  const videoId = match ? match[1] : null;
+  return {
+    canonicalUrl: videoId ? `https://www.youtube.com/watch?v=${videoId}` : clean,
+    shortsUrl: videoId ? `https://www.youtube.com/shorts/${videoId}` : clean,
+    originalUrl: clean,
+    videoId
+  };
+}
+
+function extractStreamUrlFromResponse(json, isAudio = false) {
+  if (!json || typeof json !== 'object') return null;
+
+  if (json.status === 'tunnel' || json.status === 'redirect' || json.status === 'stream') {
+    if (typeof json.url === 'string' && json.url.startsWith('http')) return json.url;
+  }
+
+  if (json.status === 'picker' && Array.isArray(json.picker) && json.picker.length > 0) {
+    const targetType = isAudio ? 'audio' : 'video';
+    const item = json.picker.find(p => p.type === targetType) || json.picker[0];
+    if (item && typeof item.url === 'string' && item.url.startsWith('http')) return item.url;
+  }
+
+  const directKeys = ['url', 'link', 'downloadUrl', 'download_url', 'streamUrl', 'directUrl', 'audio'];
+  for (const k of directKeys) {
+    if (typeof json[k] === 'string' && json[k].startsWith('http')) return json[k];
+  }
+
+  if (json.data && typeof json.data === 'object') {
+    for (const k of directKeys) {
+      if (typeof json.data[k] === 'string' && json.data[k].startsWith('http')) return json.data[k];
+    }
+  }
+  if (json.result && typeof json.result === 'object') {
+    for (const k of directKeys) {
+      if (typeof json.result[k] === 'string' && json.result[k].startsWith('http')) return json.result[k];
+    }
+  }
+
+  return null;
+}
+
 // Dedicated High-Speed YouTube Resolver (Direct OmniStream Custom Worker API: https://omnistream-api.alexraselchodhury.workers.dev)
 async function resolveYouTube(url, mode = 'auto') {
   try {
     const isAudio = mode === 'audio';
-    const metaPromise = fetchPlatformMetadata(url);
+    const { canonicalUrl, originalUrl } = normalizeYouTubeUrl(url);
+    const metaPromise = fetchPlatformMetadata(canonicalUrl);
 
-    const payload = {
-      url: url,
-      videoQuality: isAudio ? undefined : '720',
-      downloadMode: isAudio ? 'audio' : 'auto',
-      youtubeVideoCodec: 'h264',
-      audioFormat: 'mp3',
-      alwaysProxy: true
-    };
+    const targetUrls = [canonicalUrl];
+    if (originalUrl !== canonicalUrl && !targetUrls.includes(originalUrl)) {
+      targetUrls.push(originalUrl);
+    }
 
-    const res = await fetch(CLOUDFLARE_WORKER_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000)
-    });
+    for (const targetUrl of targetUrls) {
+      const payloads = [
+        {
+          url: targetUrl,
+          videoQuality: isAudio ? undefined : '720',
+          downloadMode: isAudio ? 'audio' : 'auto',
+          youtubeVideoCodec: 'h264',
+          audioFormat: 'mp3',
+          alwaysProxy: true
+        },
+        {
+          url: targetUrl,
+          downloadMode: isAudio ? 'audio' : 'auto'
+        },
+        {
+          url: targetUrl
+        }
+      ];
 
-    if (res.ok) {
-      const json = await res.json();
-      let dlUrl = json.url;
-      if (!dlUrl && json.picker && Array.isArray(json.picker) && json.picker.length > 0) {
-        const item = json.picker.find(p => p.type === (isAudio ? 'audio' : 'video')) || json.picker[0];
-        dlUrl = item.url;
-      }
+      for (const payload of payloads) {
+        try {
+          const res = await fetch(CLOUDFLARE_WORKER_API, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+            },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(10000)
+          });
 
-      if (dlUrl && dlUrl.startsWith('http')) {
-        const meta = await metaPromise.catch(() => ({}));
-        const title = json.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video';
-        const thumbnail = json.thumbnail || meta.thumbnail;
-        return {
-          success: true,
-          platform: 'YouTube',
-          title: title,
-          author: meta.author || 'YouTube Channel',
-          thumbnail: thumbnail,
-          videoUrl: isAudio ? null : dlUrl,
-          audioUrl: isAudio ? dlUrl : (json.audio || null),
-          quality: isAudio ? '320kbps MP3' : '720p HD'
-        };
+          if (res.ok) {
+            const json = await res.json();
+            const dlUrl = extractStreamUrlFromResponse(json, isAudio);
+
+            if (dlUrl && dlUrl.startsWith('http')) {
+              const meta = await metaPromise.catch(() => ({}));
+              const title = json.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video';
+              const thumbnail = json.thumbnail || meta.thumbnail;
+              return {
+                success: true,
+                platform: 'YouTube',
+                title: title,
+                author: meta.author || 'YouTube Channel',
+                thumbnail: thumbnail,
+                videoUrl: isAudio ? null : dlUrl,
+                audioUrl: isAudio ? dlUrl : (json.audio || null),
+                quality: isAudio ? '320kbps MP3' : '720p HD'
+              };
+            }
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}

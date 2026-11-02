@@ -73,10 +73,10 @@ async function resolveSecretToken() {
   return BOT_TOKEN;
 }
 
+let TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
 // Initial resolution if not already provided via process.env
 await resolveSecretToken();
-
-let TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 if (!BOT_TOKEN) {
   console.warn("⚠️ [SECURITY WARNING] Telegram BOT_TOKEN is not set in environment variables!");
@@ -1708,14 +1708,73 @@ async function resolveCobalt(url, quality = "720") {
 // 3. YouTube Resolver (Direct Custom API: https://omnistream-api.alexraselchodhury.workers.dev)
 const CUSTOM_YOUTUBE_API = "https://omnistream-api.alexraselchodhury.workers.dev";
 
+function normalizeYouTubeUrl(rawUrl) {
+  if (!rawUrl) return { canonicalUrl: rawUrl, originalUrl: rawUrl, videoId: null };
+  const clean = rawUrl.trim();
+  const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  const videoId = match ? match[1] : null;
+  return {
+    canonicalUrl: videoId ? `https://www.youtube.com/watch?v=${videoId}` : clean,
+    shortsUrl: videoId ? `https://www.youtube.com/shorts/${videoId}` : clean,
+    originalUrl: clean,
+    videoId
+  };
+}
+
+function extractStreamUrlFromResponse(json, isAudio = false) {
+  if (!json || typeof json !== "object") return null;
+
+  // 1. Cobalt status tunnel/redirect/stream
+  if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
+    if (typeof json.url === "string" && json.url.startsWith("http")) return json.url;
+  }
+
+  // 2. Cobalt picker array
+  if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
+    const targetType = isAudio ? "audio" : "video";
+    const item = json.picker.find(p => p.type === targetType) || json.picker[0];
+    if (item && typeof item.url === "string" && item.url.startsWith("http")) {
+      return item.url;
+    }
+  }
+
+  // 3. Direct top-level URL keys
+  const directKeys = ["url", "link", "downloadUrl", "download_url", "streamUrl", "directUrl", "audio"];
+  for (const k of directKeys) {
+    if (typeof json[k] === "string" && json[k].startsWith("http")) {
+      return json[k];
+    }
+  }
+
+  // 4. Nested in data or result
+  if (json.data && typeof json.data === "object") {
+    for (const k of directKeys) {
+      if (typeof json.data[k] === "string" && json.data[k].startsWith("http")) {
+        return json.data[k];
+      }
+    }
+  }
+  if (json.result && typeof json.result === "object") {
+    for (const k of directKeys) {
+      if (typeof json.result[k] === "string" && json.result[k].startsWith("http")) {
+        return json.result[k];
+      }
+    }
+  }
+
+  return null;
+}
+
 async function resolveYouTube(url, onProgressUpdate = null) {
   try {
+    const { canonicalUrl, originalUrl, videoId } = normalizeYouTubeUrl(url);
+
     let oEmbedTitle = "YouTube Video";
     let oEmbedAuthor = "YouTube Creator";
     let oEmbedThumb = null;
 
     try {
-      const oeRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
+      const oeRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`, {
         signal: AbortSignal.timeout(5000)
       });
       if (oeRes.ok) {
@@ -1730,70 +1789,82 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       await onProgressUpdate("⏳ <b>Converting YouTube Video...</b>\n<i>Connecting directly to OmniStream Custom Engine...</i>");
     }
 
-    // Call user's custom API endpoint directly
-    const apiPayloads = [
-      { url, videoQuality: "720", downloadMode: "auto", youtubeVideoCodec: "h264", audioFormat: "mp3", alwaysProxy: true },
-      { url, downloadMode: "auto", videoQuality: "720" },
-      { url, downloadMode: "auto" },
-      { url }
-    ];
+    let lastErrorCode = null;
 
-    for (const payload of apiPayloads) {
-      try {
-        const res = await fetch(CUSTOM_YOUTUBE_API, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-          },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(12000)
-        });
+    // Test both canonical watch URL and original URL
+    const targetUrls = [canonicalUrl];
+    if (originalUrl !== canonicalUrl && !targetUrls.includes(originalUrl)) {
+      targetUrls.push(originalUrl);
+    }
 
-        if (res.ok) {
-          const json = await res.json();
-          let streamUrl = null;
-          if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
-            streamUrl = json.url;
-          } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
-            const item = json.picker.find(p => p.type === "video") || json.picker[0];
-            streamUrl = item.url;
-            if (item && item.thumb) json.thumbnail = item.thumb;
-          } else if (json.url && typeof json.url === "string") {
-            streamUrl = json.url;
+    // Call user's custom API endpoint directly with prioritized payloads
+    for (const targetUrl of targetUrls) {
+      const apiPayloads = [
+        { url: targetUrl, videoQuality: "720", downloadMode: "auto", youtubeVideoCodec: "h264", audioFormat: "mp3", alwaysProxy: true },
+        { url: targetUrl, downloadMode: "auto", videoQuality: "720" },
+        { url: targetUrl, downloadMode: "auto" },
+        { url: targetUrl }
+      ];
+
+      for (const payload of apiPayloads) {
+        try {
+          const res = await fetch(CUSTOM_YOUTUBE_API, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(12000)
+          });
+
+          if (res.ok) {
+            const json = await res.json();
+            const streamUrl = extractStreamUrlFromResponse(json, false);
+
+            if (streamUrl && streamUrl.startsWith("http")) {
+              console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${CUSTOM_YOUTUBE_API}`);
+              return {
+                type: "YouTube",
+                title: json.filename?.replace(/\.[^/.]+$/, "") || oEmbedTitle,
+                author: oEmbedAuthor,
+                cover: json.thumbnail || oEmbedThumb,
+                videoUrl: streamUrl,
+                audioUrl: json.audio || null,
+                directStream: true
+              };
+            }
+          } else {
+            // Parse error structure to capture details (e.g. error.api.youtube.login)
+            try {
+              const errJson = await res.json();
+              if (errJson && errJson.error && errJson.error.code) {
+                lastErrorCode = errJson.error.code;
+                console.warn(`[YOUTUBE] OmniStream API returned error code: ${lastErrorCode}`);
+              }
+            } catch (_) {}
           }
-
-          if (streamUrl && streamUrl.startsWith("http")) {
-            console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${CUSTOM_YOUTUBE_API}`);
-            return {
-              type: "YouTube",
-              title: json.filename?.replace(/\.[^/.]+$/, "") || oEmbedTitle,
-              author: oEmbedAuthor,
-              cover: json.thumbnail || oEmbedThumb,
-              videoUrl: streamUrl,
-              audioUrl: json.audio || null,
-              directStream: true
-            };
-          }
+        } catch (err) {
+          console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
         }
-      } catch (err) {
-        console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
       }
     }
 
     // Secondary fallback: Cobalt engine mirrors
     try {
-      const cobRes = await resolveCobalt(url);
-      if (cobRes && cobRes.videoUrl && cobRes.videoUrl.startsWith("http")) {
-        return {
-          type: "YouTube",
-          title: cobRes.title || oEmbedTitle,
-          author: cobRes.author || oEmbedAuthor,
-          cover: cobRes.cover || oEmbedThumb,
-          videoUrl: cobRes.videoUrl,
-          directStream: true
-        };
+      for (const targetUrl of targetUrls) {
+        const cobRes = await resolveCobalt(targetUrl);
+        if (cobRes && cobRes.videoUrl && cobRes.videoUrl.startsWith("http")) {
+          return {
+            type: "YouTube",
+            title: cobRes.title || oEmbedTitle,
+            author: cobRes.author || oEmbedAuthor,
+            cover: cobRes.cover || oEmbedThumb,
+            videoUrl: cobRes.videoUrl,
+            directStream: true
+          };
+        }
       }
     } catch (_) {}
 
@@ -1803,7 +1874,9 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       author: oEmbedAuthor,
       cover: oEmbedThumb,
       videoUrl: null,
-      directStream: false
+      directStream: false,
+      errorReason: lastErrorCode,
+      videoId
     };
   } catch (err) {
     console.error("YouTube resolve error:", err.message);
@@ -2410,36 +2483,49 @@ async function resolveCobaltAudio(url) {
 }
 
 async function resolveYouTubeAudio(url) {
-  const audioPayloads = [
-    { url, downloadMode: "audio", audioFormat: "mp3", alwaysProxy: true },
-    { url, downloadMode: "audio", audioFormat: "mp3" },
-    { url, downloadMode: "audio" }
-  ];
+  const { canonicalUrl, originalUrl } = normalizeYouTubeUrl(url);
+  const targetUrls = [canonicalUrl];
+  if (originalUrl !== canonicalUrl && !targetUrls.includes(originalUrl)) {
+    targetUrls.push(originalUrl);
+  }
 
-  for (const payload of audioPayloads) {
-    try {
-      const res = await fetch("https://omnistream-api.alexraselchodhury.workers.dev", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10000)
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const streamUrl = json.url || (json.picker && json.picker[0]?.url) || json.audio;
-        if (streamUrl && streamUrl.startsWith("http")) {
-          return streamUrl;
+  for (const targetUrl of targetUrls) {
+    const audioPayloads = [
+      { url: targetUrl, downloadMode: "audio", audioFormat: "mp3", alwaysProxy: true },
+      { url: targetUrl, downloadMode: "audio", audioFormat: "mp3" },
+      { url: targetUrl, downloadMode: "audio" },
+      { url: targetUrl }
+    ];
+
+    for (const payload of audioPayloads) {
+      try {
+        const res = await fetch(CUSTOM_YOUTUBE_API, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(10000)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const streamUrl = extractStreamUrlFromResponse(json, true);
+          if (streamUrl && streamUrl.startsWith("http")) {
+            return streamUrl;
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
 
   // Fallback: Cobalt audio mirrors
-  return await resolveCobaltAudio(url);
+  for (const targetUrl of targetUrls) {
+    const cobAudio = await resolveCobaltAudio(targetUrl);
+    if (cobAudio) return cobAudio;
+  }
+  return null;
 }
 
 async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer = null) {
@@ -2578,9 +2664,20 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     if (!media || (!media.videoUrl && !media.buffer)) {
       const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
-      const noticeText = isYt
-        ? `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`
-        : `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video file from this link. Please verify the video is publicly accessible and try again.`;
+      let noticeText;
+      if (isYt && media?.errorReason === "error.api.youtube.login") {
+        noticeText = `⚠️ <b>YouTube Security Verification Notice</b>\n\n` +
+          `YouTube anti-bot security blocked extraction for this video on your Cobalt backend:\n` +
+          `<code>Status: error.api.youtube.login</code>\n\n` +
+          `📌 <b>কারণ:</b>\n` +
+          `বোটটি সফলভাবে আপনার API (<code>omnistream-api.alexraselchodhury.workers.dev</code>)-তে রিকোয়েস্ট পাঠিয়েছে, কিন্তু YouTube এই ভিডিওটির জন্য Render সার্ভারের IP-তে সাইন-ইন / বোট ভেরিফিকেশন দাবি করছে।\n\n` +
+          `💡 <b>সমাধান (Render Dashboard):</b>\n` +
+          `Render-এ আপনার <b>cobalt-latest-a04h</b> সার্ভিসের Environment Variables-এ <code>YOUTUBE_SESSION_SERVER</code> অথবা YouTube session cookies যোগ করলে যেকোনো ভিডিও কোনো বাধা ছাড়াই কনভার্ট হবে।`;
+      } else if (isYt) {
+        noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`;
+      } else {
+        noticeText = `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video file from this link. Please verify the video is publicly accessible and try again.`;
+      }
 
       await callTg("editMessageText", {
         chat_id: chatId,
