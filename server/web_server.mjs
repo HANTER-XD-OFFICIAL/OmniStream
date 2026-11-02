@@ -378,47 +378,44 @@ async function resolveCobalt(url, mode = 'auto', quality = '1080') {
   return null;
 }
 
-// Dedicated High-Speed YouTube Resolver (Loader.to engine with polling)
+// Dedicated High-Speed YouTube Resolver (Direct OmniStream Custom Worker API: https://omnistream-api.alexraselchodhury.workers.dev)
 async function resolveYouTube(url, mode = 'auto') {
   try {
     const isAudio = mode === 'audio';
-    const encUrl = encodeURIComponent(url);
     const metaPromise = fetchPlatformMetadata(url);
-    const format = isAudio ? 'mp3' : '720';
-    const res = await fetch(`https://loader.to/ajax/download.php?button=1&start=1&end=1&format=${format}&url=${encUrl}`, {
+
+    const payload = {
+      url: url,
+      videoQuality: isAudio ? undefined : '720',
+      downloadMode: isAudio ? 'audio' : 'auto',
+      youtubeVideoCodec: 'h264',
+      audioFormat: 'mp3',
+      alwaysProxy: true
+    };
+
+    const res = await fetch(CLOUDFLARE_WORKER_API, {
+      method: 'POST',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10000)
     });
+
     if (res.ok) {
       const json = await res.json();
-      let dlUrl = json.download_url;
-      const progressUrl = json.progress_url;
-      const meta = await metaPromise.catch(() => ({}));
-      const title = json.info?.title || json.title || meta.title || 'YouTube Video';
-      const thumbnail = json.thumbnail_url || json.info?.image || meta.thumbnail;
-
-      if (!dlUrl && progressUrl) {
-        for (let i = 0; i < 12; i++) {
-          await new Promise(r => setTimeout(r, 1500));
-          try {
-            const pRes = await fetch(progressUrl, {
-              headers: { 'User-Agent': 'Mozilla/5.0' },
-              signal: AbortSignal.timeout(5000)
-            });
-            if (pRes.ok) {
-              const pJson = await pRes.json();
-              if (pJson.download_url && pJson.download_url.startsWith('http')) {
-                dlUrl = pJson.download_url;
-                break;
-              }
-            }
-          } catch (_) {}
-        }
+      let dlUrl = json.url;
+      if (!dlUrl && json.picker && Array.isArray(json.picker) && json.picker.length > 0) {
+        const item = json.picker.find(p => p.type === (isAudio ? 'audio' : 'video')) || json.picker[0];
+        dlUrl = item.url;
       }
 
       if (dlUrl && dlUrl.startsWith('http')) {
+        const meta = await metaPromise.catch(() => ({}));
+        const title = json.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video';
+        const thumbnail = json.thumbnail || meta.thumbnail;
         return {
           success: true,
           platform: 'YouTube',
@@ -426,7 +423,7 @@ async function resolveYouTube(url, mode = 'auto') {
           author: meta.author || 'YouTube Channel',
           thumbnail: thumbnail,
           videoUrl: isAudio ? null : dlUrl,
-          audioUrl: isAudio ? dlUrl : null,
+          audioUrl: isAudio ? dlUrl : (json.audio || null),
           quality: isAudio ? '320kbps MP3' : '720p HD'
         };
       }

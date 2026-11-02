@@ -1705,7 +1705,9 @@ async function resolveCobalt(url, quality = "720") {
   return null;
 }
 
-// 3. YouTube Resolver (Loader.to Full Poll Cycle + oEmbed)
+// 3. YouTube Resolver (Direct Custom API: https://omnistream-api.alexraselchodhury.workers.dev)
+const CUSTOM_YOUTUBE_API = "https://omnistream-api.alexraselchodhury.workers.dev";
+
 async function resolveYouTube(url, onProgressUpdate = null) {
   try {
     let oEmbedTitle = "YouTube Video";
@@ -1724,62 +1726,63 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       }
     } catch (_) {}
 
-    const apiKey = (process.env.LOADER_API_KEY || process.env.LOADER_TO_API_KEY || "").trim();
-    const hosts = ["https://loader.to", "https://en.loader.to"];
-    for (const host of hosts) {
+    if (onProgressUpdate) {
+      await onProgressUpdate("⏳ <b>Converting YouTube Video...</b>\n<i>Connecting directly to OmniStream Custom Engine...</i>");
+    }
+
+    // Call user's custom API endpoint directly
+    const apiPayloads = [
+      { url, videoQuality: "720", downloadMode: "auto", youtubeVideoCodec: "h264", audioFormat: "mp3", alwaysProxy: true },
+      { url, downloadMode: "auto", videoQuality: "720" },
+      { url, downloadMode: "auto" },
+      { url }
+    ];
+
+    for (const payload of apiPayloads) {
       try {
-        const encUrl = encodeURIComponent(url);
-        let startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=720&url=${encUrl}`;
-        if (apiKey) {
-          startUrl += `&api=${encodeURIComponent(apiKey)}`;
-        }
-        const startRes = await fetch(startUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": `${host}/` },
+        const res = await fetch(CUSTOM_YOUTUBE_API, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          },
+          body: JSON.stringify(payload),
           signal: AbortSignal.timeout(12000)
         });
 
-        if (startRes.ok) {
-          const sJson = await startRes.json();
-          if (sJson.download_url && sJson.download_url.startsWith("http")) {
+        if (res.ok) {
+          const json = await res.json();
+          let streamUrl = null;
+          if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
+            streamUrl = json.url;
+          } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
+            const item = json.picker.find(p => p.type === "video") || json.picker[0];
+            streamUrl = item.url;
+            if (item && item.thumb) json.thumbnail = item.thumb;
+          } else if (json.url && typeof json.url === "string") {
+            streamUrl = json.url;
+          }
+
+          if (streamUrl && streamUrl.startsWith("http")) {
+            console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${CUSTOM_YOUTUBE_API}`);
             return {
               type: "YouTube",
-              title: oEmbedTitle,
+              title: json.filename?.replace(/\.[^/.]+$/, "") || oEmbedTitle,
               author: oEmbedAuthor,
-              cover: oEmbedThumb,
-              videoUrl: sJson.download_url,
+              cover: json.thumbnail || oEmbedThumb,
+              videoUrl: streamUrl,
+              audioUrl: json.audio || null,
               directStream: true
             };
           }
-
-          if (sJson.progress_url) {
-            if (onProgressUpdate) {
-              await onProgressUpdate("⏳ <b>Converting YouTube Video...</b>\n<i>Rendering high-definition MP4 stream with sound...</i>");
-            }
-            for (let i = 0; i < 14; i++) {
-              await new Promise(r => setTimeout(r, 2000));
-              try {
-                const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(6000) });
-                if (pRes.ok) {
-                  const pJson = await pRes.json();
-                  if (pJson.download_url && pJson.download_url.startsWith("http")) {
-                    return {
-                      type: "YouTube",
-                      title: oEmbedTitle,
-                      author: oEmbedAuthor,
-                      cover: oEmbedThumb,
-                      videoUrl: pJson.download_url,
-                      directStream: true
-                    };
-                  }
-                }
-              } catch (_) {}
-            }
-          }
         }
-      } catch (_) {}
+      } catch (err) {
+        console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
+      }
     }
 
-    // Secondary fallback: Cobalt engine
+    // Secondary fallback: Cobalt engine mirrors
     try {
       const cobRes = await resolveCobalt(url);
       if (cobRes && cobRes.videoUrl && cobRes.videoUrl.startsWith("http")) {
@@ -2407,38 +2410,36 @@ async function resolveCobaltAudio(url) {
 }
 
 async function resolveYouTubeAudio(url) {
-  const hosts = ["https://loader.to", "https://en.loader.to"];
-  for (const host of hosts) {
+  const audioPayloads = [
+    { url, downloadMode: "audio", audioFormat: "mp3", alwaysProxy: true },
+    { url, downloadMode: "audio", audioFormat: "mp3" },
+    { url, downloadMode: "audio" }
+  ];
+
+  for (const payload of audioPayloads) {
     try {
-      const encUrl = encodeURIComponent(url);
-      const startUrl = `${host}/ajax/download.php?button=1&start=1&end=1&format=mp3&url=${encUrl}`;
-      const startRes = await fetch(startUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Referer": `${host}/` },
+      const res = await fetch("https://omnistream-api.alexraselchodhury.workers.dev", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(10000)
       });
-      if (startRes.ok) {
-        const sJson = await startRes.json();
-        if (sJson.download_url && sJson.download_url.startsWith("http")) {
-          return sJson.download_url;
-        }
-        if (sJson.progress_url) {
-          for (let i = 0; i < 10; i++) {
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-              const pRes = await fetch(sJson.progress_url, { signal: AbortSignal.timeout(6000) });
-              if (pRes.ok) {
-                const pJson = await pRes.json();
-                if (pJson.download_url && pJson.download_url.startsWith("http")) {
-                  return pJson.download_url;
-                }
-              }
-            } catch (_) {}
-          }
+      if (res.ok) {
+        const json = await res.json();
+        const streamUrl = json.url || (json.picker && json.picker[0]?.url) || json.audio;
+        if (streamUrl && streamUrl.startsWith("http")) {
+          return streamUrl;
         }
       }
     } catch (_) {}
   }
-  return null;
+
+  // Fallback: Cobalt audio mirrors
+  return await resolveCobaltAudio(url);
 }
 
 async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer = null) {
@@ -2578,7 +2579,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     if (!media || (!media.videoUrl && !media.buffer)) {
       const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
       const noticeText = isYt
-        ? `⚠️ <b>YouTube Conversion Notice</b>\n\nCould not extract a downloadable stream for this YouTube video.\n\nYouTube requires converter authentication on cloud servers.\n💡 <i>To enable YouTube conversions, add <code>LOADER_API_KEY</code> in your Render environment variables.</i>\n\n✅ <i>TikTok, Instagram, Facebook, Twitter, TeraBox, and MEGA are fully supported and ready to download!</i>`
+        ? `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`
         : `⚠️ <b>Direct Stream Notice</b>\n\nCould not extract a direct video file from this link. Please verify the video is publicly accessible and try again.`;
 
       await callTg("editMessageText", {
@@ -2738,7 +2739,7 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
 
     const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
     const deliveryNotice = isYt
-      ? `⚠️ <b>YouTube Delivery Notice</b>\n\nCould not transfer the video file to Telegram.\n💡 <i>Please verify your Render environment variables (TELEGRAM_API_ID, TELEGRAM_API_HASH, LOADER_API_KEY) and try again.</i>`
+      ? `⚠️ <b>YouTube Delivery Notice</b>\n\nCould not transfer the video file to Telegram (the file may exceed Telegram's 2GB upload limit or requires authentication).`
       : `⚠️ <b>Video Delivery Notice</b>\n\nCould not send the video file directly to Telegram (the file may exceed Telegram's 2GB upload limit or require authentication).`;
 
     await callTg("editMessageText", {
