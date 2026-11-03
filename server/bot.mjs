@@ -90,6 +90,18 @@ const TELEGRAM_API_HASH = (process.env.TELEGRAM_API_HASH || process.env.API_HASH
 
 if (TELEGRAM_API_ID && TELEGRAM_API_HASH) {
   console.log("⚡ [PYROGRAM MTPROTO] Render environment variables TELEGRAM_API_ID & TELEGRAM_API_HASH detected successfully (2GB Video Engine Active).");
+  try {
+    const { execSync } = await import("child_process");
+    try {
+      execSync("python3 -c 'import pyrogram'", { stdio: "ignore" });
+    } catch (_) {
+      console.log("📥 [PYROGRAM MTPROTO] Installing pyrogram & tgcrypto into Python runtime...");
+      execSync("python3 -m pip install --break-system-packages --no-cache-dir pyrogram tgcrypto 2>/dev/null || pip3 install --no-cache-dir pyrogram tgcrypto 2>/dev/null || true", { stdio: "ignore" });
+      console.log("✅ [PYROGRAM MTPROTO] Pyrogram installation check completed.");
+    }
+  } catch (pErr) {
+    console.warn("⚠️ [PYROGRAM MTPROTO] Auto-install warning:", pErr.message);
+  }
 } else {
   console.log("ℹ️ [PYROGRAM MTPROTO] TELEGRAM_API_ID & TELEGRAM_API_HASH can be set in Render dashboard for 2GB MTProto uploads.");
 }
@@ -2673,18 +2685,23 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     if (!media || (!media.videoUrl && !media.buffer)) {
       const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
       let noticeText;
-      if (isYt && media?.errorReason === "error.api.youtube.login") {
+      if (isYt && media?.errorReason === "error.api.youtube.api_error") {
+        noticeText = `⚠️ <b>YouTube Engine Notice (api_error)</b>\n\n` +
+          `YouTube backend returned: <code>error.api.youtube.api_error</code>\n\n` +
+          `📌 <b>কারণ:</b>\n` +
+          `আপনার Render ড্যাশবোর্ডে <b>cookies.json</b> এবং <b>CUSTOM_INNERTUBE_CLIENT=IOS</b> দুটোই একসাথে চালু রয়েছে। মোবাইল iOS ক্লায়েন্টের সাথে ওয়েব ব্রাউজারের কুকি একসাথে দিলে ইউটিউব এই এরর কোড পাঠায়।\n\n` +
+          `💡 <b>সহজ সমাধান (১ মিনিট):</b>\n` +
+          `১. Render Dashboard-এ আপনার <b>cobalt-kh9d</b> সার্ভিসে যান।\n` +
+          `২. <b>Environment</b> ট্যাব থেকে <code>CUSTOM_INNERTUBE_CLIENT</code> ভেরিয়েবলটি <b>Delete</b> করে দিন (যেহেতু cookies.json ইতিমধ্যে আছে)।\n` +
+          `৩. ওপরে <b>Manual Deploy ➔ Deploy latest commit</b> চাপুন।`;
+      } else if (isYt && media?.errorReason === "error.api.youtube.login") {
         noticeText = `⚠️ <b>YouTube Security Verification Notice</b>\n\n` +
           `YouTube anti-bot security blocked extraction for this video on your Cobalt backend:\n` +
           `<code>Status: error.api.youtube.login</code>\n\n` +
           `📌 <b>কারণ:</b>\n` +
-          `বোটটি সফলভাবে আপনার API (<code>omnistream-api.alexraselchodhury.workers.dev</code>)-তে রিকোয়েস্ট পাঠিয়েছে, কিন্তু YouTube এই ভিডিওটির জন্য Render সার্ভারের IP-তে সাইন-ইন দাবি করছে।\n\n` +
-          `💡 <b>সবচেয়ে সহজ ১ মিনিটের স্থায়ী সমাধান (Render Dashboard):</b>\n` +
-          `১. Render Dashboard-এ আপনার <b>cobalt-latest-a04h</b> সার্ভিসে যান।\n` +
-          `২. <b>Environment</b> ট্যাবে যোগ করুন:\n` +
-          `   • <b>Key:</b> <code>CUSTOM_INNERTUBE_CLIENT</code>\n` +
-          `   • <b>Value:</b> <code>IOS</code>\n` +
-          `৩. <b>(বাধ্যতামূলক ধাপ):</b> ভেরিয়েবল সেভ করার পর পেজের ওপরে <b>Manual Deploy ➔ Deploy latest commit</b> অথবা <b>Restart Service</b> বাটনে ক্লিক করুন (কারণ রিস্টার্ট না দেওয়া পর্যন্ত পুরোনো কন্টেইনারই চালু থাকে)।`;
+          `বোটটি সফলভাবে আপনার API-তে রিকোয়েস্ট পাঠিয়েছে, কিন্তু YouTube এই ভিডিওটির জন্য Render সার্ভারের IP-তে সাইন-ইন দাবি করছে।\n\n` +
+          `💡 <b>সমাধান (Render Dashboard):</b>\n` +
+          `Render-এ আপনার <b>cobalt-kh9d</b> সার্ভিসে <b>cookies.json</b> এবং <code>COOKIE_PATH=/etc/secrets/cookies.json</code> সেভ করে <b>Manual Deploy</b> চাপুন।`;
       } else if (isYt) {
         noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`;
       } else {
