@@ -1786,6 +1786,8 @@ async function resolveYouTube(url, onProgressUpdate = null) {
     let oEmbedAuthor = "YouTube Creator";
     let oEmbedThumb = null;
 
+    let isVideoUnavailable = false;
+
     try {
       const oeRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`, {
         signal: AbortSignal.timeout(5000)
@@ -1795,8 +1797,23 @@ async function resolveYouTube(url, onProgressUpdate = null) {
         oEmbedTitle = oeJson.title || oEmbedTitle;
         oEmbedAuthor = oeJson.author_name || oEmbedAuthor;
         oEmbedThumb = oeJson.thumbnail_url;
+      } else if (oeRes.status === 404) {
+        isVideoUnavailable = true;
       }
     } catch (_) {}
+
+    if (isVideoUnavailable) {
+      console.warn(`[YOUTUBE] Video unavailable or deleted (404 Not Found): ${url}`);
+      return {
+        type: "YouTube",
+        title: "Video Unavailable",
+        author: "YouTube",
+        videoUrl: null,
+        directStream: false,
+        errorReason: "error.video_unavailable",
+        videoId
+      };
+    }
 
     if (onProgressUpdate) {
       await onProgressUpdate("⏳ <b>Converting YouTube Video...</b>\n<i>Connecting directly to OmniStream Custom Engine...</i>");
@@ -1804,7 +1821,7 @@ async function resolveYouTube(url, onProgressUpdate = null) {
 
     let lastErrorCode = null;
 
-    // Test both canonical watch URL and original URL
+    // Test canonical watch URL first, original URL as secondary
     const targetUrls = [canonicalUrl];
     if (originalUrl !== canonicalUrl && !targetUrls.includes(originalUrl)) {
       targetUrls.push(originalUrl);
@@ -1815,35 +1832,34 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       "https://cobalt-kh9d.onrender.com"
     ];
 
-    // Call user's custom API endpoint and direct backend with prioritized payloads
+    // Query Custom Worker API and direct backend
     for (const endpoint of YT_ENDPOINTS) {
       for (const targetUrl of targetUrls) {
-        const apiPayloads = [
-          { url: targetUrl, videoQuality: "720", downloadMode: "auto", youtubeVideoCodec: "h264", audioFormat: "mp3", alwaysProxy: true },
-          { url: targetUrl, downloadMode: "auto", videoQuality: "720" },
-          { url: targetUrl, downloadMode: "auto" },
-          { url: targetUrl }
-        ];
-
-        for (const payload of apiPayloads) {
-          try {
-            const res = await fetch(endpoint, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-              },
-              body: JSON.stringify(payload),
-              signal: AbortSignal.timeout(12000)
-            });
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            },
+            body: JSON.stringify({
+              url: targetUrl,
+              videoQuality: "720",
+              downloadMode: "auto",
+              youtubeVideoCodec: "h264",
+              audioFormat: "mp3",
+              alwaysProxy: true
+            }),
+            signal: AbortSignal.timeout(12000)
+          });
 
           if (res.ok) {
             const json = await res.json();
             const streamUrl = extractStreamUrlFromResponse(json, false);
 
             if (streamUrl && streamUrl.startsWith("http")) {
-              console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${CUSTOM_YOUTUBE_API}`);
+              console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${endpoint}`);
               return {
                 type: "YouTube",
                 title: json.filename?.replace(/\.[^/.]+$/, "") || oEmbedTitle,
@@ -1855,10 +1871,9 @@ async function resolveYouTube(url, onProgressUpdate = null) {
               };
             }
           } else {
-            // Parse error structure to capture details (e.g. error.api.youtube.login)
             try {
               const errJson = await res.json();
-              if (errJson && errJson.error && errJson.error.code) {
+              if (errJson?.error?.code) {
                 lastErrorCode = errJson.error.code;
                 console.warn(`[YOUTUBE] OmniStream API returned error code: ${lastErrorCode}`);
               }
@@ -1868,7 +1883,6 @@ async function resolveYouTube(url, onProgressUpdate = null) {
           console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
         }
       }
-    }
     }
 
     // 2. High-Speed Secondary YouTube Engine (Direct MP4/MP3 bypasses bot checks)
@@ -2730,23 +2744,23 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
     if (!media || (!media.videoUrl && !media.buffer)) {
       const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
       let noticeText;
-      if (isYt && media?.errorReason === "error.api.youtube.api_error") {
-        noticeText = `⚠️ <b>YouTube Engine Notice (api_error)</b>\n\n` +
-          `YouTube backend returned: <code>error.api.youtube.api_error</code>\n\n` +
-          `📌 <b>কারণ:</b>\n` +
-          `আপনার Render ড্যাশবোর্ডে <b>cookies.json</b> এবং <b>CUSTOM_INNERTUBE_CLIENT=IOS</b> দুটোই একসাথে চালু রয়েছে। মোবাইল iOS ক্লায়েন্টের সাথে ওয়েব ব্রাউজারের কুকি একসাথে দিলে ইউটিউব এই এরর কোড পাঠায়।\n\n` +
-          `💡 <b>সহজ সমাধান (১ মিনিট):</b>\n` +
-          `১. Render Dashboard-এ আপনার <b>cobalt-kh9d</b> সার্ভিসে যান।\n` +
-          `২. <b>Environment</b> ট্যাব থেকে <code>CUSTOM_INNERTUBE_CLIENT</code> ভেরিয়েবলটি <b>Delete</b> করে দিন (যেহেতু cookies.json ইতিমধ্যে আছে)।\n` +
-          `৩. ওপরে <b>Manual Deploy ➔ Deploy latest commit</b> চাপুন।`;
+      if (isYt && media?.errorReason === "error.video_unavailable") {
+        noticeText = `⚠️ <b>ভিডিওটি অনুপলব্ধ (Video Unavailable)</b>\n\n` +
+          `এই YouTube ভিডিওটি বর্তমানে অনুপলব্ধ (Private, Restricted বা মুছে ফেলা হয়েছে)।\n\n` +
+          `📌 <i>YouTube সার্ভারে ভিডিওটির তথ্য পাওয়া যায়নি। অনুগ্রহ করে অন্য কোনো সচল পাবলিক YouTube লিংক দিয়ে চেষ্টা করুন।</i>`;
       } else if (isYt && media?.errorReason === "error.api.youtube.login") {
-        noticeText = `⚠️ <b>YouTube Security Verification Notice</b>\n\n` +
-          `YouTube anti-bot security blocked extraction for this video on your Cobalt backend:\n` +
+        noticeText = `⚠️ <b>YouTube Security Notice (Sign-in Required)</b>\n\n` +
+          `YouTube anti-bot security blocked extraction for this video on the server:\n` +
           `<code>Status: error.api.youtube.login</code>\n\n` +
           `📌 <b>কারণ:</b>\n` +
-          `বোটটি সফলভাবে আপনার API-তে রিকোয়েস্ট পাঠিয়েছে, কিন্তু YouTube এই ভিডিওটির জন্য Render সার্ভারের IP-তে সাইন-ইন দাবি করছে।\n\n` +
-          `💡 <b>সমাধান (Render Dashboard):</b>\n` +
-          `Render-এ আপনার <b>cobalt-kh9d</b> সার্ভিসে <b>cookies.json</b> এবং <code>COOKIE_PATH=/etc/secrets/cookies.json</code> সেভ করে <b>Manual Deploy</b> চাপুন।`;
+          `এই ভিডিওটি দেখার জন্য YouTube বয়স বা অ্যাকাউন্ট ভেরিফিকেশন সাইন-ইন বাধ্যতামূলক করেছে।\n\n` +
+          `💡 <b>পরামর্শ:</b> অনুগ্রহ করে সাধারণ উন্মুক্ত পাবলিক ভিডিওর লিংক পাঠিয়ে চেষ্টা করুন।`;
+      } else if (isYt && media?.errorReason === "error.api.youtube.api_error") {
+        noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\n` +
+          `YouTube backend returned: <code>error.api.youtube.api_error</code>\n\n` +
+          `📌 <b>কারণ:</b>\n` +
+          `YouTube এই নির্দিষ্ট ভিডিওটির স্ট্রিম প্রসেস করতে সাময়িকভাবে বাধা দিয়েছে (ভিডিওটি বয়স-সীমাবদ্ধ, কপিরাইট রেস্ট্রিক্টেড বা সাময়িক রেট-লিমিট)।\n\n` +
+          `💡 <b>পরামর্শ:</b> কিছুক্ষণ পর পুনরায় চেষ্টা করুন অথবা অন্য সচল পাবলিক ভিডিও লিংক দিয়ে ডাউনলোড করুন।`;
       } else if (isYt) {
         noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`;
       } else {
