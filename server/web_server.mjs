@@ -490,6 +490,31 @@ async function resolveYouTube(url, mode = 'auto') {
         } catch (_) {}
       }
     }
+
+    // Secondary: High-Speed Video/Audio Engine fallback
+    for (const targetUrl of targetUrls) {
+      try {
+        const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+          signal: AbortSignal.timeout(8000)
+        });
+        if (tioRes.ok) {
+          const tJson = await tioRes.json();
+          if (tJson && tJson.status && (tJson.mp4 || tJson.mp3)) {
+            const dlUrl = isAudio ? (tJson.mp3 || tJson.mp4) : (tJson.mp4 || tJson.mp3);
+            return {
+              success: true,
+              platform: 'YouTube',
+              title: tJson.title || 'YouTube Video',
+              author: tJson.author || 'YouTube Channel',
+              thumbnail: tJson.thumbnail,
+              videoUrl: isAudio ? null : dlUrl,
+              audioUrl: isAudio ? dlUrl : (tJson.mp3 || null),
+              quality: isAudio ? '320kbps MP3' : '720p HD'
+            };
+          }
+        }
+      } catch (_) {}
+    }
   } catch (_) {}
   return null;
 }

@@ -1871,7 +1871,37 @@ async function resolveYouTube(url, onProgressUpdate = null) {
     }
     }
 
-    // Secondary fallback: Cobalt engine mirrors
+    // 2. High-Speed Secondary YouTube Engine (Direct MP4/MP3 bypasses bot checks)
+    try {
+      for (const targetUrl of targetUrls) {
+        const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+          signal: AbortSignal.timeout(10000)
+        });
+        if (tioRes.ok) {
+          const tJson = await tioRes.json();
+          if (tJson && tJson.status && tJson.mp4) {
+            console.log(`[YOUTUBE] Successfully resolved via High-Speed Video Engine: ${tJson.title}`);
+            return {
+              type: "YouTube",
+              title: tJson.title || oEmbedTitle,
+              author: tJson.author || oEmbedAuthor,
+              cover: tJson.thumbnail || oEmbedThumb,
+              videoUrl: tJson.mp4,
+              audioUrl: tJson.mp3 || null,
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                "Referer": "https://vidsnap.app/"
+              },
+              directStream: true
+            };
+          }
+        }
+      }
+    } catch (tioErr) {
+      console.warn("[YOUTUBE] High-Speed Engine notice:", tioErr.message);
+    }
+
+    // 3. Secondary fallback: Cobalt engine mirrors
     try {
       for (const targetUrl of targetUrls) {
         const cobRes = await resolveCobalt(targetUrl);
@@ -2539,6 +2569,21 @@ async function resolveYouTubeAudio(url) {
       } catch (_) {}
     }
   }
+
+  // Secondary: High-Speed Audio Engine
+  try {
+    for (const targetUrl of targetUrls) {
+      const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+        signal: AbortSignal.timeout(8000)
+      });
+      if (tioRes.ok) {
+        const tJson = await tioRes.json();
+        if (tJson && tJson.status && tJson.mp3) {
+          return tJson.mp3;
+        }
+      }
+    }
+  } catch (_) {}
 
   // Fallback: Cobalt audio mirrors
   for (const targetUrl of targetUrls) {
