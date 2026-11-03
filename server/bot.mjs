@@ -2785,22 +2785,22 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
       let noticeText;
       if (isYt && media?.errorReason === "error.video_unavailable") {
-        noticeText = `⚠️ <b>ভিডিওটি অনুপলব্ধ (Video Unavailable)</b>\n\n` +
-          `এই YouTube ভিডিওটি বর্তমানে অনুপলব্ধ (Private, Restricted বা মুছে ফেলা হয়েছে)।\n\n` +
-          `📌 <i>YouTube সার্ভারে ভিডিওটির তথ্য পাওয়া যায়নি। অনুগ্রহ করে অন্য কোনো সচল পাবলিক YouTube লিংক দিয়ে চেষ্টা করুন।</i>`;
+        noticeText = `⚠️ <b>Video Unavailable</b>\n\n` +
+          `This YouTube video is currently unavailable (Private, Restricted, or Deleted).\n\n` +
+          `📌 <i>No video stream could be found on YouTube servers. Please try with another active public YouTube link.</i>`;
       } else if (isYt && media?.errorReason === "error.api.youtube.login") {
         noticeText = `⚠️ <b>YouTube Security Notice (Sign-in Required)</b>\n\n` +
           `YouTube anti-bot security blocked extraction for this video on the server:\n` +
           `<code>Status: error.api.youtube.login</code>\n\n` +
-          `📌 <b>কারণ:</b>\n` +
-          `এই ভিডিওটি দেখার জন্য YouTube বয়স বা অ্যাকাউন্ট ভেরিফিকেশন সাইন-ইন বাধ্যতামূলক করেছে।\n\n` +
-          `💡 <b>পরামর্শ:</b> অনুগ্রহ করে সাধারণ উন্মুক্ত পাবলিক ভিডিওর লিংক পাঠিয়ে চেষ্টা করুন।`;
+          `📌 <b>Reason:</b>\n` +
+          `YouTube requires account sign-in or age verification to view this video.\n\n` +
+          `💡 <b>Tip:</b> Please try with a standard, publicly accessible video link.`;
       } else if (isYt && media?.errorReason === "error.api.youtube.api_error") {
         noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\n` +
           `YouTube backend returned: <code>error.api.youtube.api_error</code>\n\n` +
-          `📌 <b>কারণ:</b>\n` +
-          `YouTube এই নির্দিষ্ট ভিডিওটির স্ট্রিম প্রসেস করতে সাময়িকভাবে বাধা দিয়েছে (ভিডিওটি বয়স-সীমাবদ্ধ, কপিরাইট রেস্ট্রিক্টেড বা সাময়িক রেট-লিমিট)।\n\n` +
-          `💡 <b>পরামর্শ:</b> কিছুক্ষণ পর পুনরায় চেষ্টা করুন অথবা অন্য সচল পাবলিক ভিডিও লিংক দিয়ে ডাউনলোড করুন।`;
+          `📌 <b>Reason:</b>\n` +
+          `YouTube temporarily restricted processing streams for this specific video (age-restricted, copyright, or bot protected).\n\n` +
+          `💡 <b>Tip:</b> Please try again in a few moments or test with another public video link.`;
       } else if (isYt) {
         noticeText = `⚠️ <b>YouTube Stream Notice</b>\n\nCould not extract a downloadable stream for this YouTube video from OmniStream API. Please verify the video is publicly accessible and try again.`;
       } else {
