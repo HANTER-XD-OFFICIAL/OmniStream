@@ -1663,6 +1663,7 @@ async function resolveTikTok(rawUrl) {
 // 2. Cobalt Multi-Host Resolver (Instagram, Facebook, Twitter, Reddit) - Complete with Audio & Video Muxed
 const COBALT_HOSTS = [
   "https://omnistream-api.alexraselchodhury.workers.dev",
+  "https://cobalt-kh9d.onrender.com",
   "https://cobalt-latest-a04h.onrender.com",
   "https://co.wuk.sh",
   "https://cobalt.xy2401.com",
@@ -1797,27 +1798,33 @@ async function resolveYouTube(url, onProgressUpdate = null) {
       targetUrls.push(originalUrl);
     }
 
-    // Call user's custom API endpoint directly with prioritized payloads
-    for (const targetUrl of targetUrls) {
-      const apiPayloads = [
-        { url: targetUrl, videoQuality: "720", downloadMode: "auto", youtubeVideoCodec: "h264", audioFormat: "mp3", alwaysProxy: true },
-        { url: targetUrl, downloadMode: "auto", videoQuality: "720" },
-        { url: targetUrl, downloadMode: "auto" },
-        { url: targetUrl }
-      ];
+    const YT_ENDPOINTS = [
+      CUSTOM_YOUTUBE_API,
+      "https://cobalt-kh9d.onrender.com"
+    ];
 
-      for (const payload of apiPayloads) {
-        try {
-          const res = await fetch(CUSTOM_YOUTUBE_API, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-            },
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(12000)
-          });
+    // Call user's custom API endpoint and direct backend with prioritized payloads
+    for (const endpoint of YT_ENDPOINTS) {
+      for (const targetUrl of targetUrls) {
+        const apiPayloads = [
+          { url: targetUrl, videoQuality: "720", downloadMode: "auto", youtubeVideoCodec: "h264", audioFormat: "mp3", alwaysProxy: true },
+          { url: targetUrl, downloadMode: "auto", videoQuality: "720" },
+          { url: targetUrl, downloadMode: "auto" },
+          { url: targetUrl }
+        ];
+
+        for (const payload of apiPayloads) {
+          try {
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+              },
+              body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(12000)
+            });
 
           if (res.ok) {
             const json = await res.json();
@@ -1849,6 +1856,7 @@ async function resolveYouTube(url, onProgressUpdate = null) {
           console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
         }
       }
+    }
     }
 
     // Secondary fallback: Cobalt engine mirrors
