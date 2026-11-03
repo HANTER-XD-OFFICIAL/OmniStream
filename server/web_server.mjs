@@ -495,6 +495,11 @@ async function resolveYouTube(url, mode = 'auto') {
     for (const targetUrl of targetUrls) {
       try {
         const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+          headers: {
+            "User-Agent": "btch/3.0.9",
+            "X-Client-Version": "3.0.9",
+            "Content-Type": "application/json"
+          },
           signal: AbortSignal.timeout(8000)
         });
         if (tioRes.ok) {

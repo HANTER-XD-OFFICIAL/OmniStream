@@ -1820,75 +1820,20 @@ async function resolveYouTube(url, onProgressUpdate = null) {
     }
 
     let lastErrorCode = null;
-
-    // Test canonical watch URL first, original URL as secondary
     const targetUrls = [canonicalUrl];
     if (originalUrl !== canonicalUrl && !targetUrls.includes(originalUrl)) {
       targetUrls.push(originalUrl);
     }
 
-    const YT_ENDPOINTS = [
-      CUSTOM_YOUTUBE_API,
-      "https://cobalt-kh9d.onrender.com"
-    ];
-
-    // Query Custom Worker API and direct backend
-    for (const endpoint of YT_ENDPOINTS) {
-      for (const targetUrl of targetUrls) {
-        try {
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-            },
-            body: JSON.stringify({
-              url: targetUrl,
-              videoQuality: "720",
-              downloadMode: "auto",
-              youtubeVideoCodec: "h264",
-              audioFormat: "mp3",
-              alwaysProxy: true
-            }),
-            signal: AbortSignal.timeout(12000)
-          });
-
-          if (res.ok) {
-            const json = await res.json();
-            const streamUrl = extractStreamUrlFromResponse(json, false);
-
-            if (streamUrl && streamUrl.startsWith("http")) {
-              console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${endpoint}`);
-              return {
-                type: "YouTube",
-                title: json.filename?.replace(/\.[^/.]+$/, "") || oEmbedTitle,
-                author: oEmbedAuthor,
-                cover: json.thumbnail || oEmbedThumb,
-                videoUrl: streamUrl,
-                audioUrl: json.audio || null,
-                directStream: true
-              };
-            }
-          } else {
-            try {
-              const errJson = await res.json();
-              if (errJson?.error?.code) {
-                lastErrorCode = errJson.error.code;
-                console.warn(`[YOUTUBE] OmniStream API returned error code: ${lastErrorCode}`);
-              }
-            } catch (_) {}
-          }
-        } catch (err) {
-          console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
-        }
-      }
-    }
-
-    // 2. High-Speed Secondary YouTube Engine (Direct MP4/MP3 bypasses bot checks)
-    try {
-      for (const targetUrl of targetUrls) {
+    // 1. High-Speed Primary YouTube Engine (Direct MP4/MP3 bypasses bot detection)
+    for (const targetUrl of targetUrls) {
+      try {
         const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+          headers: {
+            "User-Agent": "btch/3.0.9",
+            "X-Client-Version": "3.0.9",
+            "Content-Type": "application/json"
+          },
           signal: AbortSignal.timeout(10000)
         });
         if (tioRes.ok) {
@@ -1910,12 +1855,89 @@ async function resolveYouTube(url, onProgressUpdate = null) {
             };
           }
         }
+      } catch (tioErr) {
+        console.warn("[YOUTUBE] High-Speed Engine notice:", tioErr.message);
       }
-    } catch (tioErr) {
-      console.warn("[YOUTUBE] High-Speed Engine notice:", tioErr.message);
     }
 
-    // 3. Secondary fallback: Cobalt engine mirrors
+    // 2. Query OmniStream Custom Worker / Cobalt API (try canonical first, no redundant hammering)
+    const primaryYtEndpoint = CUSTOM_YOUTUBE_API || "https://cobalt-kh9d.onrender.com";
+    try {
+      const res = await fetch(primaryYtEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        },
+        body: JSON.stringify({
+          url: canonicalUrl,
+          videoQuality: "720",
+          downloadMode: "auto"
+        }),
+        signal: AbortSignal.timeout(12000)
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const streamUrl = extractStreamUrlFromResponse(json, false);
+        if (streamUrl && streamUrl.startsWith("http")) {
+          console.log(`[YOUTUBE] Successfully resolved via OmniStream API: ${primaryYtEndpoint}`);
+          return {
+            type: "YouTube",
+            title: json.filename?.replace(/\.[^/.]+$/, "") || oEmbedTitle,
+            author: oEmbedAuthor,
+            cover: json.thumbnail || oEmbedThumb,
+            videoUrl: streamUrl,
+            audioUrl: json.audio || null,
+            directStream: true
+          };
+        }
+      } else {
+        try {
+          const errJson = await res.json();
+          if (errJson?.error?.code) {
+            lastErrorCode = errJson.error.code;
+            console.warn(`[YOUTUBE] OmniStream API returned error code: ${lastErrorCode}`);
+          }
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn(`[YOUTUBE] OmniStream API attempt error:`, err.message);
+    }
+
+    // 3. Local yt-dlp fallback (installed on Render environment)
+    try {
+      const cookieArgs = fs.existsSync("/etc/secrets/cookies.json")
+        ? ["--cookies", "/etc/secrets/cookies.json"]
+        : [];
+      const { stdout } = await execFileAsync("yt-dlp", [
+        "--no-warnings",
+        "--no-playlist",
+        "-j",
+        "-f", "best[ext=mp4]/best",
+        ...cookieArgs,
+        canonicalUrl
+      ], { timeout: 25000 });
+      if (stdout) {
+        const info = JSON.parse(stdout.trim().split("\n")[0]);
+        const streamUrl = info.url || info.requested_downloads?.[0]?.url;
+        if (streamUrl && streamUrl.startsWith("http")) {
+          console.log(`[YOUTUBE] Successfully resolved via local yt-dlp: ${info.title}`);
+          return {
+            type: "YouTube",
+            title: info.title || oEmbedTitle,
+            author: info.uploader || info.channel || oEmbedAuthor,
+            cover: info.thumbnail || oEmbedThumb,
+            videoUrl: streamUrl,
+            duration: info.duration || null,
+            directStream: true
+          };
+        }
+      }
+    } catch (_) {}
+
+    // 4. Secondary fallback: Cobalt engine mirrors
     try {
       for (const targetUrl of targetUrls) {
         const cobRes = await resolveCobalt(targetUrl);
@@ -2553,41 +2575,15 @@ async function resolveYouTubeAudio(url) {
     targetUrls.push(originalUrl);
   }
 
+  // 1. Primary: High-Speed Audio Engine (direct GoogleVideo MP3)
   for (const targetUrl of targetUrls) {
-    const audioPayloads = [
-      { url: targetUrl, downloadMode: "audio", audioFormat: "mp3", alwaysProxy: true },
-      { url: targetUrl, downloadMode: "audio", audioFormat: "mp3" },
-      { url: targetUrl, downloadMode: "audio" },
-      { url: targetUrl }
-    ];
-
-    for (const payload of audioPayloads) {
-      try {
-        const res = await fetch(CUSTOM_YOUTUBE_API, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-          },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(10000)
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const streamUrl = extractStreamUrlFromResponse(json, true);
-          if (streamUrl && streamUrl.startsWith("http")) {
-            return streamUrl;
-          }
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Secondary: High-Speed Audio Engine
-  try {
-    for (const targetUrl of targetUrls) {
+    try {
       const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+        headers: {
+          "User-Agent": "btch/3.0.9",
+          "X-Client-Version": "3.0.9",
+          "Content-Type": "application/json"
+        },
         signal: AbortSignal.timeout(8000)
       });
       if (tioRes.ok) {
@@ -2596,10 +2592,54 @@ async function resolveYouTubeAudio(url) {
           return tJson.mp3;
         }
       }
+    } catch (_) {}
+  }
+
+  // 2. Custom Worker / Cobalt API
+  const primaryEndpoint = CUSTOM_YOUTUBE_API || "https://cobalt-kh9d.onrender.com";
+  try {
+    const res = await fetch(primaryEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+      },
+      body: JSON.stringify({ url: canonicalUrl, downloadMode: "audio", audioFormat: "mp3" }),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const streamUrl = extractStreamUrlFromResponse(json, true);
+      if (streamUrl && streamUrl.startsWith("http")) {
+        return streamUrl;
+      }
     }
   } catch (_) {}
 
-  // Fallback: Cobalt audio mirrors
+  // 3. Local yt-dlp audio extraction
+  try {
+    const cookieArgs = fs.existsSync("/etc/secrets/cookies.json")
+      ? ["--cookies", "/etc/secrets/cookies.json"]
+      : [];
+    const { stdout } = await execFileAsync("yt-dlp", [
+      "--no-warnings",
+      "--no-playlist",
+      "-j",
+      "-f", "ba/b",
+      ...cookieArgs,
+      canonicalUrl
+    ], { timeout: 25000 });
+    if (stdout) {
+      const info = JSON.parse(stdout.trim().split("\n")[0]);
+      const streamUrl = info.url || info.requested_downloads?.[0]?.url;
+      if (streamUrl && streamUrl.startsWith("http")) {
+        return streamUrl;
+      }
+    }
+  } catch (_) {}
+
+  // 4. Fallback: Cobalt audio mirrors
   for (const targetUrl of targetUrls) {
     const cobAudio = await resolveCobaltAudio(targetUrl);
     if (cobAudio) return cobAudio;

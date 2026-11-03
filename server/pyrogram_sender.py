@@ -140,22 +140,35 @@ async def send_video_main():
 
     try:
         await app.start()
+        # Build send_video kwargs safely: never pass None for integer fields (duration, width, height)
+        # to avoid Pyrogram's MTProto serializer crashing with: 'NoneType' object has no attribute 'to_bytes'
+        safe_caption = caption[:1024] if caption else ""
+        send_kwargs = {
+            "chat_id": chat_id,
+            "video": video_path,
+            "caption": safe_caption,
+            "supports_streaming": True,
+        }
+        if duration and duration > 0:
+            send_kwargs["duration"] = int(duration)
+        if width and width > 0:
+            send_kwargs["width"] = int(width)
+        if height and height > 0:
+            send_kwargs["height"] = int(height)
+        if thumb_path and os.path.exists(thumb_path):
+            send_kwargs["thumb"] = thumb_path
+        if reply_markup is not None:
+            send_kwargs["reply_markup"] = reply_markup
+
         # Pyrogram client.send_video - streams and uploads up to 2GB via MTProto
-        msg = await app.send_video(
-            chat_id=chat_id,
-            video=video_path,
-            caption=caption,
-            duration=duration if duration > 0 else None,
-            width=width if width > 0 else None,
-            height=height if height > 0 else None,
-            thumb=thumb_path,
-            supports_streaming=True,
-            reply_markup=reply_markup
-        )
+        msg = await app.send_video(**send_kwargs)
         msg_id = getattr(msg, "id", None) or getattr(msg, "message_id", None)
         print(json.dumps({"ok": True, "result": {"message_id": msg_id}}))
     except Exception as e:
-        print(json.dumps({"ok": False, "error": str(e)}))
+        import traceback
+        err_msg = str(e)
+        sys.stderr.write(f"Pyrogram exception traceback:\n{traceback.format_exc()}\n")
+        print(json.dumps({"ok": False, "error": err_msg}))
     finally:
         try:
             await app.stop()
