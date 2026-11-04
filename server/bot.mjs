@@ -503,14 +503,232 @@ function formatOmniStreamFilename(platform, title, ext = "mp4") {
   return `OmniStream_${cleanPlatform}_${cleanTitle}.${ext}`;
 }
 
+// ==================== INPUTFILE & CHUNKED STREAMING ENGINE ====================
+// Streams video and audio files directly to Telegram Bot API in chunks from remote URLs or ReadableStreams.
+// Zero in-memory buffer overhead and unlimited processing time for large and multi-hour media.
+
+class InputFile {
+  /**
+   * @param {ReadableStream|import('stream').Readable|Buffer|Uint8Array|string} source
+   * @param {string} [filename]
+   * @param {string} [mimeType]
+   * @param {Record<string, string>} [headers]
+   */
+  constructor(source, filename = null, mimeType = null, headers = {}) {
+    this.source = source;
+    this.filename = filename || "file.mp4";
+    this.mimeType = mimeType || "application/octet-stream";
+    this.headers = headers || {};
+  }
+
+  static fromUrl(url, filename = null, mimeType = null, headers = {}) {
+    return new InputFile(url, filename, mimeType, headers);
+  }
+
+  static fromStream(stream, filename = null, mimeType = null) {
+    return new InputFile(stream, filename, mimeType);
+  }
+
+  static fromBuffer(buffer, filename = null, mimeType = null) {
+    return new InputFile(buffer, filename, mimeType);
+  }
+
+  static fromPath(filePath, filename = null, mimeType = null) {
+    return new InputFile(filePath, filename, mimeType);
+  }
+
+  /**
+   * Resolves the source into a Web ReadableStream and known contentLength (if available).
+   * Unlimited timeout is used to allow multi-hour/large files to stream continuously.
+   */
+  async getStream() {
+    if (typeof this.source === "string" && (this.source.startsWith("http://") || this.source.startsWith("https://"))) {
+      // Connect to remote stream URL without timeout to allow unlimited streaming time
+      const res = await fetch(this.source, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+          ...this.headers
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to stream from URL (HTTP ${res.status}): ${res.statusText}`);
+      }
+      const rawLen = res.headers.get("content-length");
+      const contentLength = rawLen ? parseInt(rawLen, 10) : null;
+      return {
+        stream: res.body,
+        contentLength: Number.isFinite(contentLength) && contentLength > 0 ? contentLength : null
+      };
+    }
+
+    if (this.source && typeof this.source.getReader === "function") {
+      return { stream: this.source, contentLength: null };
+    }
+
+    if (this.source && typeof this.source.pipe === "function") {
+      const { Readable } = await import("stream");
+      return { stream: Readable.toWeb(this.source), contentLength: null };
+    }
+
+    if (Buffer.isBuffer(this.source) || this.source instanceof Uint8Array) {
+      const buf = this.source;
+      const s = new ReadableStream({
+        start(controller) {
+          controller.enqueue(buf);
+          controller.close();
+        }
+      });
+      return { stream: s, contentLength: buf.byteLength };
+    }
+
+    if (typeof this.source === "string" && fs.existsSync(this.source)) {
+      const stat = fs.statSync(this.source);
+      const nodeStream = fs.createReadStream(this.source);
+      const { Readable } = await import("stream");
+      return { stream: Readable.toWeb(nodeStream), contentLength: stat.size };
+    }
+
+    throw new Error("Unsupported InputFile source");
+  }
+
+  /**
+   * Helper to pipe the stream in chunks directly to disk without buffering all data into RAM.
+   */
+  async writeToDisk(destinationPath) {
+    const { stream: sourceStream } = await this.getStream();
+    const { Readable } = await import("stream");
+    const { pipeline } = await import("stream/promises");
+    const nodeReadable = Readable.fromWeb(sourceStream);
+    const writeStream = fs.createWriteStream(destinationPath);
+    await pipeline(nodeReadable, writeStream);
+    return destinationPath;
+  }
+}
+
+/**
+ * Streams multipart form-data directly to Telegram Bot API in chunks using fetch and duplex: 'half'.
+ * Allows unlimited processing time for large and multi-hour files.
+ */
+async function sendTgMultipartStream(method, fields, inputFile, fileFieldName = "video") {
+  try {
+    const boundary = "----OmniStreamBoundary" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const { stream: sourceStream, contentLength } = await inputFile.getStream();
+
+    let preamble = "";
+    for (const [key, val] of Object.entries(fields)) {
+      if (val !== undefined && val !== null) {
+        preamble += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${val}\r\n`;
+      }
+    }
+
+    const filename = inputFile.filename || "file.bin";
+    const mimeType = inputFile.mimeType || "application/octet-stream";
+    const fileHeader = `--${boundary}\r\nContent-Disposition: form-data; name="${fileFieldName}"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`;
+    const postamble = `\r\n--${boundary}--\r\n`;
+
+    const preambleBuf = Buffer.from(preamble + fileHeader, "utf-8");
+    const postambleBuf = Buffer.from(postamble, "utf-8");
+
+    async function* multipartGenerator() {
+      yield preambleBuf;
+      const reader = sourceStream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value && value.byteLength > 0) {
+            yield value;
+          }
+        }
+      } finally {
+        try { reader.releaseLock(); } catch (_) {}
+      }
+      yield postambleBuf;
+    }
+
+    const { Readable } = await import("stream");
+    const outgoingStream = Readable.toWeb(Readable.from(multipartGenerator()));
+
+    const reqHeaders = {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`
+    };
+
+    if (contentLength && Number.isFinite(contentLength) && contentLength > 0) {
+      const totalLength = preambleBuf.byteLength + contentLength + postambleBuf.byteLength;
+      reqHeaders["Content-Length"] = String(totalLength);
+    }
+
+    // Unlimited timeout: allows multi-hour / multi-gigabyte files to stream without being aborted
+    const res = await fetch(`${TELEGRAM_API}/${method}`, {
+      method: "POST",
+      headers: reqHeaders,
+      body: outgoingStream,
+      duplex: "half"
+    });
+
+    return await res.json();
+  } catch (err) {
+    console.error(`sendTgMultipartStream error on ${method}:`, err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+async function sendTgVideoStream(chatId, inputFile, caption, replyMarkup = null, duration = null) {
+  const fields = {
+    chat_id: String(chatId),
+    caption: caption || "",
+    parse_mode: "HTML",
+    supports_streaming: "true"
+  };
+  if (duration && Number(duration) > 0) {
+    fields.duration = String(Math.floor(duration));
+  }
+  if (replyMarkup) {
+    fields.reply_markup = JSON.stringify(replyMarkup);
+  }
+  return await sendTgMultipartStream("sendVideo", fields, inputFile, "video");
+}
+
+async function sendTgAudioStream(chatId, inputFile, caption, title = "OmniStream Audio Track", performer = "OmniStream", replyMarkup = null, duration = null) {
+  const fields = {
+    chat_id: String(chatId),
+    parse_mode: "HTML"
+  };
+  if (caption) fields.caption = caption;
+  if (title) fields.title = title;
+  if (performer) fields.performer = performer;
+  if (duration && Number(duration) > 0) fields.duration = String(Math.floor(duration));
+  if (replyMarkup) fields.reply_markup = JSON.stringify(replyMarkup);
+
+  return await sendTgMultipartStream("sendAudio", fields, inputFile, "audio");
+}
+
+async function sendTgDocumentStream(chatId, inputFile, caption, replyMarkup = null) {
+  const fields = {
+    chat_id: String(chatId),
+    caption: caption || "",
+    parse_mode: "HTML"
+  };
+  if (replyMarkup) {
+    fields.reply_markup = JSON.stringify(replyMarkup);
+  }
+  return await sendTgMultipartStream("sendDocument", fields, inputFile, "document");
+}
+
 // ==================== PYROGRAM 2GB MTPROTO VIDEO ENGINE ====================
-// Uses Pyrogram (client.send_video) to bypass Telegram's 50MB Bot API upload limit and send videos up to 2GB
+// Uses Pyrogram (client.send_video) to stream and upload videos up to 2GB via MTProto
 async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, replyMarkup = null, duration = null) {
   let tempFilePath = null;
   let tempPayloadPath = null;
   try {
     if (typeof videoSource === "string" && fs.existsSync(videoSource)) {
       tempFilePath = videoSource;
+    } else if (videoSource instanceof InputFile) {
+      const ext = filename?.split('.').pop() || 'mp4';
+      const uniqueId = `pyro_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      tempFilePath = path.join(os.tmpdir(), uniqueId);
+      // Stream chunks to disk directly without buffering in RAM
+      await videoSource.writeToDisk(tempFilePath);
     } else {
       const ext = filename?.split('.').pop() || 'mp4';
       const uniqueId = `pyro_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -538,8 +756,9 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
     fs.writeFileSync(payloadFile, JSON.stringify(payload));
 
     const scriptPath = path.join(__dirname, "pyrogram_sender.py");
+    // Increased timeout to 24 hours to support multi-hour and large 2GB videos
     const { stdout, stderr } = await execFileAsync("python3", [scriptPath, `@${payloadFile}`], {
-      timeout: 1800000, // 30 minutes for large videos up to 2GB
+      timeout: 86400000,
       env: {
         ...process.env,
         TELEGRAM_API_ID: resolvedApiId,
@@ -576,45 +795,37 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
 }
 
 async function sendTgVideo(chatId, videoBufferOrPath, filename, caption, replyMarkup = null, duration = null) {
-  // 1. Primary: Use Pyrogram (client.send_video) to bypass 50MB Bot API limit (supports up to 2GB)
+  const inputFile = videoBufferOrPath instanceof InputFile
+    ? videoBufferOrPath
+    : (typeof videoBufferOrPath === "string" && videoBufferOrPath.startsWith("http")
+        ? InputFile.fromUrl(videoBufferOrPath, filename, "video/mp4")
+        : (Buffer.isBuffer(videoBufferOrPath) || videoBufferOrPath instanceof Uint8Array
+            ? InputFile.fromBuffer(videoBufferOrPath, filename, "video/mp4")
+            : InputFile.fromPath(videoBufferOrPath, filename, "video/mp4")));
+
+  // 1. Primary: Stream video directly to Telegram Bot API in chunks using InputFile (zero RAM buffer, unlimited timeout)
   try {
-    const pyroRes = await sendTgVideoViaPyrogram(chatId, videoBufferOrPath, filename, caption, replyMarkup, duration);
+    const streamRes = await sendTgVideoStream(chatId, inputFile, caption, replyMarkup, duration);
+    if (streamRes && streamRes.ok) {
+      return streamRes;
+    }
+    console.warn("[STREAM VIDEO] Bot API streaming notice:", streamRes?.description || streamRes?.error);
+  } catch (streamErr) {
+    console.warn("[STREAM VIDEO] Stream delivery notice:", streamErr.message);
+  }
+
+  // 2. Pyrogram fallback for videos up to 2GB if standard Bot API rejected (e.g. file > 50MB)
+  try {
+    const pyroRes = await sendTgVideoViaPyrogram(chatId, inputFile, filename, caption, replyMarkup, duration);
     if (pyroRes && pyroRes.ok) {
       return pyroRes;
     }
-    console.warn("[PYROGRAM] Pyrogram client.send_video returned not-ok, falling back to HTTP if under 50MB:", pyroRes?.error);
+    console.warn("[PYROGRAM] Pyrogram fallback notice:", pyroRes?.error);
   } catch (pyroErr) {
     console.warn("[PYROGRAM] Pyrogram execution fallback:", pyroErr.message);
   }
 
-  // 2. Fallback: Telegram Bot API HTTP sendVideo (limited to 50MB)
-  try {
-    const form = new FormData();
-    form.append("chat_id", String(chatId));
-    form.append("caption", caption || "");
-    form.append("parse_mode", "HTML");
-    form.append("supports_streaming", "true");
-    if (replyMarkup) {
-      form.append("reply_markup", JSON.stringify(replyMarkup));
-    }
-    const buf = typeof videoBufferOrPath === "string" && fs.existsSync(videoBufferOrPath)
-      ? fs.readFileSync(videoBufferOrPath)
-      : videoBufferOrPath;
-    if (buf && buf.byteLength && buf.byteLength > 50 * 1024 * 1024) {
-      return { ok: false, error: "File exceeds 50MB Bot API limit and Pyrogram was not available" };
-    }
-    form.append("video", new Blob([buf], { type: "video/mp4" }), filename || "video.mp4");
-
-    const res = await fetch(`${TELEGRAM_API}/sendVideo`, {
-      method: "POST",
-      body: form,
-      signal: AbortSignal.timeout(90000)
-    });
-    return await res.json();
-  } catch (err) {
-    console.error("sendTgVideo error:", err.message);
-    return { ok: false, error: err.message };
-  }
+  return { ok: false, error: "Failed to deliver video stream" };
 }
 
 async function sendTgVideoByUrl(chatId, videoUrl, caption, replyMarkup = null) {
@@ -629,11 +840,11 @@ async function sendTgVideoByUrl(chatId, videoUrl, caption, replyMarkup = null) {
     if (replyMarkup) {
       payload.reply_markup = replyMarkup;
     }
+    // No timeout signal -> allows multi-hour / large files unlimited time to process
     const res = await fetch(`${TELEGRAM_API}/sendVideo`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(60000)
+      body: JSON.stringify(payload)
     });
     return await res.json();
   } catch (err) {
@@ -642,60 +853,39 @@ async function sendTgVideoByUrl(chatId, videoUrl, caption, replyMarkup = null) {
   }
 }
 
-async function sendTgDocument(chatId, fileBuffer, filename, caption, replyMarkup = null) {
-  try {
-    const form = new FormData();
-    form.append("chat_id", String(chatId));
-    form.append("caption", caption || "");
-    form.append("parse_mode", "HTML");
-    if (replyMarkup) {
-      form.append("reply_markup", JSON.stringify(replyMarkup));
-    }
-    const isApk = (filename || "").toLowerCase().endsWith(".apk");
-    const mimeType = isApk ? "application/vnd.android.package-archive" : "video/mp4";
-    form.append("document", new Blob([fileBuffer], { type: mimeType }), filename || "OmniStream_Video.mp4");
+async function sendTgDocument(chatId, fileBufferOrPath, filename, caption, replyMarkup = null) {
+  const isApk = (filename || "").toLowerCase().endsWith(".apk");
+  const mimeType = isApk ? "application/vnd.android.package-archive" : "video/mp4";
 
-    const res = await fetch(`${TELEGRAM_API}/sendDocument`, {
-      method: "POST",
-      body: form,
-      signal: AbortSignal.timeout(180000)
-    });
-    return await res.json();
-  } catch (err) {
-    console.warn("sendTgDocument notice:", err.message);
-    return { ok: false, error: err.message };
-  }
+  const inputFile = fileBufferOrPath instanceof InputFile
+    ? fileBufferOrPath
+    : (typeof fileBufferOrPath === "string" && fileBufferOrPath.startsWith("http")
+        ? InputFile.fromUrl(fileBufferOrPath, filename, mimeType)
+        : (Buffer.isBuffer(fileBufferOrPath) || fileBufferOrPath instanceof Uint8Array
+            ? InputFile.fromBuffer(fileBufferOrPath, filename, mimeType)
+            : InputFile.fromPath(fileBufferOrPath, filename, mimeType)));
+
+  // Stream document directly in chunks without timeout abort
+  return await sendTgDocumentStream(chatId, inputFile, caption, replyMarkup);
 }
 
-async function sendTgAudio(chatId, fileBuffer, filename, caption, title = "OmniStream Audio Track", performer = "OmniStream", replyMarkup = null) {
-  try {
-    const form = new FormData();
-    form.append("chat_id", String(chatId));
-    if (caption) form.append("caption", caption);
-    form.append("parse_mode", "HTML");
-    if (title) form.append("title", title);
-    if (performer) form.append("performer", performer);
-    if (replyMarkup) {
-      form.append("reply_markup", JSON.stringify(replyMarkup));
-    }
-    const ext = filename?.split('.').pop()?.toLowerCase() || 'mp3';
-    let mime = 'audio/mpeg';
-    if (ext === 'wav') mime = 'audio/wav';
-    else if (ext === 'm4a') mime = 'audio/mp4';
-    else if (ext === 'ogg') mime = 'audio/ogg';
+async function sendTgAudio(chatId, audioSource, filename, caption, title = "OmniStream Audio Track", performer = "OmniStream", replyMarkup = null, duration = null) {
+  const ext = filename?.split('.').pop()?.toLowerCase() || 'mp3';
+  let mime = 'audio/mpeg';
+  if (ext === 'wav') mime = 'audio/wav';
+  else if (ext === 'm4a') mime = 'audio/mp4';
+  else if (ext === 'ogg') mime = 'audio/ogg';
 
-    form.append("audio", new Blob([fileBuffer], { type: mime }), filename || "OmniStream_Audio.mp3");
+  const inputFile = audioSource instanceof InputFile
+    ? audioSource
+    : (typeof audioSource === "string" && audioSource.startsWith("http")
+        ? InputFile.fromUrl(audioSource, filename, mime)
+        : (Buffer.isBuffer(audioSource) || audioSource instanceof Uint8Array
+            ? InputFile.fromBuffer(audioSource, filename, mime)
+            : InputFile.fromPath(audioSource, filename, mime)));
 
-    const res = await fetch(`${TELEGRAM_API}/sendAudio`, {
-      method: "POST",
-      body: form,
-      signal: AbortSignal.timeout(120000)
-    });
-    return await res.json();
-  } catch (err) {
-    console.warn("sendTgAudio notice:", err.message);
-    return { ok: false, error: err.message };
-  }
+  // Stream audio directly in chunks to Telegram Bot API with unlimited timeout
+  return await sendTgAudioStream(chatId, inputFile, caption, title, performer, replyMarkup, duration);
 }
 
 async function sendWelcomeAudio(chatId) {
@@ -2682,28 +2872,21 @@ async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, vi
       ]
     };
 
-    // Try fetching audio from audioUrl
+    // 2. Stream audio from audioUrl in chunks using InputFile (zero server buffer, unlimited timeout)
     if (audioUrl && audioUrl.startsWith("http")) {
       try {
-        const audioFetch = await fetch(audioUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": lower.includes("tiktok.com") ? "https://www.tiktok.com/" : url
-          },
-          signal: AbortSignal.timeout(35000)
+        const audioInput = InputFile.fromUrl(audioUrl, audioFilename, "audio/mpeg", {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": lower.includes("tiktok.com") ? "https://www.tiktok.com/" : url
         });
-        if (audioFetch.ok) {
-          const aBuf = await audioFetch.arrayBuffer();
-          if (aBuf.byteLength > 1000 && aBuf.byteLength < 49 * 1024 * 1024) {
-            const aRes = await sendTgAudio(chatId, aBuf, audioFilename, audioCaption, safeTitle, media?.author || platformName, audioMarkup);
-            if (aRes && aRes.ok) {
-              console.log(`[DELIVERED AUDIO] Audio buffer sent to ${chatId}`);
-              return true;
-            }
-          }
+
+        const aRes = await sendTgAudio(chatId, audioInput, audioFilename, audioCaption, safeTitle, media?.author || platformName, audioMarkup, media?.duration);
+        if (aRes && aRes.ok) {
+          console.log(`[DELIVERED AUDIO] Audio stream sent to ${chatId}`);
+          return true;
         }
       } catch (err) {
-        console.warn("Audio buffer fetch/send error:", err.message);
+        console.warn("Audio streaming delivery error:", err.message);
       }
 
       // Fallback: send directly via Telegram sendAudio URL
@@ -2726,8 +2909,7 @@ async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, vi
       }
     }
 
-    // 2. If separate audio stream is not available, but videoBuffer was fetched,
-    // Telegram sendAudio natively accepts MP4 container and plays audio stream!
+    // 3. Fallback: If videoBuffer was provided from direct in-memory file (e.g. TeraBox), deliver audio container
     if (videoBuffer && videoBuffer.byteLength > 1000 && videoBuffer.byteLength < 48 * 1024 * 1024) {
       try {
         const aRes = await sendTgAudio(chatId, videoBuffer, audioFilename, audioCaption, safeTitle, media?.author || platformName, audioMarkup);
@@ -2879,12 +3061,12 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       }
     }
 
-    // 2. Extracted URL delivery using Telegram Bot API sendVideo method (binary upload + direct URL sendVideo)
+    // 2. Stream video directly to Telegram in chunks using InputFile (zero server RAM buffer, unlimited timeout)
     if (media.videoUrl && media.videoUrl.startsWith("http") && media.videoUrl !== url) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Downloading video file & sending to Telegram...</i>`,
+        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Streaming video directly to Telegram in chunks...</i>`,
         parse_mode: "HTML"
       });
 
@@ -2893,61 +3075,38 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
         `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
 
-      // Try fetching the stream into buffer and uploading via sendVideo
+      const reqHeaders = media.headers || {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
+      };
+
       try {
-        const reqHeaders = media.headers || {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-          "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
-        };
-        let vidRes = await fetch(media.videoUrl, {
-          headers: reqHeaders,
-          signal: AbortSignal.timeout(60000)
-        });
+        const videoInput = InputFile.fromUrl(media.videoUrl, standardizedFilename, "video/mp4", reqHeaders);
 
-        if (!vidRes.ok && media.type === "TikTok") {
-          vidRes = await fetch(media.videoUrl, {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-            },
-            signal: AbortSignal.timeout(60000)
-          });
+        // Stream video directly in chunks to Telegram Bot API with zero server RAM caching and unlimited timeout
+        let sendRes = await sendTgVideo(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup, media.duration);
+        if (!sendRes || !sendRes.ok) {
+          console.warn("[STREAM VIDEO] sendTgVideo fallback to document stream:", sendRes?.error || sendRes?.description);
+          sendRes = await sendTgDocument(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup);
         }
 
-        if (vidRes.ok) {
-          const videoBuffer = await vidRes.arrayBuffer();
-          const sizeBytes = videoBuffer.byteLength;
-          const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+        if (sendRes && sendRes.ok) {
+          try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
+          saveDatabase();
+          console.log(`[DELIVERED MEDIA] Video streamed in chunks directly to ${chatId}`);
 
-          if (sizeBytes <= 2000 * 1024 * 1024 && sizeBytes > 1000) {
-            const caption = `🎬 <b>${escapeHtml(safeTitle)}</b>\n\n` +
-              `👤 <b>Platform:</b> ${escapeHtml(media.type || platformName)}\n` +
-              (media.duration ? `⏱ <b>Duration:</b> ${formatSeconds(media.duration)}\n` : "") +
-              `💾 <b>Size:</b> ${sizeMb} MB\n\n` +
-              `⚡ <i>Downloaded via OmniStream Bot (@OmniStream34_bot)</i>`;
-
-            let sendRes = await sendTgVideo(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup, media.duration);
-            if (!sendRes || !sendRes.ok) {
-              sendRes = await sendTgDocument(chatId, videoBuffer, standardizedFilename, caption, defaultMarkup);
-            }
-            if (sendRes && sendRes.ok) {
-              try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
-              db.stats.totalDownloads++;
-              if (db.users[userId]) db.users[userId].downloads++;
-              saveDatabase();
-              console.log(`[DELIVERED MEDIA] Video file sent to ${chatId}`);
-
-              if (media.type !== "TeraBox" && media.type !== "MEGA") {
-                await deliverAudioTrack(chatId, url, media, safeTitle, platformName, videoBuffer);
-              }
-              return;
-            }
+          if (media.type !== "TeraBox" && media.type !== "MEGA") {
+            await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
           }
+          return;
         }
-      } catch (dlErr) {
-        console.warn("Direct buffer fetch notice, trying sendVideo with extracted URL:", dlErr.message);
+      } catch (streamErr) {
+        console.warn("Direct video streaming notice, trying URL fallback:", streamErr.message);
       }
 
-      // Fallback: Call Telegram Bot API sendVideo directly with the extracted videoUrl
+      // Fallback: Call Telegram Bot API sendVideo directly with the extracted videoUrl (unlimited timeout)
       const urlVideoRes = await sendTgVideoByUrl(chatId, media.videoUrl, baseCaption, defaultMarkup);
       if (urlVideoRes && urlVideoRes.ok) {
         try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
