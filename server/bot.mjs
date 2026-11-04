@@ -246,10 +246,19 @@ function registerOrUpdateUser(from) {
     saveDatabase();
   } else {
     db.users[id].firstName = from.first_name || db.users[id].firstName;
+    db.users[id].lastName = from.last_name || db.users[id].lastName || "";
     db.users[id].username = from.username || db.users[id].username;
     db.users[id].lastActive = now;
   }
   return { isNew, user: db.users[id] };
+}
+
+function getUserFullName(from) {
+  if (!from) return "User";
+  const first = (from.first_name || from.firstName || "").trim();
+  const last = (from.last_name || from.lastName || "").trim();
+  const full = [first, last].filter(Boolean).join(" ").trim();
+  return full || from.username || "User";
 }
 
 function isUserBlocked(userId) {
@@ -407,6 +416,101 @@ async function callTg(method, payload) {
     return { ok: false, error: err.message };
   }
 }
+
+// ==================== ADMIN ACTIVITY LOGGING & ERROR ALERTS ====================
+
+async function logDownloadToAdmin({ userId, userFullName, username, originalUrl, platform, title, fileSize, duration, streamType, mediaUrl }) {
+  if (!ADMIN_ID) return;
+  try {
+    const formattedSize = fileSize
+      ? (typeof fileSize === "number" ? `${(fileSize / (1024 * 1024)).toFixed(1)} MB` : String(fileSize))
+      : "Direct Stream";
+
+    const uHandle = username ? `@${escapeHtml(username)}` : "None";
+    const userDisplay = userFullName ? escapeHtml(userFullName) : (username || userId);
+
+    const logText = `📥 <b>Download Activity Log</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `🌐 <b>Platform:</b> <b>${escapeHtml(platform || "Unknown")}</b>\n` +
+      `🎬 <b>Title:</b> <i>${escapeHtml(title || "Media Title")}</i>\n` +
+      `💾 <b>File Size:</b> <b>${formattedSize}</b>\n` +
+      (duration ? `⏱ <b>Duration:</b> ${formatSeconds(duration)}\n` : "") +
+      `👤 <b>User:</b> <b>${userDisplay}</b> (<code>${userId}</code> | ${uHandle})\n` +
+      `🔗 <b>Original Link:</b> <code>${escapeHtml(originalUrl)}</code>\n` +
+      `📅 <b>Timestamp:</b> ${new Date().toLocaleString()}\n` +
+      `━━━━━━━━━━━━━━━━━━━━`;
+
+    await callTg("sendMessage", {
+      chat_id: ADMIN_ID,
+      text: logText,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "👤 View User Profile", url: `tg://user?id=${userId}` },
+            { text: "💬 Message User", callback_data: `admin_msg_user_${userId}` }
+          ]
+        ]
+      }
+    });
+  } catch (err) {
+    console.warn("[ADMIN LOG WARNING] Could not forward download log to admin:", err.message);
+  }
+}
+
+async function notifyAdminOfError({ error, context, userId, originalUrl, extraInfo }) {
+  if (!ADMIN_ID) return;
+  try {
+    const errMsg = error?.stack || error?.message || String(error);
+    const shortErrMsg = errMsg.length > 800 ? errMsg.substring(0, 800) + "..." : errMsg;
+    const uInfo = userId ? `<code>${userId}</code> (${escapeHtml(getUserFullName(db.users[userId]))})` : "System / Background";
+
+    const alertText = `🚨 <b>System Error Alert</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `⚠️ <b>Context:</b> <b>${escapeHtml(context || "Runtime Execution")}</b>\n` +
+      `👤 <b>Affected User:</b> ${uInfo}\n` +
+      (originalUrl ? `🔗 <b>Failed URL:</b> <code>${escapeHtml(originalUrl)}</code>\n` : "") +
+      (extraInfo ? `ℹ️ <b>Info:</b> <i>${escapeHtml(extraInfo)}</i>\n` : "") +
+      `📅 <b>Time:</b> ${new Date().toLocaleString()}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `❌ <b>Error Details:</b>\n<pre>${escapeHtml(shortErrMsg)}</pre>`;
+
+    await callTg("sendMessage", {
+      chat_id: ADMIN_ID,
+      text: alertText,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_markup: userId ? {
+        inline_keyboard: [
+          [
+            { text: "👤 View User Profile", url: `tg://user?id=${userId}` },
+            { text: "💬 Contact User", callback_data: `admin_msg_user_${userId}` }
+          ]
+        ]
+      } : undefined
+    });
+  } catch (alertErr) {
+    console.error("[CRITICAL] Could not deliver admin error alert:", alertErr.message);
+  }
+}
+
+// Global Exception Handlers capturing uncaught runtime errors
+process.on("uncaughtException", (err) => {
+  console.error("[GLOBAL UNCAUGHT EXCEPTION]:", err);
+  notifyAdminOfError({
+    error: err,
+    context: "Node.js uncaughtException",
+    extraInfo: "Unhandled runtime exception"
+  }).catch(() => {});
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[GLOBAL UNHANDLED REJECTION]:", reason);
+  notifyAdminOfError({
+    error: reason instanceof Error ? reason : new Error(String(reason)),
+    context: "Node.js unhandledRejection",
+    extraInfo: "Unhandled Promise rejection"
+  }).catch(() => {});
+});
 
 // Check membership in a Telegram channel or group using getChatMember
 async function checkChatMembership(chatIdOrUsername, userId) {
@@ -1124,20 +1228,23 @@ async function deliverDirectMessage(targetId, userMsg, adminChatId) {
 // Configure Telegram native bot menu commands (Scoped strictly: Admin gets Admin commands, Users get user commands)
 async function setupBotCommands() {
   try {
-    // 1. Default scope: All ordinary users
+    // 1. Default scope: All ordinary users - all public buttons enabled
     await callTg("setMyCommands", {
       commands: [
-        { command: "start", description: "Start OmniStream Bot" },
+        { command: "start", description: "🚀 Start OmniStream Bot" },
         { command: "app", description: "📱 Download Latest App (APK)" },
         { command: "tags", description: "🏷️ View All Release Tags & APKs" },
-        { command: "help", description: "How to download videos & guide" }
+        { command: "queue", description: "⚡ Concurrency & Queue Status" },
+        { command: "sites", description: "🌟 Supported Sites & Formats" },
+        { command: "help", description: "📖 Guide & How to Download" }
       ],
       scope: { type: "default" }
     });
 
-    // 2. Chat scope: ONLY for the Administrator (@HANTER_XD_OFFICIAL / 6204875999)
+    // 2. Chat scope: Administrator (@HANTER_XD_OFFICIAL / 6204875999) - includes Start button
     await callTg("setMyCommands", {
       commands: [
+        { command: "start", description: "🚀 Start OmniStream Bot" },
         { command: "admin", description: "👑 Open Master Admin Panel" },
         { command: "app", description: "📱 Download Official App (APK)" },
         { command: "tags", description: "🏷️ View All Release Tags" },
@@ -1146,13 +1253,14 @@ async function setupBotCommands() {
         { command: "msg", description: "💬 Message Single User (/msg ID text)" },
         { command: "users", description: "👥 View Registered Users" },
         { command: "stats", description: "📊 Bot System Statistics" },
+        { command: "queue", description: "⚡ Concurrency & Queue Status" },
         { command: "block", description: "🚫 Block User (/block ID)" },
         { command: "unblock", description: "✅ Unblock User (/unblock ID)" },
         { command: "help", description: "Help Guide" }
       ],
       scope: { type: "chat", chat_id: ADMIN_ID }
     });
-    console.log("✅ Bot Menu Commands configured with isolated Admin privileges & APK Download.");
+    console.log("✅ Bot Menu Commands configured with isolated Admin privileges, Start button, & full public commands.");
   } catch (e) {
     console.warn("Could not set bot commands:", e.message);
   }
@@ -1160,12 +1268,13 @@ async function setupBotCommands() {
 
 setupBotCommands();
 
-// Keyboard builders: Admin gets Admin Panel in menu bar, Regular users get direct Download App button
+// Keyboard builders: Admin gets Admin Panel & Start in menu bar, Regular users get all public menu buttons
 function getReplyKeyboardForUser(userId) {
   if (isAdmin(userId)) {
     return {
       keyboard: [
-        [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
+        [{ text: "🚀 Start" }, { text: "👑 Admin Panel" }],
+        [{ text: "📊 Bot Stats" }, { text: "⚡ Queue Status" }],
         [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
         [{ text: "💬 Message User" }, { text: "📱 Download Official App" }]
       ],
@@ -1181,8 +1290,9 @@ function getReplyKeyboardForUser(userId) {
   } else {
     return {
       keyboard: [
-        [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }],
-        [{ text: "📱 Download Official App" }, { text: "⚡ Queue Status" }]
+        [{ text: "🚀 Start" }, { text: "📱 Download Official App" }],
+        [{ text: "⚡ Supported Sites" }, { text: "⚡ Queue Status" }],
+        [{ text: "🏷️ Release Tags" }, { text: "📖 Help Guide" }]
       ],
       resize_keyboard: true
     };
@@ -3190,6 +3300,15 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           ]
         }
       });
+
+      // Alert Administrator of extraction failure
+      notifyAdminOfError({
+        error: new Error(media?.errorReason || "Stream resolution failure"),
+        context: `Media Extraction Failure (${isYt ? "YouTube" : "Platform"})`,
+        userId,
+        originalUrl: url,
+        extraInfo: `Reason: ${media?.errorReason || "No stream URL found"} | Error Notice Sent`
+      }).catch(() => {});
       return;
     }
 
@@ -3228,6 +3347,16 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           if (db.users[userId]) db.users[userId].downloads++;
           saveDatabase();
           try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          logDownloadToAdmin({
+            userId,
+            userFullName: getUserFullName(db.users[userId]),
+            username: db.users[userId]?.username,
+            originalUrl: url,
+            platform: media.type || platformName,
+            title: safeTitle,
+            fileSize: media.buffer.byteLength,
+            duration: media.duration
+          }).catch(() => {});
           return;
         }
       } else {
@@ -3237,6 +3366,16 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           if (db.users[userId]) db.users[userId].downloads++;
           saveDatabase();
           try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          logDownloadToAdmin({
+            userId,
+            userFullName: getUserFullName(db.users[userId]),
+            username: db.users[userId]?.username,
+            originalUrl: url,
+            platform: media.type || platformName,
+            title: safeTitle,
+            fileSize: media.buffer.byteLength,
+            duration: media.duration
+          }).catch(() => {});
           const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
           if (isYt) {
             console.log(`[AUDIO DELIVERY] Video sent from buffer. Delivering audio track to ${chatId}...`);
@@ -3252,6 +3391,16 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
         try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+        logDownloadToAdmin({
+          userId,
+          userFullName: getUserFullName(db.users[userId]),
+          username: db.users[userId]?.username,
+          originalUrl: url,
+          platform: media.type || platformName,
+          title: safeTitle,
+          fileSize: media.buffer.byteLength,
+          duration: media.duration
+        }).catch(() => {});
         const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
         if (isYt) {
           console.log(`[AUDIO DELIVERY] Video document sent from buffer. Delivering audio track to ${chatId}...`);
@@ -3318,7 +3467,20 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
 
-        // For YouTube links, explicitly ensure both the video and audio streams are fully extracted and sent, ensuring the audio track is never omitted.
+        // Activity Logging: Send comprehensive metadata of every processed download directly to Admin
+        logDownloadToAdmin({
+          userId,
+          userFullName: getUserFullName(db.users[userId]),
+          username: db.users[userId]?.username,
+          originalUrl: url,
+          platform: media.type || platformName,
+          title: safeTitle,
+          fileSize: media.size || media.fileSize || "Direct Stream",
+          duration: media.duration,
+          mediaUrl: media.videoUrl
+        }).catch(() => {});
+
+        // For YouTube & other video links, explicitly ensure both video and audio streams are processed
         const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
         const canDeliverAudio = isYt || (media.type !== "TeraBox" && media.type !== "MEGA");
 
@@ -3343,6 +3505,15 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       reply_markup: defaultMarkup
     });
 
+    // Alert Administrator of delivery failure
+    notifyAdminOfError({
+      error: new Error("Video file transfer to Telegram failed (2GB limit or upload timeout)"),
+      context: `Video Delivery Failure (${platformName || "Platform"})`,
+      userId,
+      originalUrl: url,
+      extraInfo: `Title: ${safeTitle} | Video Delivered: false`
+    }).catch(() => {});
+
   } catch (err) {
     console.error("[PROCESS ERROR]:", err.message);
     try {
@@ -3353,6 +3524,15 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         parse_mode: "HTML"
       });
     } catch (_) {}
+
+    // Alert Administrator of unexpected runtime exception
+    notifyAdminOfError({
+      error: err,
+      context: "processMediaUrl Runtime Exception",
+      userId,
+      originalUrl: url,
+      extraInfo: `Chat ID: ${chatId}`
+    }).catch(() => {});
   }
 }
 
@@ -3386,7 +3566,7 @@ async function sendAdminDashboard(chatId, messageId = null) {
     inline_keyboard: [
       [
         { text: "👥 Registered Users", callback_data: "admin_users" },
-        { text: "📊 Detailed Stats", callback_data: "admin_stats" }
+        { text: "📊 Detailed Status", callback_data: "admin_status" }
       ],
       [
         { text: "💬 Message User (ID)", callback_data: "admin_prompt_dm" },
@@ -3893,14 +4073,15 @@ async function handleUpdate(update) {
           return;
         }
 
-        if (data === "admin_stats") {
+        if (data === "admin_status" || data === "admin_stats") {
           await callTg("answerCallbackQuery", { callback_query_id: cqId });
           const uptime = formatUptime(process.uptime());
           const mem = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
           const totalUsers = Object.keys(db.users).length;
           const verifiedUsers = Object.values(db.users).filter(u => isUserVerified(u.id)).length;
+          const unverifiedUsers = Math.max(0, totalUsers - verifiedUsers);
           const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 2, queuedTasks: 0, totalEnqueued: 0, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
-          const statsText = `📊 <b>OmniStream Detailed System Statistics</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+          const statsText = `📊 <b>OmniStream Detailed System Status</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
             `• <b>Engine:</b> Node.js ${process.version} (ESM Mode)\n` +
             `• <b>RAM Usage:</b> ${mem} MB\n` +
             `• <b>Uptime:</b> ${uptime}\n` +
@@ -4029,7 +4210,8 @@ async function handleUpdate(update) {
     const chatId = msg.chat?.id;
     const senderId = String(msg.from?.id || chatId);
     const text = (msg.text || "").trim();
-    const senderName = msg.from?.first_name || "User";
+    const userFullName = getUserFullName(msg.from);
+    const senderName = userFullName;
 
     if (!chatId) return;
 
@@ -4039,8 +4221,8 @@ async function handleUpdate(update) {
     // If a brand new user joins, alert the Administrator privately!
     if (isNew && !isAdmin(senderId)) {
       const alertAdmin = `🔔 <b>New User Registered in OmniStream!</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
-        `👤 <b>Name:</b> ${escapeHtml(senderName)}\n` +
-        `🏷 <b>Username:</b> @${msg.from?.username ? escapeHtml(msg.from.username) : "None"}\n` +
+        `👤 <b>Full Name:</b> <b>${escapeHtml(userFullName)}</b>\n` +
+        `🏷 <b>Username:</b> ${msg.from?.username ? `@${escapeHtml(msg.from.username)}` : "None"}\n` +
         `🆔 <b>User ID:</b> <code>${senderId}</code>\n` +
         `📅 <b>Joined:</b> ${new Date().toLocaleString()}\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -4055,7 +4237,10 @@ async function handleUpdate(update) {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: `💬 Message ${escapeHtml(senderName)}`, callback_data: `admin_msg_user_${senderId}` },
+              { text: "👤 View User Profile", url: `tg://user?id=${senderId}` },
+              { text: `💬 Message User`, callback_data: `admin_msg_user_${senderId}` }
+            ],
+            [
               { text: `🚫 Block User (${senderId})`, callback_data: `admin_block_do_${senderId}` }
             ]
           ]
