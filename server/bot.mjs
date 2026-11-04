@@ -3031,9 +3031,9 @@ async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, vi
       if (!audioUrl) {
         audioUrl = await resolveCobaltAudio(url);
       }
-      // Guaranteed fallback for YouTube: the extracted video stream container itself contains the full audio track!
-      if (!audioUrl && isYt && media?.videoUrl && media.videoUrl.startsWith("http")) {
-        console.log(`[YOUTUBE AUDIO GUARANTEE] Re-using video stream container as audio track for ${chatId}`);
+      // Guaranteed stream extraction fallback: the extracted media stream container itself contains the full audio track!
+      if (!audioUrl && media?.videoUrl && media.videoUrl.startsWith("http")) {
+        console.log(`[AUDIO TRACK GUARANTEE] Re-using media stream container as audio track for ${chatId}`);
         audioUrl = media.videoUrl;
       }
     }
@@ -3364,7 +3364,7 @@ async function sendAdminDashboard(chatId, messageId = null) {
   const activeCount = Math.max(0, totalUsers - blockedCount);
   const uptime = formatUptime(process.uptime());
 
-  const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 8, queuedTasks: 0 };
+  const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 2, queuedTasks: 0 };
 
   const text = `👑 <b>OmniStream Master Admin Panel</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
@@ -3481,13 +3481,16 @@ async function sendUsersList(chatId, messageId = null) {
 
 class AsyncTaskQueue {
   constructor() {
-    // Max simultaneous processing workers across the system (configurable via MAX_CONCURRENT_TASKS, default 8)
-    this.concurrency = parseInt(process.env.MAX_CONCURRENT_TASKS || "8", 10);
-    if (isNaN(this.concurrency) || this.concurrency < 1) this.concurrency = 8;
+    // Render Free Tier Optimized Worker Pool: 2 parallel workers (avoids 512MB RAM exhaustion & CPU starvation)
+    this.concurrency = parseInt(process.env.MAX_CONCURRENT_TASKS || "2", 10);
+    if (isNaN(this.concurrency) || this.concurrency < 1) this.concurrency = 2;
 
-    // Per-user max active concurrent tasks to prevent starvation and ensure fair-share scheduling (default 3)
-    this.perUserConcurrency = parseInt(process.env.PER_USER_CONCURRENCY || "3", 10);
-    if (isNaN(this.perUserConcurrency) || this.perUserConcurrency < 1) this.perUserConcurrency = 3;
+    // Per-user max active concurrent tasks (default 1 to ensure fair-share scheduling on free tier)
+    this.perUserConcurrency = parseInt(process.env.PER_USER_CONCURRENCY || "1", 10);
+    if (isNaN(this.perUserConcurrency) || this.perUserConcurrency < 1) this.perUserConcurrency = 1;
+
+    // Safety RSS memory ceiling for Render's 512MB free container
+    this.maxMemoryRssMb = parseInt(process.env.MAX_MEMORY_RSS_MB || "360", 10);
 
     this.queue = [];
     this.activeTasks = new Map();
@@ -3517,11 +3520,15 @@ class AsyncTaskQueue {
     const avgTime = this.metrics.totalProcessed > 0
       ? Math.round(this.metrics.totalProcessingTimeMs / this.metrics.totalProcessed)
       : 0;
+    const currentRssMb = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
     return {
+      tier: "Render Free Tier Optimized",
       concurrencyLimit: this.concurrency,
       perUserLimit: this.perUserConcurrency,
       activeTasks: this.activeCount,
       queuedTasks: this.queueLength,
+      memoryRssMb: parseFloat(currentRssMb),
+      memoryLimitMb: 512,
       totalEnqueued: this.metrics.totalEnqueued,
       totalProcessed: this.metrics.totalProcessed,
       totalFailed: this.metrics.totalFailed,
@@ -3560,7 +3567,7 @@ class AsyncTaskQueue {
         text: `⏳ <b>Queued for processing...</b>\n\n` +
           `📊 <b>Queue Position:</b> <b>#${initialPosition}</b>\n` +
           `⚡ <b>Active Worker Slots:</b> <b>${this.activeCount}/${this.concurrency}</b>\n\n` +
-          `<i>Your download will begin automatically as soon as an active worker completes. Please wait a moment...</i>`,
+          `<i>Render free-tier optimized queue. Your download will begin automatically as soon as an active worker completes.</i>`,
         parse_mode: "HTML"
       }).catch(() => {});
     }
@@ -3590,7 +3597,23 @@ class AsyncTaskQueue {
   }
 
   processNext() {
+    // Render Free Tier RAM Safety Guard: prevent OOM crashes on Render (512MB RAM limit)
+    const currentRssMb = process.memoryUsage().rss / (1024 * 1024);
+    if (currentRssMb > this.maxMemoryRssMb && this.activeCount > 0) {
+      console.warn(`[RENDER RESOURCE GUARD] High memory allocation (${currentRssMb.toFixed(1)}MB > ${this.maxMemoryRssMb}MB). Pausing queue dispatch until active worker releases memory...`);
+      if (typeof global.gc === "function") {
+        try { global.gc(); } catch (_) {}
+      }
+      setTimeout(() => this.processNext(), 2000);
+      return;
+    }
+
     while (this.activeCount < this.concurrency && this.queue.length > 0) {
+      const rssNow = process.memoryUsage().rss / (1024 * 1024);
+      if (rssNow > this.maxMemoryRssMb && this.activeCount > 0) {
+        break;
+      }
+
       let selectedIdx = -1;
       for (let i = 0; i < this.queue.length; i++) {
         const candidate = this.queue[i];
@@ -3617,7 +3640,7 @@ class AsyncTaskQueue {
         this.metrics.peakConcurrency = this.activeCount;
       }
 
-      console.log(`[TASK WORKER] Starting Task #${task.id} for User ${task.userId} (Active: ${this.activeCount}/${this.concurrency}, Queued: ${this.queue.length})`);
+      console.log(`[RENDER TASK WORKER] Starting Task #${task.id} for User ${task.userId} (Active: ${this.activeCount}/${this.concurrency}, RAM: ${(process.memoryUsage().rss / (1024 * 1024)).toFixed(1)}MB, Queued: ${this.queue.length})`);
 
       this._notifyQueuedPositions();
       this._executeTask(task);
@@ -3661,7 +3684,12 @@ class AsyncTaskQueue {
         this.userActiveCount.set(task.userId, userCount - 1);
       }
 
-      console.log(`[TASK WORKER COMPLETED] Task #${task.id} finished in ${elapsed}ms (Active: ${this.activeCount}/${this.concurrency}, Queued: ${this.queue.length})`);
+      // Proactively trigger garbage collection if memory is elevated on Render free tier
+      if (process.memoryUsage().rss > 300 * 1024 * 1024 && typeof global.gc === "function") {
+        try { global.gc(); } catch (_) {}
+      }
+
+      console.log(`[RENDER TASK WORKER COMPLETED] Task #${task.id} finished in ${elapsed}ms (Active: ${this.activeCount}/${this.concurrency}, Queued: ${this.queue.length})`);
       this.processNext();
     }
   }
@@ -3678,7 +3706,7 @@ class AsyncTaskQueue {
           text: `⏳ <b>Queued for processing...</b>\n\n` +
             `📊 <b>Queue Position:</b> <b>#${position}</b>\n` +
             `⚡ <b>Active Worker Slots:</b> <b>${this.activeCount}/${this.concurrency}</b>\n\n` +
-            `<i>Your download will begin automatically as soon as an active worker completes. Please wait a moment...</i>`,
+            `<i>Render free-tier optimized queue. Your download will begin automatically as soon as an active worker completes.</i>`,
           parse_mode: "HTML"
         }).catch(() => {});
       }
@@ -3871,7 +3899,7 @@ async function handleUpdate(update) {
           const mem = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
           const totalUsers = Object.keys(db.users).length;
           const verifiedUsers = Object.values(db.users).filter(u => isUserVerified(u.id)).length;
-          const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 8, queuedTasks: 0, totalEnqueued: 0, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
+          const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 2, queuedTasks: 0, totalEnqueued: 0, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
           const statsText = `📊 <b>OmniStream Detailed System Statistics</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
             `• <b>Engine:</b> Node.js ${process.version} (ESM Mode)\n` +
             `• <b>RAM Usage:</b> ${mem} MB\n` +
@@ -4359,19 +4387,20 @@ async function handleUpdate(update) {
     }
 
     if (text === "/queue" || text === "/status" || text === "⚡ Queue Status" || text === "📊 Bot Status") {
-      const q = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 8, queuedTasks: 0, perUserLimit: 3, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
+      const q = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 2, queuedTasks: 0, perUserLimit: 1, memoryRssMb: 0, memoryLimitMb: 512, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
       const statusMsg = `⚡ <b>OmniStream Concurrency & Task Queue Status</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `• 🚀 <b>Active Workers:</b> <b>${q.activeTasks}/${q.concurrencyLimit} Running</b>\n` +
         `• ⏳ <b>Pending Queue:</b> <b>${q.queuedTasks} Tasks Waiting</b>\n` +
-        `• 👥 <b>Per-User Concurrency Limit:</b> <b>${q.perUserLimit} Max Active</b>\n` +
+        `• 👥 <b>Per-User Limit:</b> <b>${q.perUserLimit} Active Task/User</b>\n` +
+        `• 💾 <b>Server RAM:</b> <b>${q.memoryRssMb} MB / 512 MB</b>\n` +
+        `• 🛡 <b>Engine Profile:</b> Render Free Tier Optimized\n` +
         `• ✅ <b>Total Tasks Processed:</b> <b>${q.totalProcessed}</b>\n` +
-        `• ❌ <b>Tasks Failed:</b> <b>${q.totalFailed}</b>\n` +
         `• 📈 <b>Peak Concurrency:</b> <b>${q.peakConcurrency} Workers</b>\n` +
         `• ⏱ <b>Average Processing Time:</b> <b>${(q.avgProcessingTimeMs / 1000).toFixed(1)}s</b>\n` +
         `• 🟢 <b>Worker Engine:</b> Online & Multi-threaded\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
-        `<i>OmniStream asynchronous task queue ensures fast, fair, and uninterrupted concurrent downloads.</i>`;
+        `<i>Render free-tier task queue with strict sequential delivery (video sent first, then audio).</i>`;
       await callTg("sendMessage", {
         chat_id: chatId,
         text: statusMsg,
