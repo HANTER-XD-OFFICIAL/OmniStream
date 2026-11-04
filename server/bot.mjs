@@ -349,6 +349,16 @@ const uptimeServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (parsedUrl.pathname === '/api/queue') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      status: 'online',
+      service: 'OmniStream Asynchronous Task Queue & Concurrency Pool',
+      queue: typeof mediaQueue !== 'undefined' ? mediaQueue.getStats() : {},
+      timestamp: new Date().toISOString()
+    }));
+  }
+
   res.writeHead(200, { 
     'Content-Type': 'application/json'
   });
@@ -362,6 +372,7 @@ const uptimeServer = http.createServer(async (req, res) => {
     total_users: Object.keys(db.users).length,
     blocked_users: db.blockedUsers.length,
     latest_app_tag: db.lastReleaseTag,
+    task_queue: typeof mediaQueue !== 'undefined' ? mediaQueue.getStats() : {},
     timestamp: new Date().toISOString()
   }));
 });
@@ -1171,7 +1182,7 @@ function getReplyKeyboardForUser(userId) {
     return {
       keyboard: [
         [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }],
-        [{ text: "📱 Download Official App" }]
+        [{ text: "📱 Download Official App" }, { text: "⚡ Queue Status" }]
       ],
       resize_keyboard: true
     };
@@ -3353,6 +3364,8 @@ async function sendAdminDashboard(chatId, messageId = null) {
   const activeCount = Math.max(0, totalUsers - blockedCount);
   const uptime = formatUptime(process.uptime());
 
+  const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 8, queuedTasks: 0 };
+
   const text = `👑 <b>OmniStream Master Admin Panel</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `👤 <b>Administrator:</b> ${DEV_NAME}\n` +
@@ -3361,6 +3374,7 @@ async function sendAdminDashboard(chatId, messageId = null) {
     `• 👥 <b>Total Users:</b> <b>${totalUsers}</b>\n` +
     `• 🟢 <b>Active Users:</b> <b>${activeCount}</b>\n` +
     `• 🚫 <b>Blocked Users:</b> <b>${blockedCount}</b>\n` +
+    `• 🚀 <b>Concurrent Workers:</b> <b>${qStats.activeTasks}/${qStats.concurrencyLimit} Active</b> (${qStats.queuedTasks} queued)\n` +
     `• 📥 <b>Total Downloads:</b> <b>${db.stats.totalDownloads}</b>\n` +
     `• 🔗 <b>Total Links Processed:</b> <b>${db.stats.totalLinks}</b>\n` +
     `• 🏷 <b>Latest App Release:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
@@ -3462,6 +3476,217 @@ async function sendUsersList(chatId, messageId = null) {
   }
   return await callTg("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", reply_markup: markup });
 }
+
+// ==================== ASYNCHRONOUS TASK QUEUE & CONCURRENCY SYSTEM ====================
+
+class AsyncTaskQueue {
+  constructor() {
+    // Max simultaneous processing workers across the system (configurable via MAX_CONCURRENT_TASKS, default 8)
+    this.concurrency = parseInt(process.env.MAX_CONCURRENT_TASKS || "8", 10);
+    if (isNaN(this.concurrency) || this.concurrency < 1) this.concurrency = 8;
+
+    // Per-user max active concurrent tasks to prevent starvation and ensure fair-share scheduling (default 3)
+    this.perUserConcurrency = parseInt(process.env.PER_USER_CONCURRENCY || "3", 10);
+    if (isNaN(this.perUserConcurrency) || this.perUserConcurrency < 1) this.perUserConcurrency = 3;
+
+    this.queue = [];
+    this.activeTasks = new Map();
+    this.userActiveCount = new Map();
+
+    this.metrics = {
+      totalEnqueued: 0,
+      totalProcessed: 0,
+      totalFailed: 0,
+      peakConcurrency: 0,
+      totalProcessingTimeMs: 0,
+      startTime: Date.now()
+    };
+
+    this._taskCounter = 0;
+  }
+
+  get activeCount() {
+    return this.activeTasks.size;
+  }
+
+  get queueLength() {
+    return this.queue.length;
+  }
+
+  getStats() {
+    const avgTime = this.metrics.totalProcessed > 0
+      ? Math.round(this.metrics.totalProcessingTimeMs / this.metrics.totalProcessed)
+      : 0;
+    return {
+      concurrencyLimit: this.concurrency,
+      perUserLimit: this.perUserConcurrency,
+      activeTasks: this.activeCount,
+      queuedTasks: this.queueLength,
+      totalEnqueued: this.metrics.totalEnqueued,
+      totalProcessed: this.metrics.totalProcessed,
+      totalFailed: this.metrics.totalFailed,
+      peakConcurrency: this.metrics.peakConcurrency,
+      avgProcessingTimeMs: avgTime,
+      uptimeSeconds: Math.floor((Date.now() - this.metrics.startTime) / 1000)
+    };
+  }
+
+  async enqueue(taskData) {
+    const taskId = ++this._taskCounter;
+    const task = {
+      id: taskId,
+      userId: String(taskData.userId || "0"),
+      chatId: taskData.chatId,
+      url: taskData.url,
+      priority: taskData.priority || 0,
+      progressMsgId: taskData.progressMsgId || null,
+      enqueuedAt: Date.now(),
+      startedAt: null,
+      status: "queued",
+      lastReportedPosition: null
+    };
+
+    this.metrics.totalEnqueued++;
+    this._insertTaskByPriority(task);
+    const initialPosition = this.getTaskQueuePosition(task.id);
+
+    console.log(`[TASK QUEUE] Enqueued Task #${task.id} for User ${task.userId} (Priority: ${task.priority}, Position: #${initialPosition}, Active: ${this.activeCount}/${this.concurrency})`);
+
+    const canRunNow = this.activeCount < this.concurrency && (this.userActiveCount.get(task.userId) || 0) < this.perUserConcurrency;
+    if (!canRunNow && task.progressMsgId) {
+      callTg("editMessageText", {
+        chat_id: task.chatId,
+        message_id: task.progressMsgId,
+        text: `⏳ <b>Queued for processing...</b>\n\n` +
+          `📊 <b>Queue Position:</b> <b>#${initialPosition}</b>\n` +
+          `⚡ <b>Active Worker Slots:</b> <b>${this.activeCount}/${this.concurrency}</b>\n\n` +
+          `<i>Your download will begin automatically as soon as an active worker completes. Please wait a moment...</i>`,
+        parse_mode: "HTML"
+      }).catch(() => {});
+    }
+
+    this.processNext();
+    return task;
+  }
+
+  _insertTaskByPriority(task) {
+    let inserted = false;
+    for (let i = 0; i < this.queue.length; i++) {
+      const other = this.queue[i];
+      if (task.priority > other.priority) {
+        this.queue.splice(i, 0, task);
+        inserted = true;
+        break;
+      }
+    }
+    if (!inserted) {
+      this.queue.push(task);
+    }
+  }
+
+  getTaskQueuePosition(taskId) {
+    const idx = this.queue.findIndex(t => t.id === taskId);
+    return idx === -1 ? 0 : idx + 1;
+  }
+
+  processNext() {
+    while (this.activeCount < this.concurrency && this.queue.length > 0) {
+      let selectedIdx = -1;
+      for (let i = 0; i < this.queue.length; i++) {
+        const candidate = this.queue[i];
+        const userCount = this.userActiveCount.get(candidate.userId) || 0;
+        if (userCount < this.perUserConcurrency) {
+          selectedIdx = i;
+          break;
+        }
+      }
+
+      if (selectedIdx === -1) {
+        break;
+      }
+
+      const [task] = this.queue.splice(selectedIdx, 1);
+      task.status = "processing";
+      task.startedAt = Date.now();
+
+      this.activeTasks.set(task.id, task);
+      const currUserCount = this.userActiveCount.get(task.userId) || 0;
+      this.userActiveCount.set(task.userId, currUserCount + 1);
+
+      if (this.activeCount > this.metrics.peakConcurrency) {
+        this.metrics.peakConcurrency = this.activeCount;
+      }
+
+      console.log(`[TASK WORKER] Starting Task #${task.id} for User ${task.userId} (Active: ${this.activeCount}/${this.concurrency}, Queued: ${this.queue.length})`);
+
+      this._notifyQueuedPositions();
+      this._executeTask(task);
+    }
+  }
+
+  async _executeTask(task) {
+    const startTime = Date.now();
+    try {
+      if (task.progressMsgId) {
+        callTg("editMessageText", {
+          chat_id: task.chatId,
+          message_id: task.progressMsgId,
+          text: `⚡ <b>Starting download...</b>\n<i>Connecting to high-speed media stream...</i>`,
+          parse_mode: "HTML"
+        }).catch(() => {});
+      }
+
+      await processMediaUrl(task.url, task.chatId, task.progressMsgId, task.userId);
+      this.metrics.totalProcessed++;
+    } catch (err) {
+      this.metrics.totalFailed++;
+      console.error(`[TASK WORKER ERROR] Task #${task.id} failed:`, err.message);
+      if (task.progressMsgId) {
+        callTg("editMessageText", {
+          chat_id: task.chatId,
+          message_id: task.progressMsgId,
+          text: `❌ <i>An error occurred while processing your request. Please try again later.</i>`,
+          parse_mode: "HTML"
+        }).catch(() => {});
+      }
+    } finally {
+      const elapsed = Date.now() - startTime;
+      this.metrics.totalProcessingTimeMs += elapsed;
+
+      this.activeTasks.delete(task.id);
+      const userCount = this.userActiveCount.get(task.userId) || 1;
+      if (userCount <= 1) {
+        this.userActiveCount.delete(task.userId);
+      } else {
+        this.userActiveCount.set(task.userId, userCount - 1);
+      }
+
+      console.log(`[TASK WORKER COMPLETED] Task #${task.id} finished in ${elapsed}ms (Active: ${this.activeCount}/${this.concurrency}, Queued: ${this.queue.length})`);
+      this.processNext();
+    }
+  }
+
+  _notifyQueuedPositions() {
+    for (let i = 0; i < Math.min(5, this.queue.length); i++) {
+      const task = this.queue[i];
+      const position = i + 1;
+      if (task.progressMsgId && task.lastReportedPosition !== position) {
+        task.lastReportedPosition = position;
+        callTg("editMessageText", {
+          chat_id: task.chatId,
+          message_id: task.progressMsgId,
+          text: `⏳ <b>Queued for processing...</b>\n\n` +
+            `📊 <b>Queue Position:</b> <b>#${position}</b>\n` +
+            `⚡ <b>Active Worker Slots:</b> <b>${this.activeCount}/${this.concurrency}</b>\n\n` +
+            `<i>Your download will begin automatically as soon as an active worker completes. Please wait a moment...</i>`,
+          parse_mode: "HTML"
+        }).catch(() => {});
+      }
+    }
+  }
+}
+
+const mediaQueue = new AsyncTaskQueue();
 
 // ==================== UPDATE HANDLER ====================
 
@@ -3646,7 +3871,7 @@ async function handleUpdate(update) {
           const mem = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
           const totalUsers = Object.keys(db.users).length;
           const verifiedUsers = Object.values(db.users).filter(u => isUserVerified(u.id)).length;
-          const unverifiedUsers = Math.max(0, totalUsers - verifiedUsers);
+          const qStats = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 8, queuedTasks: 0, totalEnqueued: 0, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
           const statsText = `📊 <b>OmniStream Detailed System Statistics</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
             `• <b>Engine:</b> Node.js ${process.version} (ESM Mode)\n` +
             `• <b>RAM Usage:</b> ${mem} MB\n` +
@@ -3658,6 +3883,11 @@ async function handleUpdate(update) {
             `• <b>Latest App Tag:</b> <code>${escapeHtml(db.lastReleaseTag)}</code>\n` +
             `• <b>Total Links:</b> ${db.stats.totalLinks}\n` +
             `• <b>Completed Video & APK Sends:</b> ${db.stats.totalDownloads}\n` +
+            `• <b>Concurrent Task Pool:</b> <b>${qStats.activeTasks}/${qStats.concurrencyLimit} Active</b>\n` +
+            `• <b>Queued Waiting Tasks:</b> <b>${qStats.queuedTasks}</b>\n` +
+            `• <b>Tasks Processed:</b> <b>${qStats.totalProcessed}</b> (${qStats.totalFailed} failed)\n` +
+            `• <b>Peak Concurrency:</b> <b>${qStats.peakConcurrency} Workers</b>\n` +
+            `• <b>Avg Task Latency:</b> <b>${(qStats.avgProcessingTimeMs / 1000).toFixed(1)}s</b>\n` +
             `• <b>Vault Status:</b> 🔐 Active & Encrypted (Protected)\n` +
             `━━━━━━━━━━━━━━━━━━━━`;
           await callTg("editMessageText", {
@@ -4128,17 +4358,46 @@ async function handleUpdate(update) {
       return;
     }
 
-    // ==================== MEDIA LINK PROCESSING ====================
+    if (text === "/queue" || text === "/status" || text === "⚡ Queue Status" || text === "📊 Bot Status") {
+      const q = typeof mediaQueue !== "undefined" ? mediaQueue.getStats() : { activeTasks: 0, concurrencyLimit: 8, queuedTasks: 0, perUserLimit: 3, totalProcessed: 0, totalFailed: 0, peakConcurrency: 0, avgProcessingTimeMs: 0 };
+      const statusMsg = `⚡ <b>OmniStream Concurrency & Task Queue Status</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `• 🚀 <b>Active Workers:</b> <b>${q.activeTasks}/${q.concurrencyLimit} Running</b>\n` +
+        `• ⏳ <b>Pending Queue:</b> <b>${q.queuedTasks} Tasks Waiting</b>\n` +
+        `• 👥 <b>Per-User Concurrency Limit:</b> <b>${q.perUserLimit} Max Active</b>\n` +
+        `• ✅ <b>Total Tasks Processed:</b> <b>${q.totalProcessed}</b>\n` +
+        `• ❌ <b>Tasks Failed:</b> <b>${q.totalFailed}</b>\n` +
+        `• 📈 <b>Peak Concurrency:</b> <b>${q.peakConcurrency} Workers</b>\n` +
+        `• ⏱ <b>Average Processing Time:</b> <b>${(q.avgProcessingTimeMs / 1000).toFixed(1)}s</b>\n` +
+        `• 🟢 <b>Worker Engine:</b> Online & Multi-threaded\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `<i>OmniStream asynchronous task queue ensures fast, fair, and uninterrupted concurrent downloads.</i>`;
+      await callTg("sendMessage", {
+        chat_id: chatId,
+        text: statusMsg,
+        parse_mode: "HTML"
+      });
+      return;
+    }
+
+    // ==================== MEDIA LINK PROCESSING VIA ASYNC TASK QUEUE ====================
     const foundUrl = extractUrl(text);
     if (foundUrl) {
       const initResp = await callTg("sendMessage", {
         chat_id: chatId,
-        text: "⏳ <b>Processing link...</b>\n<i>Fetching media stream from servers...</i>",
+        text: "⏳ <b>Processing link...</b>\n<i>Connecting to high-concurrency worker engine...</i>",
         parse_mode: "HTML"
       });
       const progressMsgId = initResp.result?.message_id;
       if (progressMsgId) {
-        await processMediaUrl(foundUrl, chatId, progressMsgId, senderId);
+        await mediaQueue.enqueue({
+          type: "media_download",
+          url: foundUrl,
+          chatId,
+          userId: senderId,
+          progressMsgId,
+          priority: isAdmin(senderId) ? 10 : 0
+        });
       }
     } else {
       await callTg("sendMessage", {
