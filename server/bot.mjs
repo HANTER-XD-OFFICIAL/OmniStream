@@ -1225,42 +1225,41 @@ async function deliverDirectMessage(targetId, userMsg, adminChatId) {
   }
 }
 
-// Configure Telegram native bot menu commands (Scoped strictly: Admin gets Admin commands, Users get user commands)
+// Configure Telegram native bot menu commands strictly in side menu bar
 async function setupBotCommands() {
   try {
-    // 1. Default scope: All ordinary users - all public buttons enabled
+    // 1. Default scope: All ordinary users - permanent main menu commands in the side menu bar
     await callTg("setMyCommands", {
       commands: [
-        { command: "start", description: "🚀 Start OmniStream Bot" },
-        { command: "app", description: "📱 Download Latest App (APK)" },
-        { command: "tags", description: "🏷️ View All Release Tags & APKs" },
-        { command: "queue", description: "⚡ Concurrency & Queue Status" },
-        { command: "sites", description: "🌟 Supported Sites & Formats" },
-        { command: "help", description: "📖 Guide & How to Download" }
+        { command: "start", description: "Start OmniStream Bot" },
+        { command: "queue", description: "Concurrency & Queue Status" },
+        { command: "help", description: "Guide & How to Download" },
+        { command: "app", description: "Download Latest App (APK)" },
+        { command: "tags", description: "View All Release Tags & APKs" }
       ],
       scope: { type: "default" }
     });
 
-    // 2. Chat scope: Administrator (@HANTER_XD_OFFICIAL / 6204875999) - includes Start button
+    // 2. Chat scope: Administrator (@HANTER_XD_OFFICIAL / 6204875999) - side menu commands + admin commands
     await callTg("setMyCommands", {
       commands: [
-        { command: "start", description: "🚀 Start OmniStream Bot" },
+        { command: "start", description: "Start OmniStream Bot" },
+        { command: "queue", description: "Concurrency & Queue Status" },
+        { command: "help", description: "Guide & How to Download" },
+        { command: "app", description: "Download Official App (APK)" },
+        { command: "tags", description: "View All Release Tags & APKs" },
         { command: "admin", description: "👑 Open Master Admin Panel" },
-        { command: "app", description: "📱 Download Official App (APK)" },
-        { command: "tags", description: "🏷️ View All Release Tags" },
         { command: "check_update", description: "🚀 Check GitHub Releases & Notify" },
         { command: "broadcast", description: "📢 Send Broadcast to All" },
         { command: "msg", description: "💬 Message Single User (/msg ID text)" },
         { command: "users", description: "👥 View Registered Users" },
         { command: "stats", description: "📊 Bot System Statistics" },
-        { command: "queue", description: "⚡ Concurrency & Queue Status" },
         { command: "block", description: "🚫 Block User (/block ID)" },
-        { command: "unblock", description: "✅ Unblock User (/unblock ID)" },
-        { command: "help", description: "Help Guide" }
+        { command: "unblock", description: "✅ Unblock User (/unblock ID)" }
       ],
       scope: { type: "chat", chat_id: ADMIN_ID }
     });
-    console.log("✅ Bot Menu Commands configured with isolated Admin privileges, Start button, & full public commands.");
+    console.log("✅ Bot Menu Commands configured permanently in side menu bar: /start, /queue, /help, /app, /tags.");
   } catch (e) {
     console.warn("Could not set bot commands:", e.message);
   }
@@ -1268,15 +1267,14 @@ async function setupBotCommands() {
 
 setupBotCommands();
 
-// Keyboard builders: Admin gets Admin Panel & Start in menu bar, Regular users get all public menu buttons
+// Custom reply keyboards - command buttons removed to prevent duplication with side menu
 function getReplyKeyboardForUser(userId) {
   if (isAdmin(userId)) {
     return {
       keyboard: [
-        [{ text: "🚀 Start" }, { text: "👑 Admin Panel" }],
-        [{ text: "📊 Bot Stats" }, { text: "⚡ Queue Status" }],
+        [{ text: "👑 Admin Panel" }, { text: "📊 Bot Stats" }],
         [{ text: "👥 User Management" }, { text: "📢 Broadcast Message" }],
-        [{ text: "💬 Message User" }, { text: "📱 Download Official App" }]
+        [{ text: "💬 Message User" }]
       ],
       resize_keyboard: true
     };
@@ -1290,9 +1288,7 @@ function getReplyKeyboardForUser(userId) {
   } else {
     return {
       keyboard: [
-        [{ text: "🚀 Start" }, { text: "📱 Download Official App" }],
-        [{ text: "⚡ Supported Sites" }, { text: "⚡ Queue Status" }],
-        [{ text: "🏷️ Release Tags" }, { text: "📖 Help Guide" }]
+        [{ text: "⚡ Supported Sites" }]
       ],
       resize_keyboard: true
     };
@@ -3967,8 +3963,7 @@ async function handleUpdate(update) {
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `🚀 <b>All Bot Features & Commands Are Now Unlocked!</b>\n\n` +
           `• Send any media link (YouTube, TikTok, Facebook, Instagram, TeraBox) to download.\n` +
-          `• Tap <b>📱 Download Official App</b> below to get the APK file.\n` +
-          `• Send <b>/help</b> anytime for full instructions.`;
+          `• Access <b>/app</b>, <b>/queue</b>, <b>/help</b>, and <b>/tags</b> via the side menu bar anytime.`;
 
         await callTg("sendMessage", {
           chat_id: chatId,
@@ -4470,7 +4465,7 @@ async function handleUpdate(update) {
         `Simply copy and paste any video or post link here!\n` +
         `👇`;
 
-      // 1. Send Welcome Message with Website, APK & Developer buttons
+      // 1. Send Welcome Message with Website & Developer buttons
       await callTg("sendMessage", {
         chat_id: chatId,
         text: welcomeText,
@@ -4479,7 +4474,6 @@ async function handleUpdate(update) {
         reply_markup: {
           inline_keyboard: [
             [{ text: "🌐 Visit Official Website", url: "https://hanter-xd-official.github.io/OmniStream/" }],
-            [{ text: "📱 Download Official App (APK)", callback_data: "get_apk" }],
             [{ text: "👨‍💻 Developer (@HANTER_XD_OFFICIAL)", url: DEV_TELEGRAM }]
           ]
         }
@@ -4496,10 +4490,10 @@ async function handleUpdate(update) {
           groupJoined: startMembership.groupJoined
         });
       } else {
-        // Send persistent bottom menu keyboard with "Download Official App" option
+        // Send notification pointing to permanent side menu commands
         await callTg("sendMessage", {
           chat_id: chatId,
-          text: `⚡ <i>Tap <b>📱 Download Official App</b> below to get the APK file directly in this chat!</i>`,
+          text: `⚡ <i>Access all commands via the side menu bar (<b>/start</b>, <b>/queue</b>, <b>/help</b>, <b>/app</b>, <b>/tags</b>), or send any video link directly!</i>`,
           parse_mode: "HTML",
           reply_markup: getReplyKeyboardForUser(senderId)
         });
