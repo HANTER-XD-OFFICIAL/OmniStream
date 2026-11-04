@@ -1288,8 +1288,8 @@ function getReplyKeyboardForUser(userId) {
   } else {
     return {
       keyboard: [
-        [{ text: "📱 Download Official App" }, { text: "⚡ Supported Sites" }],
-        [{ text: "📖 Help Guide" }]
+        [{ text: "📖 Help Guide" }, { text: "⚡ Supported Sites" }],
+        [{ text: "📱 Download Official App" }]
       ],
       resize_keyboard: true
     };
