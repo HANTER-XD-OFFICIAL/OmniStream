@@ -605,11 +605,66 @@ class InputFile {
   }
 }
 
+// ==================== THUMBNAIL EXTRACTION ENGINE ====================
+// Extracts video thumbnails from remote cover URLs or via ffmpeg to include in Telegram stream previews.
+
+async function extractThumbnailBuffer(media, videoUrl = null) {
+  const thumbUrl = media?.cover || media?.thumbnail || media?.thumb || null;
+  if (thumbUrl && typeof thumbUrl === "string" && thumbUrl.startsWith("http")) {
+    try {
+      const res = await fetch(thumbUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+          "Referer": "https://www.youtube.com/"
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.byteLength > 500 && buf.byteLength < 300 * 1024) {
+          return buf;
+        }
+      }
+    } catch (e) {
+      console.warn("[THUMBNAIL] Remote thumbnail fetch notice:", e.message);
+    }
+  }
+
+  // Fallback: If no remote thumbnail, extract 1 frame from the video stream using ffmpeg
+  if (videoUrl && typeof videoUrl === "string" && videoUrl.startsWith("http")) {
+    try {
+      const ffmpegBin = await getFfmpegBinary();
+      const uniqueId = `thumb_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+      const tmpJpg = path.join(os.tmpdir(), uniqueId);
+      await execFileAsync(ffmpegBin, [
+        "-y",
+        "-ss", "00:00:01",
+        "-i", videoUrl,
+        "-vframes", "1",
+        "-q:v", "3",
+        "-vf", "scale='min(320,iw)':-1",
+        tmpJpg
+      ], { timeout: 12000 });
+      if (fs.existsSync(tmpJpg)) {
+        const buf = fs.readFileSync(tmpJpg);
+        try { fs.unlinkSync(tmpJpg); } catch (_) {}
+        if (buf.byteLength > 500) {
+          return buf;
+        }
+      }
+    } catch (ffErr) {
+      console.warn("[THUMBNAIL] ffmpeg frame extraction notice:", ffErr.message);
+    }
+  }
+
+  return null;
+}
+
 /**
  * Streams multipart form-data directly to Telegram Bot API in chunks using fetch and duplex: 'half'.
- * Allows unlimited processing time for large and multi-hour files.
+ * Supports attaching video thumbnail previews and allows unlimited processing time.
  */
-async function sendTgMultipartStream(method, fields, inputFile, fileFieldName = "video") {
+async function sendTgMultipartStream(method, fields, inputFile, fileFieldName = "video", thumbBuffer = null) {
   try {
     const boundary = "----OmniStreamBoundary" + Math.random().toString(36).slice(2) + Date.now().toString(36);
     const { stream: sourceStream, contentLength } = await inputFile.getStream();
@@ -621,12 +676,27 @@ async function sendTgMultipartStream(method, fields, inputFile, fileFieldName = 
       }
     }
 
+    let thumbPart = null;
+    if (thumbBuffer && Buffer.isBuffer(thumbBuffer) && thumbBuffer.byteLength > 0) {
+      const thumbHeader = `--${boundary}\r\nContent-Disposition: form-data; name="thumb"; filename="thumbnail.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`;
+      const thumbTrailer = `\r\n`;
+      thumbPart = Buffer.concat([
+        Buffer.from(thumbHeader, "utf-8"),
+        thumbBuffer,
+        Buffer.from(thumbTrailer, "utf-8")
+      ]);
+    }
+
     const filename = inputFile.filename || "file.bin";
     const mimeType = inputFile.mimeType || "application/octet-stream";
     const fileHeader = `--${boundary}\r\nContent-Disposition: form-data; name="${fileFieldName}"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`;
     const postamble = `\r\n--${boundary}--\r\n`;
 
-    const preambleBuf = Buffer.from(preamble + fileHeader, "utf-8");
+    const preamblePart1 = Buffer.from(preamble, "utf-8");
+    const preamblePart2 = Buffer.from(fileHeader, "utf-8");
+    const preambleBuf = thumbPart
+      ? Buffer.concat([preamblePart1, thumbPart, preamblePart2])
+      : Buffer.concat([preamblePart1, preamblePart2]);
     const postambleBuf = Buffer.from(postamble, "utf-8");
 
     async function* multipartGenerator() {
@@ -673,7 +743,7 @@ async function sendTgMultipartStream(method, fields, inputFile, fileFieldName = 
   }
 }
 
-async function sendTgVideoStream(chatId, inputFile, caption, replyMarkup = null, duration = null) {
+async function sendTgVideoStream(chatId, inputFile, caption, replyMarkup = null, duration = null, thumbBuffer = null) {
   const fields = {
     chat_id: String(chatId),
     caption: caption || "",
@@ -683,10 +753,13 @@ async function sendTgVideoStream(chatId, inputFile, caption, replyMarkup = null,
   if (duration && Number(duration) > 0) {
     fields.duration = String(Math.floor(duration));
   }
+  if (thumbBuffer && Buffer.isBuffer(thumbBuffer) && thumbBuffer.byteLength > 0) {
+    fields.thumbnail = "attach://thumb";
+  }
   if (replyMarkup) {
     fields.reply_markup = JSON.stringify(replyMarkup);
   }
-  return await sendTgMultipartStream("sendVideo", fields, inputFile, "video");
+  return await sendTgMultipartStream("sendVideo", fields, inputFile, "video", thumbBuffer);
 }
 
 async function sendTgAudioStream(chatId, inputFile, caption, title = "OmniStream Audio Track", performer = "OmniStream", replyMarkup = null, duration = null) {
@@ -717,9 +790,10 @@ async function sendTgDocumentStream(chatId, inputFile, caption, replyMarkup = nu
 
 // ==================== PYROGRAM 2GB MTPROTO VIDEO ENGINE ====================
 // Uses Pyrogram (client.send_video) to stream and upload videos up to 2GB via MTProto
-async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, replyMarkup = null, duration = null) {
+async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, replyMarkup = null, duration = null, thumbBuffer = null) {
   let tempFilePath = null;
   let tempPayloadPath = null;
+  let tempThumbPath = null;
   try {
     if (typeof videoSource === "string" && fs.existsSync(videoSource)) {
       tempFilePath = videoSource;
@@ -737,6 +811,11 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
       fs.writeFileSync(tempFilePath, buf);
     }
 
+    if (thumbBuffer && Buffer.isBuffer(thumbBuffer) && thumbBuffer.byteLength > 0) {
+      tempThumbPath = path.join(os.tmpdir(), `pyro_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`);
+      fs.writeFileSync(tempThumbPath, thumbBuffer);
+    }
+
     const resolvedApiId = (TELEGRAM_API_ID || process.env.TELEGRAM_API_ID || process.env.API_ID || process.env.TG_API_ID || process.env.APP_ID || "").trim();
     const resolvedApiHash = (TELEGRAM_API_HASH || process.env.TELEGRAM_API_HASH || process.env.API_HASH || process.env.TG_API_HASH || process.env.APP_HASH || "").trim();
 
@@ -745,6 +824,7 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
       video_path: tempFilePath,
       caption: caption || "",
       duration: duration ? Number(duration) : 0,
+      thumb_path: tempThumbPath,
       reply_markup: replyMarkup || null,
       bot_token: BOT_TOKEN,
       api_id: resolvedApiId,
@@ -791,10 +871,13 @@ async function sendTgVideoViaPyrogram(chatId, videoSource, filename, caption, re
     if (tempFilePath && tempFilePath !== videoSource && fs.existsSync(tempFilePath)) {
       try { fs.unlinkSync(tempFilePath); } catch (_) {}
     }
+    if (tempThumbPath && fs.existsSync(tempThumbPath)) {
+      try { fs.unlinkSync(tempThumbPath); } catch (_) {}
+    }
   }
 }
 
-async function sendTgVideo(chatId, videoBufferOrPath, filename, caption, replyMarkup = null, duration = null) {
+async function sendTgVideo(chatId, videoBufferOrPath, filename, caption, replyMarkup = null, duration = null, thumbBuffer = null) {
   const inputFile = videoBufferOrPath instanceof InputFile
     ? videoBufferOrPath
     : (typeof videoBufferOrPath === "string" && videoBufferOrPath.startsWith("http")
@@ -803,9 +886,9 @@ async function sendTgVideo(chatId, videoBufferOrPath, filename, caption, replyMa
             ? InputFile.fromBuffer(videoBufferOrPath, filename, "video/mp4")
             : InputFile.fromPath(videoBufferOrPath, filename, "video/mp4")));
 
-  // 1. Primary: Stream video directly to Telegram Bot API in chunks using InputFile (zero RAM buffer, unlimited timeout)
+  // 1. Primary: Stream video directly to Telegram Bot API in chunks using InputFile with thumbnail preview (zero RAM buffer, unlimited timeout)
   try {
-    const streamRes = await sendTgVideoStream(chatId, inputFile, caption, replyMarkup, duration);
+    const streamRes = await sendTgVideoStream(chatId, inputFile, caption, replyMarkup, duration, thumbBuffer);
     if (streamRes && streamRes.ok) {
       return streamRes;
     }
@@ -816,7 +899,7 @@ async function sendTgVideo(chatId, videoBufferOrPath, filename, caption, replyMa
 
   // 2. Pyrogram fallback for videos up to 2GB if standard Bot API rejected (e.g. file > 50MB)
   try {
-    const pyroRes = await sendTgVideoViaPyrogram(chatId, inputFile, filename, caption, replyMarkup, duration);
+    const pyroRes = await sendTgVideoViaPyrogram(chatId, inputFile, filename, caption, replyMarkup, duration, thumbBuffer);
     if (pyroRes && pyroRes.ok) {
       return pyroRes;
     }
@@ -1120,7 +1203,46 @@ async function getLatestAppRelease(force = false) {
     return cachedLatestRelease;
   }
 
-  // Strategy 1: GitHub Releases API (ordered newest first)
+  // Strategy 0: Direct GitHub /releases/latest API endpoint
+  try {
+    const latestApiRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OmniStreamBot/2.0",
+        "Accept": "application/vnd.github.v3+json"
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (latestApiRes.ok) {
+      const rel = await latestApiRes.json();
+      const apkAsset = rel.assets?.find(a => a.name?.toLowerCase().endsWith('.apk'));
+      if (apkAsset) {
+        lastGitHubFetchTime = now;
+        if (db.lastReleaseTag !== rel.tag_name) {
+          console.log(`[GITHUB RELEASES] Discovered latest release: ${rel.tag_name} (previous: ${db.lastReleaseTag})`);
+          db.lastReleaseTag = rel.tag_name;
+          db.cachedApkFileId = null;
+          saveDatabase();
+        }
+        cachedLatestRelease = {
+          tag: rel.tag_name,
+          name: rel.name || rel.tag_name,
+          publishedAt: rel.published_at,
+          htmlUrl: rel.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${rel.tag_name}`,
+          body: rel.body || "Performance optimizations and latest media downloader engine updates.",
+          apkAsset: {
+            name: apkAsset.name,
+            size: apkAsset.size,
+            downloadUrl: apkAsset.browser_download_url
+          }
+        };
+        return cachedLatestRelease;
+      }
+    }
+  } catch (err) {
+    console.warn('[GITHUB LATEST API NOTE]:', err.message);
+  }
+
+  // Strategy 1: GitHub Releases API list (ordered newest first)
   try {
     const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=5`, {
       headers: {
@@ -1140,7 +1262,7 @@ async function getLatestAppRelease(force = false) {
             if (db.lastReleaseTag !== rel.tag_name) {
               console.log(`[GITHUB RELEASES] Discovered new release tag: ${rel.tag_name} (previous: ${db.lastReleaseTag})`);
               db.lastReleaseTag = rel.tag_name;
-              db.cachedApkFileId = null; // Invalidate cached Telegram file_id for new version
+              db.cachedApkFileId = null;
               saveDatabase();
             }
             cachedLatestRelease = {
@@ -1159,14 +1281,71 @@ async function getLatestAppRelease(force = false) {
           }
         }
       }
-    } else {
-      console.warn(`[GITHUB RELEASES] GitHub API status: ${res.status}, trying HTML scrape fallback.`);
     }
   } catch (err) {
     console.warn('[GITHUB RELEASES] API fetch note:', err.message);
   }
 
-  // Strategy 2: GitHub Web Scraping (100% immune to API rate limits!)
+  // Strategy 2: GitHub Web Redirect Scraping (100% immune to API rate limits!)
+  try {
+    const redirRes = await fetch(`https://github.com/${GITHUB_REPO}/releases/latest`, {
+      redirect: "manual",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "text/html,application/xhtml+xml"
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+
+    const loc = redirRes.headers.get("location");
+    const tagMatch = loc ? loc.match(/\/releases\/tag\/([^/?#]+)/) : null;
+    const tag = tagMatch ? tagMatch[1] : null;
+
+    if (tag) {
+      const assetsRes = await fetch(`https://github.com/${GITHUB_REPO}/releases/expanded_assets/${tag}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "text/html"
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+
+      if (assetsRes.ok) {
+        const aHtml = await assetsRes.text();
+        const apkMatch = aHtml.match(/href=\"([^\"]*\/releases\/download\/([^\"]+)\/([^\"]+\.apk))\"/i);
+        if (apkMatch) {
+          const downloadPath = apkMatch[1].startsWith('/') ? apkMatch[1] : `/${apkMatch[1]}`;
+          const apkDownloadUrl = `https://github.com${downloadPath}`;
+          const apkName = apkMatch[3];
+
+          lastGitHubFetchTime = now;
+          if (db.lastReleaseTag !== tag) {
+            console.log(`[GITHUB SCRAPER] Found new latest tag via redirect: ${tag}`);
+            db.lastReleaseTag = tag;
+            db.cachedApkFileId = null;
+            saveDatabase();
+          }
+          cachedLatestRelease = {
+            tag: tag,
+            name: `OmniStream Official App (${tag})`,
+            publishedAt: new Date().toISOString(),
+            htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+            body: "Official OmniStream Android release with upgraded downloader engine.",
+            apkAsset: {
+              name: apkName,
+              size: 24831155,
+              downloadUrl: apkDownloadUrl
+            }
+          };
+          return cachedLatestRelease;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[GITHUB SCRAPER NOTE]:', err.message);
+  }
+
+  // Strategy 3: GitHub /tags Web Scraping
   try {
     const tagsRes = await fetch(`https://github.com/${GITHUB_REPO}/tags`, {
       headers: {
@@ -1364,77 +1543,67 @@ async function handleSendApk(chatId, userId, requestedTag = null) {
       }
     }
 
-    // 2. FILE UPLOAD PATH: Read local APK if present on disk, otherwise download from GitHub asset
+    // 2. FILE UPLOAD PATH: Read local APK if present on disk, otherwise stream directly from GitHub asset
     if (progressMsgId) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `📥 <b>Downloading Latest OmniStream APK (${sizeMb} MB)...</b>\n<i>Fetching tag <code>${escapeHtml(release.tag)}</code> and sending directly to your Telegram chat...</i>`,
+        text: `📥 <b>Fetching Latest OmniStream APK (${sizeMb} MB)...</b>\n<i>Streaming official release tag <code>${escapeHtml(release.tag)}</code> directly to your Telegram chat...</i>`,
         parse_mode: "HTML"
       }).catch(() => {});
     }
 
-    let apkBuffer = null;
     const localApkPath = path.resolve(__dirname, '../.build-outputs/app-debug.apk');
     if (fs.existsSync(localApkPath) && !requestedTag) {
       try {
-        apkBuffer = await fs.promises.readFile(localApkPath);
+        const apkBuffer = await fs.promises.readFile(localApkPath);
         console.log(`[APK LOCAL] Read APK from disk (${(apkBuffer.length / (1024 * 1024)).toFixed(1)} MB)`);
+        const docRes = await sendTgDocument(chatId, apkBuffer, apk.name, caption, replyMarkup);
+        if (docRes && docRes.ok) {
+          if (docRes.result?.document?.file_id) {
+            db.cachedApkFileId = docRes.result.document.file_id;
+            db.lastReleaseTag = release.tag;
+            saveDatabase();
+          }
+          if (progressMsgId) {
+            await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }).catch(() => {});
+          }
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
+          saveDatabase();
+          console.log(`[APK DELIVERED LOCAL] OmniStream APK delivered to ${chatId}`);
+          return;
+        }
       } catch (err) {
         console.warn('[APK LOCAL READ ERROR]', err.message);
       }
     }
 
-    if (!apkBuffer && apk.downloadUrl) {
+    // Stream APK directly from GitHub release download URL via InputFile
+    if (apk.downloadUrl) {
       try {
-        console.log(`[APK FETCH] Fetching APK from: ${apk.downloadUrl}`);
-        const apkRes = await fetch(apk.downloadUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Accept": "application/octet-stream,application/vnd.android.package-archive,*/*"
-          },
-          redirect: "follow",
-          signal: AbortSignal.timeout(120000)
-        });
-        if (apkRes.ok) {
-          apkBuffer = await apkRes.arrayBuffer();
-          console.log(`[APK FETCH SUCCESS] Downloaded ${(apkBuffer.byteLength / (1024 * 1024)).toFixed(1)} MB`);
-        } else {
-          console.warn(`[APK FETCH FAILED] Status ${apkRes.status} for ${apk.downloadUrl}`);
-        }
-      } catch (err) {
-        console.warn('[APK FETCH ERROR]', err.message);
-      }
-    }
-
-    if (apkBuffer && apkBuffer.byteLength > 1000000) {
-      if (progressMsgId) {
-        await callTg("editMessageText", {
-          chat_id: chatId,
-          message_id: progressMsgId,
-          text: `📤 <b>Uploading Official APK to Telegram...</b>\n<i>Delivering <code>${escapeHtml(apk.name)}</code> (${sizeMb} MB)...</i>`,
-          parse_mode: "HTML"
-        }).catch(() => {});
-      }
-
-      const docRes = await sendTgDocument(chatId, apkBuffer, apk.name, caption, replyMarkup);
-      if (docRes.ok) {
-        if (docRes.result?.document?.file_id) {
-          db.cachedApkFileId = docRes.result.document.file_id;
-          db.lastReleaseTag = release.tag;
+        const apkInput = InputFile.fromUrl(apk.downloadUrl, apk.name, "application/vnd.android.package-archive");
+        const docRes = await sendTgDocument(chatId, apkInput, apk.name, caption, replyMarkup);
+        if (docRes && docRes.ok) {
+          if (docRes.result?.document?.file_id) {
+            db.cachedApkFileId = docRes.result.document.file_id;
+            db.lastReleaseTag = release.tag;
+            saveDatabase();
+            console.log(`[APK CACHED] Telegram file_id cached: ${db.cachedApkFileId} for version ${release.tag}`);
+          }
+          if (progressMsgId) {
+            await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }).catch(() => {});
+          }
+          db.stats.totalDownloads++;
+          if (db.users[userId]) db.users[userId].downloads++;
           saveDatabase();
-          console.log(`[APK CACHED] Telegram file_id cached: ${db.cachedApkFileId} for version ${release.tag}`);
+          console.log(`[APK DELIVERED] OmniStream APK document delivered to ${chatId} (${userId})`);
+          return;
+        } else {
+          console.warn('[APK DOCUMENT UPLOAD NOTICE]:', docRes.error || docRes.description);
         }
-        if (progressMsgId) {
-          await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }).catch(() => {});
-        }
-        db.stats.totalDownloads++;
-        if (db.users[userId]) db.users[userId].downloads++;
-        saveDatabase();
-        console.log(`[APK DELIVERED] OmniStream APK document delivered to ${chatId} (${userId})`);
-        return;
-      } else {
-        console.warn('[APK DOCUMENT UPLOAD NOTICE]:', docRes.error || docRes.description);
+      } catch (streamErr) {
+        console.warn('[APK STREAM ERROR]:', streamErr.message);
       }
     }
 
@@ -3061,12 +3230,12 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
       }
     }
 
-    // 2. Stream video directly to Telegram in chunks using InputFile (zero server RAM buffer, unlimited timeout)
+    // 2. Stream video and audio directly to Telegram in parallel using InputFile with thumbnail previews
     if (media.videoUrl && media.videoUrl.startsWith("http") && media.videoUrl !== url) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Streaming video directly to Telegram in chunks...</i>`,
+        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Streaming video & audio directly to Telegram in parallel...</i>`,
         parse_mode: "HTML"
       });
 
@@ -3080,43 +3249,51 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
       };
 
-      try {
-        const videoInput = InputFile.fromUrl(media.videoUrl, standardizedFilename, "video/mp4", reqHeaders);
+      // Extract thumbnail in parallel with stream setup
+      const thumbPromise = extractThumbnailBuffer(media, media.videoUrl);
 
-        // Stream video directly in chunks to Telegram Bot API with zero server RAM caching and unlimited timeout
-        let sendRes = await sendTgVideo(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup, media.duration);
-        if (!sendRes || !sendRes.ok) {
-          console.warn("[STREAM VIDEO] sendTgVideo fallback to document stream:", sendRes?.error || sendRes?.description);
-          sendRes = await sendTgDocument(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup);
-        }
+      // Launch audio processing in parallel to speed up audio delivery
+      const canDeliverAudio = media.type !== "TeraBox" && media.type !== "MEGA";
+      const audioPromise = canDeliverAudio
+        ? deliverAudioTrack(chatId, url, media, safeTitle, platformName)
+        : Promise.resolve(false);
 
-        if (sendRes && sendRes.ok) {
-          try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
-          db.stats.totalDownloads++;
-          if (db.users[userId]) db.users[userId].downloads++;
-          saveDatabase();
-          console.log(`[DELIVERED MEDIA] Video streamed in chunks directly to ${chatId}`);
+      const videoPromise = (async () => {
+        try {
+          const thumbBuffer = await thumbPromise;
+          const videoInput = InputFile.fromUrl(media.videoUrl, standardizedFilename, "video/mp4", reqHeaders);
 
-          if (media.type !== "TeraBox" && media.type !== "MEGA") {
-            await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
+          // Stream video directly in chunks with thumbnail preview (zero RAM buffer, unlimited timeout)
+          let sendRes = await sendTgVideo(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup, media.duration, thumbBuffer);
+          if (!sendRes || !sendRes.ok) {
+            console.warn("[STREAM VIDEO] sendTgVideo fallback to document stream:", sendRes?.error || sendRes?.description);
+            sendRes = await sendTgDocument(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup);
           }
-          return;
+          if (sendRes && sendRes.ok) {
+            return { ok: true, via: "stream" };
+          }
+        } catch (streamErr) {
+          console.warn("Direct video streaming notice, trying URL fallback:", streamErr.message);
         }
-      } catch (streamErr) {
-        console.warn("Direct video streaming notice, trying URL fallback:", streamErr.message);
-      }
 
-      // Fallback: Call Telegram Bot API sendVideo directly with the extracted videoUrl (unlimited timeout)
-      const urlVideoRes = await sendTgVideoByUrl(chatId, media.videoUrl, baseCaption, defaultMarkup);
-      if (urlVideoRes && urlVideoRes.ok) {
+        // Fallback: Call Telegram Bot API sendVideo directly with the extracted videoUrl
+        const urlVideoRes = await sendTgVideoByUrl(chatId, media.videoUrl, baseCaption, defaultMarkup);
+        if (urlVideoRes && urlVideoRes.ok) {
+          return { ok: true, via: "url" };
+        }
+        return { ok: false };
+      })();
+
+      // Wait for both video and audio processing concurrently
+      const [videoResult, audioResult] = await Promise.allSettled([videoPromise, audioPromise]);
+
+      const videoDelivered = videoResult.status === "fulfilled" && videoResult.value?.ok;
+      if (videoDelivered) {
         try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
         db.stats.totalDownloads++;
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
-        console.log(`[DELIVERED MEDIA] Video sent via sendVideo URL to ${chatId}`);
-        if (media.type !== "TeraBox" && media.type !== "MEGA") {
-          await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
-        }
+        console.log(`[DELIVERED MEDIA] Video & audio streamed in parallel to ${chatId}`);
         return;
       }
     }
