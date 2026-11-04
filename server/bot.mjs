@@ -956,7 +956,7 @@ async function sendTgAudio(chatId, audioSource, filename, caption, title = "Omni
   const ext = filename?.split('.').pop()?.toLowerCase() || 'mp3';
   let mime = 'audio/mpeg';
   if (ext === 'wav') mime = 'audio/wav';
-  else if (ext === 'm4a') mime = 'audio/mp4';
+  else if (ext === 'm4a' || ext === 'mp4') mime = 'audio/mp4';
   else if (ext === 'ogg') mime = 'audio/ogg';
 
   const inputFile = audioSource instanceof InputFile
@@ -3010,14 +3010,20 @@ async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, vi
   try {
     let audioUrl = media?.audioUrl || null;
     const lower = url.toLowerCase();
+    const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
 
-    // 1. If no direct audioUrl yet, query audio resolver
+    // 1. If no direct audioUrl yet, query audio resolvers
     if (!audioUrl) {
-      if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
+      if (isYt) {
         audioUrl = await resolveYouTubeAudio(url);
       }
       if (!audioUrl) {
         audioUrl = await resolveCobaltAudio(url);
+      }
+      // Guaranteed fallback for YouTube: the extracted video stream container itself contains the full audio track!
+      if (!audioUrl && isYt && media?.videoUrl && media.videoUrl.startsWith("http")) {
+        console.log(`[YOUTUBE AUDIO GUARANTEE] Re-using video stream container as audio track for ${chatId}`);
+        audioUrl = media.videoUrl;
       }
     }
 
@@ -3027,10 +3033,14 @@ async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, vi
       .trim()
       .substring(0, 45) || "Audio";
 
-    const audioFilename = formatOmniStreamFilename(platformName, cleanTitle, "mp3");
+    const isDirectMediaContainer = Boolean(audioUrl && (audioUrl === media?.videoUrl || audioUrl.includes(".mp4")));
+    const audioExt = isDirectMediaContainer ? "m4a" : "mp3";
+    const audioMime = isDirectMediaContainer ? "audio/mp4" : "audio/mpeg";
+
+    const audioFilename = formatOmniStreamFilename(platformName, cleanTitle, audioExt);
     const audioCaption = `🎵 <b>${escapeHtml(safeTitle)}</b>\n\n` +
       `👤 <b>Artist/Creator:</b> ${escapeHtml(media?.author || "Creator")}\n` +
-      `📻 <b>Format:</b> High Quality Audio (MP3)\n` +
+      `📻 <b>Format:</b> High Quality Audio (${audioExt.toUpperCase()})\n` +
       `🌐 <b>Platform:</b> ${escapeHtml(platformName)}\n\n` +
       `⚡ <i>Audio track extracted via OmniStream Bot (@OmniStream34_bot)</i>`;
 
@@ -3044,7 +3054,7 @@ async function deliverAudioTrack(chatId, url, media, safeTitle, platformName, vi
     // 2. Stream audio from audioUrl in chunks using InputFile (zero server buffer, unlimited timeout)
     if (audioUrl && audioUrl.startsWith("http")) {
       try {
-        const audioInput = InputFile.fromUrl(audioUrl, audioFilename, "audio/mpeg", {
+        const audioInput = InputFile.fromUrl(audioUrl, audioFilename, audioMime, {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           "Referer": lower.includes("tiktok.com") ? "https://www.tiktok.com/" : url
         });
@@ -3216,6 +3226,11 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
           if (db.users[userId]) db.users[userId].downloads++;
           saveDatabase();
           try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+          const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
+          if (isYt) {
+            console.log(`[AUDIO DELIVERY] Video sent from buffer. Delivering audio track to ${chatId}...`);
+            await deliverAudioTrack(chatId, url, media, safeTitle, platformName, media.buffer);
+          }
           return;
         }
       }
@@ -3226,16 +3241,21 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
         try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
+        const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
+        if (isYt) {
+          console.log(`[AUDIO DELIVERY] Video document sent from buffer. Delivering audio track to ${chatId}...`);
+          await deliverAudioTrack(chatId, url, media, safeTitle, platformName, media.buffer);
+        }
         return;
       }
     }
 
-    // 2. Stream video and audio directly to Telegram in parallel using InputFile with thumbnail previews
+    // 2. Stream video file first, then deliver audio file once video is confirmed sent
     if (media.videoUrl && media.videoUrl.startsWith("http") && media.videoUrl !== url) {
       await callTg("editMessageText", {
         chat_id: chatId,
         message_id: progressMsgId,
-        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Streaming video & audio directly to Telegram in parallel...</i>`,
+        text: `⚡ <b>Ready:</b> ${escapeHtml(shortTitle)}\n📥 <i>Streaming video file directly to Telegram...</i>`,
         parse_mode: "HTML"
       });
 
@@ -3249,51 +3269,52 @@ async function processMediaUrl(rawUrl, chatId, progressMsgId, userId) {
         "Referer": media.type === "TikTok" ? "https://www.tiktok.com/" : url
       };
 
-      // Extract thumbnail in parallel with stream setup
-      const thumbPromise = extractThumbnailBuffer(media, media.videoUrl);
+      // Extract thumbnail preview
+      const thumbBuffer = await extractThumbnailBuffer(media, media.videoUrl);
 
-      // Launch audio processing in parallel to speed up audio delivery
-      const canDeliverAudio = media.type !== "TeraBox" && media.type !== "MEGA";
-      const audioPromise = canDeliverAudio
-        ? deliverAudioTrack(chatId, url, media, safeTitle, platformName)
-        : Promise.resolve(false);
+      // STEP 1: Process and send video file FIRST
+      let videoDelivered = false;
+      try {
+        const videoInput = InputFile.fromUrl(media.videoUrl, standardizedFilename, "video/mp4", reqHeaders);
 
-      const videoPromise = (async () => {
-        try {
-          const thumbBuffer = await thumbPromise;
-          const videoInput = InputFile.fromUrl(media.videoUrl, standardizedFilename, "video/mp4", reqHeaders);
-
-          // Stream video directly in chunks with thumbnail preview (zero RAM buffer, unlimited timeout)
-          let sendRes = await sendTgVideo(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup, media.duration, thumbBuffer);
-          if (!sendRes || !sendRes.ok) {
-            console.warn("[STREAM VIDEO] sendTgVideo fallback to document stream:", sendRes?.error || sendRes?.description);
-            sendRes = await sendTgDocument(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup);
-          }
-          if (sendRes && sendRes.ok) {
-            return { ok: true, via: "stream" };
-          }
-        } catch (streamErr) {
-          console.warn("Direct video streaming notice, trying URL fallback:", streamErr.message);
+        // Stream video directly in chunks with thumbnail preview (zero RAM buffer, unlimited timeout)
+        let sendRes = await sendTgVideo(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup, media.duration, thumbBuffer);
+        if (!sendRes || !sendRes.ok) {
+          console.warn("[STREAM VIDEO] sendTgVideo fallback to document stream:", sendRes?.error || sendRes?.description);
+          sendRes = await sendTgDocument(chatId, videoInput, standardizedFilename, baseCaption, defaultMarkup);
         }
+        if (sendRes && sendRes.ok) {
+          videoDelivered = true;
+          console.log(`[DELIVERED VIDEO] Video file sent successfully to ${chatId}`);
+        }
+      } catch (streamErr) {
+        console.warn("Direct video streaming notice, trying URL fallback:", streamErr.message);
+      }
 
+      if (!videoDelivered) {
         // Fallback: Call Telegram Bot API sendVideo directly with the extracted videoUrl
         const urlVideoRes = await sendTgVideoByUrl(chatId, media.videoUrl, baseCaption, defaultMarkup);
         if (urlVideoRes && urlVideoRes.ok) {
-          return { ok: true, via: "url" };
+          videoDelivered = true;
+          console.log(`[DELIVERED VIDEO] Video sent via URL to ${chatId}`);
         }
-        return { ok: false };
-      })();
+      }
 
-      // Wait for both video and audio processing concurrently
-      const [videoResult, audioResult] = await Promise.allSettled([videoPromise, audioPromise]);
-
-      const videoDelivered = videoResult.status === "fulfilled" && videoResult.value?.ok;
+      // STEP 2: Only after the video is successfully sent should you send the corresponding audio file
       if (videoDelivered) {
         try { await callTg("deleteMessage", { chat_id: chatId, message_id: progressMsgId }); } catch (_) {}
         db.stats.totalDownloads++;
         if (db.users[userId]) db.users[userId].downloads++;
         saveDatabase();
-        console.log(`[DELIVERED MEDIA] Video & audio streamed in parallel to ${chatId}`);
+
+        // For YouTube links, explicitly ensure both the video and audio streams are fully extracted and sent, ensuring the audio track is never omitted.
+        const isYt = lower.includes("youtube.com") || lower.includes("youtu.be");
+        const canDeliverAudio = isYt || (media.type !== "TeraBox" && media.type !== "MEGA");
+
+        if (canDeliverAudio) {
+          console.log(`[AUDIO DELIVERY] Video confirmed delivered. Now delivering audio track for ${chatId}...`);
+          await deliverAudioTrack(chatId, url, media, safeTitle, platformName);
+        }
         return;
       }
     }
