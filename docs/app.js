@@ -1047,9 +1047,9 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
         : mediaUrl;
 
       const ytFetchers = [
-        // High-Speed Cobalt Cluster on Render
+        // Cobalt Instance on Render
         (async () => {
-          const resp = await fetch("https://cobalt-latest-a04h.onrender.com", {
+          const resp = await fetch("https://cobalt-kh9d.onrender.com", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Accept": "application/json" },
             body: JSON.stringify({
@@ -1138,7 +1138,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
     // 3. Multi-Gateway Cobalt Mirrors Fallback
     if (!directStream && !isYtUrl) {
       const mirrorGateways = [
-        "https://cobalt-latest-a04h.onrender.com",
+        "https://cobalt-kh9d.onrender.com",
         "https://cobalt.api.redstream.org"
       ];
       for (const gw of mirrorGateways) {
@@ -1247,17 +1247,16 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
   updateProgress(`Downloading ${mediaType}...`);
 
   try {
-    let blob = null;
-
-    // 1. Attempt fast direct stream fetch if same-origin or CORS-enabled (< 5MB quick check or 3s timeout)
+    // 1. Attempt fast direct stream fetch if same-origin or CORS-enabled (up to 500MB with progress)
     try {
-      const resp = await fetch(url, { mode: 'cors', signal: AbortSignal.timeout(3500) });
+      const isYtStream = url.includes("vidsnap.app") || url.includes("googlevideo.com") || url.includes("tioo.eu.org") || (filename && filename.toLowerCase().includes("youtube"));
+      const fetchTimeout = isYtStream ? 60000 : 8000;
+      const resp = await fetch(url, { mode: 'cors', signal: AbortSignal.timeout(fetchTimeout) });
       if (resp.ok) {
         const contentLength = resp.headers.get('content-length');
         const total = contentLength ? parseInt(contentLength, 10) : 0;
 
-        // If file is reasonable in size (< 40MB), stream directly into blob
-        if (total > 0 && total < 45 * 1024 * 1024 && resp.body && resp.body.getReader) {
+        if (resp.body && resp.body.getReader) {
           const reader = resp.body.getReader();
           let received = 0;
           const chunks = [];
@@ -1266,20 +1265,27 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
             if (done) break;
             chunks.push(value);
             received += value.length;
-            const pct = Math.min(99, Math.round((received / total) * 100));
-            updateProgress(`Downloading ${pct}%...`);
+            if (total > 0) {
+              const pct = Math.min(99, Math.round((received / total) * 100));
+              const mb = (received / (1024 * 1024)).toFixed(1);
+              const totalMb = (total / (1024 * 1024)).toFixed(1);
+              updateProgress(`Downloading ${pct}% (${mb}/${totalMb}MB)...`);
+            } else {
+              const mb = (received / (1024 * 1024)).toFixed(1);
+              updateProgress(`Downloading ${mb}MB...`);
+            }
           }
           const mimeType = resp.headers.get('content-type') || (filename.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4');
           blob = new Blob(chunks, { type: mimeType });
-        } else if (total > 0 && total < 20 * 1024 * 1024) {
+        } else {
           blob = await resp.blob();
         }
       }
     } catch (directErr) {
-      // Cross-origin restriction is normal for media CDNs - proceed immediately to native download
+      // Cross-origin restriction is normal for some external CDNs - proceed to fallback download
     }
 
-    // 2. Trigger native file download via Object URL if blob is available
+    // 2. Trigger native file download via Object URL if blob is available (Guaranteed file attachment save!)
     if (blob) {
       updateProgress(`Saving to Device...`);
       const blobUrl = window.URL.createObjectURL(blob);
@@ -1287,13 +1293,14 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
       downloadAnchor.style.display = "none";
       downloadAnchor.href = blobUrl;
       downloadAnchor.download = filename;
+      downloadAnchor.setAttribute("download", filename);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
 
       setTimeout(() => {
         if (downloadAnchor.parentNode) document.body.removeChild(downloadAnchor);
         window.URL.revokeObjectURL(blobUrl);
-      }, 5000);
+      }, 10000);
 
       btn.innerHTML = `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -1309,12 +1316,13 @@ async function triggerDirectMediaDownload(url, filename, btn, mediaType = "Video
       return;
     }
 
-    // 3. Direct Native Browser Download (Zero CORS block, high-speed multi-threaded browser download manager)
+    // 3. Fallback: Force attachment download
     updateProgress(`Starting Download...`);
     const fallbackLink = document.createElement("a");
     fallbackLink.href = url;
     fallbackLink.setAttribute("download", filename);
-    fallbackLink.target = "_blank";
+    fallbackLink.download = filename;
+    fallbackLink.target = "_self";
     fallbackLink.rel = "noopener noreferrer";
     document.body.appendChild(fallbackLink);
     fallbackLink.click();
@@ -1599,9 +1607,9 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
       : url;
 
     const ytResolvers = [
-      // High-Speed Cobalt Cluster on Render
+      // Cobalt Instance on Render
       (async () => {
-        const resp = await fetch("https://cobalt-latest-a04h.onrender.com", {
+        const resp = await fetch("https://cobalt-kh9d.onrender.com", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Accept": "application/json" },
           body: JSON.stringify({
@@ -1673,7 +1681,7 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
   // 3. Cloudflare Edge Worker API & Multi-Gateway Cobalt Engine
   const gateways = [
     "https://omnistream-api.alexraselchodhury.workers.dev",
-    "https://cobalt-latest-a04h.onrender.com",
+    "https://cobalt-kh9d.onrender.com",
     "https://co.wuk.sh",
     "https://cobalt.xy2401.com",
     "https://cobalt.api.redstream.org"

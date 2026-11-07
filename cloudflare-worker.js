@@ -198,7 +198,7 @@ async function resolveYouTube(targetUrl, format = "720") {
 
   // 2. High-Speed Cobalt Cluster Fallback
   const cobaltNodes = [
-    "https://cobalt-latest-a04h.onrender.com"
+    "https://cobalt-kh9d.onrender.com"
   ];
   for (const node of cobaltNodes) {
     try {

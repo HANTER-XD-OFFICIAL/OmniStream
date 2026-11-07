@@ -15,7 +15,7 @@ const PORT = 3000;
 const CLOUDFLARE_WORKER_API = "https://omnistream-api.alexraselchodhury.workers.dev";
 const COBALT_MIRRORS = [
   CLOUDFLARE_WORKER_API,
-  "https://cobalt-latest-a04h.onrender.com",
+  "https://cobalt-kh9d.onrender.com",
   "https://co.wuk.sh",
   "https://cobalt.xy2401.com",
   "https://cobalt.api.redstream.org"
@@ -512,7 +512,7 @@ async function resolveYouTube(url, mode = 'auto') {
     // 3. Tertiary: High-Speed Cobalt Cluster Fallback
     for (const targetUrl of targetUrls) {
       try {
-        const cobRes = await fetch("https://cobalt-latest-a04h.onrender.com", {
+        const cobRes = await fetch("https://cobalt-kh9d.onrender.com", {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
