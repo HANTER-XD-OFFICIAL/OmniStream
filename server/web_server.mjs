@@ -509,6 +509,47 @@ async function resolveYouTube(url, mode = 'auto') {
             };
           }
         }
+    // 3. Tertiary: High-Speed Cobalt Cluster Fallback
+    for (const targetUrl of targetUrls) {
+      try {
+        const cobRes = await fetch("https://cobalt-latest-a04h.onrender.com", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          },
+          body: JSON.stringify({
+            url: targetUrl,
+            videoQuality: isAudio ? undefined : '720',
+            downloadMode: isAudio ? 'audio' : 'auto',
+            youtubeVideoCodec: 'h264',
+            audioFormat: 'mp3',
+            alwaysProxy: true
+          }),
+          signal: AbortSignal.timeout(6000)
+        });
+
+        if (cobRes.ok) {
+          const cJson = await cobRes.json();
+          const dlUrl = extractStreamUrlFromResponse(cJson, isAudio);
+          if (dlUrl && dlUrl.startsWith('http')) {
+            const meta = await metaPromise.catch(() => ({}));
+            const title = cJson.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video';
+            const thumbnail = cJson.thumbnail || meta.thumbnail;
+            return {
+              success: true,
+              platform: 'YouTube',
+              title: title,
+              author: meta.author || 'YouTube Channel',
+              thumbnail: thumbnail,
+              videoUrl: isAudio ? null : dlUrl,
+              audioUrl: isAudio ? dlUrl : (cJson.audio || null),
+              quality: isAudio ? '320kbps MP3' : '720p HD',
+              directStream: true
+            };
+          }
+        }
       } catch (_) {}
     }
   } catch (_) {}

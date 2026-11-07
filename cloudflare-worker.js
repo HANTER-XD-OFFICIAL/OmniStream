@@ -196,6 +196,37 @@ async function resolveYouTube(targetUrl, format = "720") {
     } catch (_) {}
   }
 
+  // 2. High-Speed Cobalt Cluster Fallback
+  const cobaltNodes = [
+    "https://cobalt-latest-a04h.onrender.com"
+  ];
+  for (const node of cobaltNodes) {
+    try {
+      const cRes = await fetch(node, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        body: JSON.stringify({
+          url: normUrl,
+          videoQuality: reqFmt === "1080" ? "1080" : "720",
+          downloadMode: isAudio ? "audio" : "auto",
+          youtubeVideoCodec: "h264",
+          audioFormat: "mp3",
+          alwaysProxy: true
+        })
+      });
+      if (cRes.ok) {
+        const cJson = await cRes.json();
+        if ((cJson.status === "tunnel" || cJson.status === "redirect") && cJson.url) {
+          return { url: cJson.url, title: cJson.filename?.replace(/\.[^/.]+$/, "") || "YouTube_Media" };
+        }
+      }
+    } catch (_) {}
+  }
+
   const hosts = ["https://loader.to", "https://en.loader.to"];
 
   for (const host of hosts) {

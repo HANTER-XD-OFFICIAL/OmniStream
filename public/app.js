@@ -1039,31 +1039,60 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
 
     const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
 
-    // 1. Primary for YouTube: Direct High-Speed Stream Engine (Direct MP4/MP3)
+    // 1. Primary for YouTube: Direct High-Speed Stream Engine (Cobalt + Tioo Multi-Mirror Race)
     if (isYtUrl) {
       updateStatus("Resolving YouTube Media Stream...");
       const ytTargetUrl = mediaUrl.includes("/shorts/")
         ? mediaUrl.replace("/shorts/", "/watch?v=")
         : mediaUrl;
-      const tioMirrors = [
-        "https://backend1.tioo.eu.org/youtube?url=",
-        "https://backend4.tioo.eu.org/youtube?url=",
-        "https://backend3.tioo.eu.org/youtube?url=",
-        "https://backend2.tioo.eu.org/youtube?url="
-      ];
-      for (const mirror of tioMirrors) {
-        if (directStream) break;
-        try {
-          const resp = await fetch(mirror + encodeURIComponent(ytTargetUrl), {
-            signal: AbortSignal.timeout(9000)
+
+      const ytFetchers = [
+        // High-Speed Cobalt Cluster on Render
+        (async () => {
+          const resp = await fetch("https://cobalt-latest-a04h.onrender.com", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({
+              url: ytTargetUrl,
+              videoQuality: mode === "audio" ? "auto" : "720",
+              downloadMode: mode === "audio" ? "audio" : "auto",
+              youtubeVideoCodec: "h264",
+              audioFormat: "mp3",
+              alwaysProxy: true
+            }),
+            signal: AbortSignal.timeout(6000)
           });
-          if (resp.ok) {
-            const json = await resp.json();
-            if (json && json.status && (json.mp4 || json.mp3)) {
-              directStream = mode === "audio" ? (json.mp3 || json.mp4) : (json.mp4 || json.mp3);
-            }
+          if (!resp.ok) throw new Error("Cobalt HTTP " + resp.status);
+          const json = await resp.json();
+          if ((json.status === "tunnel" || json.status === "redirect" || json.status === "stream") && json.url) {
+            return json.url;
           }
-        } catch (_) {}
+          throw new Error("No cobalt stream");
+        })(),
+        // Tioo Cluster Mirrors 1 through 4
+        ...[
+          "https://backend1.tioo.eu.org/youtube?url=",
+          "https://backend2.tioo.eu.org/youtube?url=",
+          "https://backend4.tioo.eu.org/youtube?url=",
+          "https://backend3.tioo.eu.org/youtube?url="
+        ].map(mirror => (async () => {
+          const resp = await fetch(mirror + encodeURIComponent(ytTargetUrl), {
+            signal: AbortSignal.timeout(6500)
+          });
+          if (!resp.ok) throw new Error("Tio HTTP " + resp.status);
+          const json = await resp.json();
+          if (json && json.status && (json.mp4 || json.mp3)) {
+            const stream = mode === "audio" ? (json.mp3 || json.mp4) : (json.mp4 || json.mp3);
+            if (stream) return stream;
+          }
+          throw new Error("No tio stream");
+        })())
+      ];
+
+      try {
+        directStream = await Promise.any(ytFetchers);
+      } catch (_) {
+        directStream = null;
       }
     }
 
@@ -1563,48 +1592,82 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
   // Pre-fetch platform rich metadata & thumbnail in parallel
   const metaPromise = fetchPlatformMetadata(url);
 
-  // 2. Dedicated YouTube Engine (Direct Stream Resolver)
+  // 2. Dedicated YouTube Engine (Direct High-Speed Multi-Node Stream Resolver)
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
     const ytTargetUrl = url.includes('/shorts/')
       ? url.replace('/shorts/', '/watch?v=')
       : url;
-    const tioMirrors = [
-      "https://backend1.tioo.eu.org/youtube?url=",
-      "https://backend4.tioo.eu.org/youtube?url=",
-      "https://backend3.tioo.eu.org/youtube?url=",
-      "https://backend2.tioo.eu.org/youtube?url="
+
+    const ytResolvers = [
+      // High-Speed Cobalt Cluster on Render
+      (async () => {
+        const resp = await fetch("https://cobalt-latest-a04h.onrender.com", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({
+            url: ytTargetUrl,
+            videoQuality: isAudio ? "auto" : "720",
+            downloadMode: isAudio ? "audio" : "auto",
+            youtubeVideoCodec: "h264",
+            audioFormat: "mp3",
+            alwaysProxy: true
+          }),
+          signal: AbortSignal.timeout(6000)
+        });
+        if (!resp.ok) throw new Error("Cobalt not ok " + resp.status);
+        const json = await resp.json();
+        if ((json.status === "tunnel" || json.status === "redirect" || json.status === "stream") && json.url) {
+          const meta = await metaPromise.catch(() => ({}));
+          return {
+            success: true,
+            platform: 'YouTube',
+            title: json.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video',
+            author: meta.author || 'YouTube Channel',
+            thumbnail: json.thumbnail || meta.thumbnail,
+            videoUrl: isAudio ? null : json.url,
+            audioUrl: isAudio ? json.url : (json.audio || null),
+            quality: isAudio ? '320kbps MP3' : '720p HD',
+            directStream: true
+          };
+        }
+        throw new Error("No cobalt stream url");
+      })(),
+      // Tioo Cluster Mirrors 1 through 4
+      ...[
+        "https://backend1.tioo.eu.org/youtube?url=",
+        "https://backend2.tioo.eu.org/youtube?url=",
+        "https://backend4.tioo.eu.org/youtube?url=",
+        "https://backend3.tioo.eu.org/youtube?url="
+      ].map(mirror => (async () => {
+        const resp = await fetch(mirror + encodeURIComponent(ytTargetUrl), {
+          signal: AbortSignal.timeout(6500)
+        });
+        if (!resp.ok) throw new Error("Tio not ok " + resp.status);
+        const json = await resp.json();
+        if (json && json.status && (json.mp4 || json.mp3)) {
+          const meta = await metaPromise.catch(() => ({}));
+          const vUrl = json.mp4 || json.mp3;
+          const aUrl = json.mp3 || json.mp4;
+          return {
+            success: true,
+            platform: 'YouTube',
+            title: json.title || meta.title || 'YouTube Video',
+            author: json.author || meta.author || 'YouTube Channel',
+            thumbnail: json.thumbnail || meta.thumbnail,
+            videoUrl: isAudio ? null : vUrl,
+            audioUrl: aUrl,
+            quality: isAudio ? '320kbps MP3' : '720p HD',
+            directStream: true
+          };
+        }
+        throw new Error("No tio stream data");
+      })())
     ];
 
-    for (const mirror of tioMirrors) {
-      try {
-        const resp = await fetch(mirror + encodeURIComponent(ytTargetUrl), {
-          signal: AbortSignal.timeout(9000)
-        });
-        if (resp.ok) {
-          const json = await resp.json();
-          if (json && json.status && (json.mp4 || json.mp3)) {
-            const meta = await metaPromise.catch(() => ({}));
-            const vUrl = json.mp4 || json.mp3;
-            const aUrl = json.mp3 || json.mp4;
-            const finalTitle = json.title || meta.title || 'YouTube Video';
-            const finalAuthor = json.author || meta.author || 'YouTube Channel';
-            const finalThumb = json.thumbnail || meta.thumbnail;
-
-            return {
-              success: true,
-              platform: 'YouTube',
-              title: finalTitle,
-              author: finalAuthor,
-              thumbnail: finalThumb,
-              videoUrl: isAudio ? null : vUrl,
-              audioUrl: aUrl,
-              quality: isAudio ? '320kbps MP3' : '720p HD',
-              directStream: true
-            };
-          }
-        }
-      } catch (_) {}
-    }
+    try {
+      const winner = await Promise.any(ytResolvers);
+      if (winner && winner.success) return winner;
+    } catch (_) {}
   }
 
   // 3. Cloudflare Edge Worker API & Multi-Gateway Cobalt Engine
