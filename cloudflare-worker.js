@@ -8,7 +8,7 @@
  * 3. Full CORS support for web & mobile apps
  */
 
-const COBALT_BACKEND = "https://cobalt-latest-a04h.onrender.com";
+const COBALT_BACKEND = "https://cobalt-kh9d.onrender.com";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
