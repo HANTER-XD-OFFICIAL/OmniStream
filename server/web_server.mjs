@@ -423,7 +423,7 @@ function extractStreamUrlFromResponse(json, isAudio = false) {
   return null;
 }
 
-// Dedicated High-Speed YouTube Resolver (Direct OmniStream Custom Worker API: https://omnistream-api.alexraselchodhury.workers.dev)
+// Dedicated High-Speed YouTube Resolver (Direct MP4/MP3 streams)
 async function resolveYouTube(url, mode = 'auto') {
   try {
     const isAudio = mode === 'audio';
@@ -435,55 +435,37 @@ async function resolveYouTube(url, mode = 'auto') {
       targetUrls.push(originalUrl);
     }
 
-    for (const targetUrl of targetUrls) {
-      const payloads = [
-        {
-          url: targetUrl,
-          videoQuality: isAudio ? undefined : '720',
-          downloadMode: isAudio ? 'audio' : 'auto',
-          youtubeVideoCodec: 'h264',
-          audioFormat: 'mp3',
-          alwaysProxy: true
-        },
-        {
-          url: targetUrl,
-          downloadMode: isAudio ? 'audio' : 'auto'
-        },
-        {
-          url: targetUrl
-        }
-      ];
-
-      for (const payload of payloads) {
+    // 1. Primary: High-Speed Direct Stream Resolver (Direct MP4 / MP3 with fast streaming)
+    const tioMirrors = [
+      "https://backend1.tioo.eu.org/youtube?url=",
+      "https://backend2.tioo.eu.org/youtube?url="
+    ];
+    for (const mirror of tioMirrors) {
+      for (const targetUrl of targetUrls) {
         try {
-          const res = await fetch(CLOUDFLARE_WORKER_API, {
-            method: 'POST',
+          const tioRes = await fetch(mirror + encodeURIComponent(targetUrl), {
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+              "User-Agent": "btch/3.0.9",
+              "X-Client-Version": "3.0.9",
+              "Content-Type": "application/json"
             },
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(10000)
+            signal: AbortSignal.timeout(6000)
           });
-
-          if (res.ok) {
-            const json = await res.json();
-            const dlUrl = extractStreamUrlFromResponse(json, isAudio);
-
-            if (dlUrl && dlUrl.startsWith('http')) {
-              const meta = await metaPromise.catch(() => ({}));
-              const title = json.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video';
-              const thumbnail = json.thumbnail || meta.thumbnail;
+          if (tioRes.ok) {
+            const tJson = await tioRes.json();
+            if (tJson && tJson.status && (tJson.mp4 || tJson.mp3)) {
+              const vUrl = tJson.mp4 || tJson.mp3;
+              const aUrl = tJson.mp3 || tJson.mp4;
               return {
                 success: true,
                 platform: 'YouTube',
-                title: title,
-                author: meta.author || 'YouTube Channel',
-                thumbnail: thumbnail,
-                videoUrl: isAudio ? null : dlUrl,
-                audioUrl: isAudio ? dlUrl : (json.audio || null),
-                quality: isAudio ? '320kbps MP3' : '720p HD'
+                title: tJson.title || 'YouTube Video',
+                author: tJson.author || 'YouTube Channel',
+                thumbnail: tJson.thumbnail,
+                videoUrl: isAudio ? null : vUrl,
+                audioUrl: aUrl,
+                quality: isAudio ? '320kbps MP3' : '720p HD',
+                directStream: true
               };
             }
           }
@@ -491,30 +473,42 @@ async function resolveYouTube(url, mode = 'auto') {
       }
     }
 
-    // Secondary: High-Speed Video/Audio Engine fallback
+    // 2. Secondary: Worker / Custom API Fallback
     for (const targetUrl of targetUrls) {
       try {
-        const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
+        const res = await fetch(CLOUDFLARE_WORKER_API, {
+          method: 'POST',
           headers: {
-            "User-Agent": "btch/3.0.9",
-            "X-Client-Version": "3.0.9",
-            "Content-Type": "application/json"
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
-          signal: AbortSignal.timeout(8000)
+          body: JSON.stringify({
+            url: targetUrl,
+            videoQuality: isAudio ? undefined : '720',
+            downloadMode: isAudio ? 'audio' : 'auto'
+          }),
+          signal: AbortSignal.timeout(6000)
         });
-        if (tioRes.ok) {
-          const tJson = await tioRes.json();
-          if (tJson && tJson.status && (tJson.mp4 || tJson.mp3)) {
-            const dlUrl = isAudio ? (tJson.mp3 || tJson.mp4) : (tJson.mp4 || tJson.mp3);
+
+        if (res.ok) {
+          const json = await res.json();
+          const dlUrl = extractStreamUrlFromResponse(json, isAudio);
+
+          if (dlUrl && dlUrl.startsWith('http')) {
+            const meta = await metaPromise.catch(() => ({}));
+            const title = json.filename?.replace(/\.[^/.]+$/, '') || meta.title || 'YouTube Video';
+            const thumbnail = json.thumbnail || meta.thumbnail;
             return {
               success: true,
               platform: 'YouTube',
-              title: tJson.title || 'YouTube Video',
-              author: tJson.author || 'YouTube Channel',
-              thumbnail: tJson.thumbnail,
+              title: title,
+              author: meta.author || 'YouTube Channel',
+              thumbnail: thumbnail,
               videoUrl: isAudio ? null : dlUrl,
-              audioUrl: isAudio ? dlUrl : (tJson.mp3 || null),
-              quality: isAudio ? '320kbps MP3' : '720p HD'
+              audioUrl: isAudio ? dlUrl : (json.audio || null),
+              quality: isAudio ? '320kbps MP3' : '720p HD',
+              directStream: true
             };
           }
         }
@@ -535,26 +529,7 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
 
   const lower = url.toLowerCase();
 
-  // Route 1: ALWAYS try user's Main Custom Edge Worker API FIRST
-  const mainWorkerRes = await resolveSingleCobalt(CLOUDFLARE_WORKER_API, url, mode, quality, 4000);
-  if (mainWorkerRes) {
-    let platformName = 'Universal Media';
-    if (lower.includes('youtube.com') || lower.includes('youtu.be')) platformName = 'YouTube';
-    else if (lower.includes('instagram.com')) platformName = 'Instagram';
-    else if (lower.includes('facebook.com') || lower.includes('fb.watch')) platformName = 'Facebook';
-    else if (lower.includes('twitter.com') || lower.includes('x.com')) platformName = 'Twitter / X';
-    else if (lower.includes('pinterest.com') || lower.includes('pin.it')) platformName = 'Pinterest';
-    else if (lower.includes('reddit.com')) platformName = 'Reddit';
-    else if (lower.includes('soundcloud.com')) platformName = 'SoundCloud';
-    else if (lower.includes('bilibili.com')) platformName = 'Bilibili';
-    else if (lower.includes('vimeo.com')) platformName = 'Vimeo';
-    else if (lower.includes('dailymotion.com')) platformName = 'Dailymotion';
-
-    mainWorkerRes.platform = platformName;
-    return mainWorkerRes;
-  }
-
-  // Route 2: Dedicated YouTube Engine (Direct, reliable, no redirect)
+  // Route 1: YouTube Dedicated Engine (Direct high-speed stream, zero redirect)
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
     const ytRes = await resolveYouTube(url, mode);
     if (ytRes) return ytRes;
@@ -578,6 +553,24 @@ async function extractMedia(rawUrl, mode = 'auto', quality = '1080') {
       quality: isAudio ? '320kbps MP3' : (quality === 'max' ? '4K / 8K Master' : (quality === '1080' ? '1080p Full HD' : '720p HD')),
       readyToDownload: true
     };
+  }
+
+  // Route 2: ALWAYS try user's Main Custom Edge Worker API for other platforms
+  const mainWorkerRes = await resolveSingleCobalt(CLOUDFLARE_WORKER_API, url, mode, quality, 4000);
+  if (mainWorkerRes) {
+    let platformName = 'Universal Media';
+    if (lower.includes('instagram.com')) platformName = 'Instagram';
+    else if (lower.includes('facebook.com') || lower.includes('fb.watch')) platformName = 'Facebook';
+    else if (lower.includes('twitter.com') || lower.includes('x.com')) platformName = 'Twitter / X';
+    else if (lower.includes('pinterest.com') || lower.includes('pin.it')) platformName = 'Pinterest';
+    else if (lower.includes('reddit.com')) platformName = 'Reddit';
+    else if (lower.includes('soundcloud.com')) platformName = 'SoundCloud';
+    else if (lower.includes('bilibili.com')) platformName = 'Bilibili';
+    else if (lower.includes('vimeo.com')) platformName = 'Vimeo';
+    else if (lower.includes('dailymotion.com')) platformName = 'Dailymotion';
+
+    mainWorkerRes.platform = platformName;
+    return mainWorkerRes;
   }
 
   // Route 3: Multi-Gateway Cobalt Mirrors for other platforms (Twitter, Pinterest, Instagram, etc.)

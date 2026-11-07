@@ -678,25 +678,10 @@ function initFormHandler() {
         ytEmbedPreview.classList.add("hidden");
       }
 
-      if (data.isYouTube && data.videoId) {
-        videoPreview.classList.add("hidden");
-        audioPreview.classList.add("hidden");
-        if (playerStreamStatus) playerStreamStatus.textContent = "● YouTube Video Ready";
-        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
-        if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
-      } else if (isAudioOnly) {
-        audioPreview.classList.remove("hidden");
-        videoPreview.classList.add("hidden");
-        const targetAudio = audioUrl || streamUrl;
-        if (audioPreview.src !== targetAudio) {
-          audioPreview.src = targetAudio;
-          audioPreview.load();
-        }
-        if (playerStreamStatus) playerStreamStatus.textContent = "● Audio Stream Ready";
-        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Audio in Browser";
-      } else if (streamUrl) {
+      if (streamUrl && !isAudioOnly) {
         videoPreview.classList.remove("hidden");
         audioPreview.classList.add("hidden");
+        if (ytEmbedPreview) ytEmbedPreview.classList.add("hidden");
         if (videoPreview.src !== streamUrl) {
           videoPreview.src = streamUrl;
           videoPreview.load();
@@ -721,38 +706,69 @@ function initFormHandler() {
           togglePreviewBtnText.textContent = "Play Video in Browser";
         }
         if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
+      } else if (isAudioOnly) {
+        audioPreview.classList.remove("hidden");
+        videoPreview.classList.add("hidden");
+        const targetAudio = audioUrl || streamUrl;
+        if (audioPreview.src !== targetAudio) {
+          audioPreview.src = targetAudio;
+          audioPreview.load();
+        }
+        if (playerStreamStatus) playerStreamStatus.textContent = "● Audio Stream Ready";
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Audio in Browser";
+      } else if (data.isYouTube && data.videoId) {
+        videoPreview.classList.add("hidden");
+        audioPreview.classList.add("hidden");
+        if (playerStreamStatus) playerStreamStatus.textContent = "● YouTube Video Ready";
+        if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
+        if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
       }
 
       // Universal Play / Pause Control
       const togglePlayback = () => {
         const isCurrentlyHidden = previewPlayerWrapper && previewPlayerWrapper.classList.contains("hidden");
 
-        if (data.isYouTube && data.videoId) {
+        if (streamUrl && !isAudioOnly) {
           if (isCurrentlyHidden) {
             previewPlayerWrapper.classList.remove("hidden");
-            videoPreview.classList.add("hidden");
-            audioPreview.classList.add("hidden");
-            if (ytEmbedPreview) {
-              ytEmbedPreview.classList.remove("hidden");
-              ytEmbedPreview.src = `https://www.youtube.com/embed/${data.videoId}?autoplay=1&rel=0`;
-            }
-            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Close Player";
-            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
-            if (playerStreamStatus) {
-              playerStreamStatus.textContent = "● Playing in Embedded Player";
-              playerStreamStatus.classList.add("playing");
-            }
-            previewPlayerWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          } else {
             if (ytEmbedPreview) {
               ytEmbedPreview.src = "";
               ytEmbedPreview.classList.add("hidden");
             }
-            previewPlayerWrapper.classList.add("hidden");
+            videoPreview.classList.remove("hidden");
+            audioPreview.classList.add("hidden");
+            if (thumbVideoPoster) {
+              thumbVideoPoster.pause();
+              thumbVideoPoster.classList.add("hidden");
+            }
+            const playPromise = videoPreview.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
+            }
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing Video";
+              playerStreamStatus.classList.add("playing");
+            }
+            previewPlayerWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else if (videoPreview.paused) {
+            const playPromise = videoPreview.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
+            }
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
+            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
+            if (playerStreamStatus) {
+              playerStreamStatus.textContent = "● Playing Video";
+              playerStreamStatus.classList.add("playing");
+            }
+          } else {
+            videoPreview.pause();
             if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
             if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
             if (playerStreamStatus) {
-              playerStreamStatus.textContent = "● YouTube Video Ready";
+              playerStreamStatus.textContent = "● Paused";
               playerStreamStatus.classList.remove("playing");
             }
           }
@@ -787,46 +803,39 @@ function initFormHandler() {
               playerStreamStatus.classList.remove("playing");
             }
           }
-        } else if (streamUrl) {
+          return;
+        }
+
+        if (data.isYouTube && data.videoId) {
           if (isCurrentlyHidden) {
-            // Reveal player only after user clicks Play in Browser!
             previewPlayerWrapper.classList.remove("hidden");
-            if (thumbVideoPoster) {
-              thumbVideoPoster.pause();
-              thumbVideoPoster.classList.add("hidden");
+            videoPreview.classList.add("hidden");
+            audioPreview.classList.add("hidden");
+            if (ytEmbedPreview) {
+              ytEmbedPreview.classList.remove("hidden");
+              ytEmbedPreview.src = `https://www.youtube.com/embed/${data.videoId}?autoplay=1&rel=0`;
             }
-            const playPromise = videoPreview.play();
-            if (playPromise !== undefined) {
-              playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
-            }
-            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
+            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Close Player";
             if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
             if (playerStreamStatus) {
-              playerStreamStatus.textContent = "● Playing Video";
+              playerStreamStatus.textContent = "● Playing in Embedded Player";
               playerStreamStatus.classList.add("playing");
             }
-            // Smoothly bring video into view
             previewPlayerWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          } else if (videoPreview.paused) {
-            const playPromise = videoPreview.play();
-            if (playPromise !== undefined) {
-              playPromise.catch((err) => console.warn("Autoplay deferred:", err.message));
-            }
-            if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Pause Video";
-            if (togglePreviewBtn) togglePreviewBtn.classList.add("playing");
-            if (playerStreamStatus) {
-              playerStreamStatus.textContent = "● Playing Video";
-              playerStreamStatus.classList.add("playing");
-            }
           } else {
-            videoPreview.pause();
+            if (ytEmbedPreview) {
+              ytEmbedPreview.src = "";
+              ytEmbedPreview.classList.add("hidden");
+            }
+            previewPlayerWrapper.classList.add("hidden");
             if (togglePreviewBtnText) togglePreviewBtnText.textContent = "Play Video in Browser";
             if (togglePreviewBtn) togglePreviewBtn.classList.remove("playing");
             if (playerStreamStatus) {
-              playerStreamStatus.textContent = "● Paused";
+              playerStreamStatus.textContent = "● YouTube Video Ready";
               playerStreamStatus.classList.remove("playing");
             }
           }
+          return;
         }
       };
 
@@ -956,21 +965,6 @@ function initFormHandler() {
       };
       downloadButtonsGrid.appendChild(copyBtn);
 
-      // Dedicated Telegram Bot Download for YouTube
-      if (data.isYouTube) {
-        const botBtn = document.createElement("a");
-        botBtn.id = "btn-youtube-fast-bot";
-        botBtn.href = "https://t.me/OmniStream34_bot";
-        botBtn.target = "_blank";
-        botBtn.rel = "noopener noreferrer";
-        botBtn.className = "btn-stream-dl btn-stream-bot";
-        botBtn.style.cssText = "text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg, #0088cc 0%, #005f8d 100%);color:#fff;font-weight:700;font-size:14px;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 4px 15px rgba(0,136,204,0.4);margin-top:4px;";
-        botBtn.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 6.75a2.25 2.25 0 0 0 .126 4.19l4.57 1.48 1.83 5.48a1.5 1.5 0 0 0 2.66.38l2.76-3.23 4.9 3.68a2.25 2.25 0 0 0 3.53-1.42l3-15a2.25 2.25 0 0 0-2.854-2.525z"/></svg>
-          <span>🤖 Fast Bot Download (@OmniStream34_bot)</span>
-        `;
-        downloadButtonsGrid.appendChild(botBtn);
-      }
 
       // Scroll smoothly to result
       resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1045,52 +1039,74 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
 
     const isYtUrl = mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be");
 
-    // 1. Primary: Official Cloudflare Edge Worker API (omnistream-api)
-    try {
-      if (isYtUrl) {
-        updateStatus("⚡ Merging Stream (10-20s)...");
-      } else {
-        updateStatus("Resolving Stream...");
+    // 1. Primary for YouTube: Direct High-Speed Stream Engine (Direct MP4/MP3)
+    if (isYtUrl) {
+      updateStatus("Resolving YouTube Media Stream...");
+      const tioMirrors = [
+        "https://backend1.tioo.eu.org/youtube?url=",
+        "https://backend2.tioo.eu.org/youtube?url="
+      ];
+      for (const mirror of tioMirrors) {
+        if (directStream) break;
+        try {
+          const resp = await fetch(mirror + encodeURIComponent(mediaUrl), {
+            headers: {
+              "User-Agent": "btch/3.0.9",
+              "X-Client-Version": "3.0.9"
+            },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json && json.status && (json.mp4 || json.mp3)) {
+              directStream = mode === "audio" ? (json.mp3 || json.mp4) : (json.mp4 || json.mp3);
+            }
+          }
+        } catch (_) {}
       }
-
-      const resp = await fetch("https://omnistream-api.alexraselchodhury.workers.dev", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({
-          url: mediaUrl,
-          videoQuality: mode === "audio" ? "auto" : "720",
-          downloadMode: mode === "audio" ? "audio" : "auto",
-          youtubeVideoCodec: "h264",
-          audioFormat: "mp3",
-          alwaysProxy: true
-        }),
-        // YouTube requires up to 45s for video+audio merging on backend
-        signal: AbortSignal.timeout(isYtUrl ? 45000 : 12000)
-      });
-
-      if (resp.ok) {
-        const json = await resp.json();
-        // Standard Cobalt & Custom Worker Payload Parsing
-        if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
-          directStream = json.url;
-        } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
-          const item = json.picker.find(p => p.type === "video") || json.picker[0];
-          directStream = item?.url;
-        } else if (json.download_url || json.downloadUrl) {
-          directStream = json.download_url || json.downloadUrl;
-        } else if (json.url && typeof json.url === "string") {
-          directStream = json.url;
-        }
-        if (mode === "audio" && json.audio) {
-          directStream = json.audio;
-        }
-      }
-    } catch (edgeErr) {
-      console.warn("Primary Edge Worker API warning:", edgeErr.message);
     }
 
-    // 2. Secondary: Cobalt Mirror Gateways Fallback
+    // 2. Secondary: Official Cloudflare Edge Worker API (omnistream-api) for other platforms or fallback
     if (!directStream) {
+      try {
+        updateStatus("Resolving Stream...");
+        const resp = await fetch("https://omnistream-api.alexraselchodhury.workers.dev", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({
+            url: mediaUrl,
+            videoQuality: mode === "audio" ? "auto" : "720",
+            downloadMode: mode === "audio" ? "audio" : "auto",
+            youtubeVideoCodec: "h264",
+            audioFormat: "mp3",
+            alwaysProxy: true
+          }),
+          signal: AbortSignal.timeout(isYtUrl ? 15000 : 8000)
+        });
+
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.status === "tunnel" || json.status === "redirect" || json.status === "stream") {
+            directStream = json.url;
+          } else if (json.status === "picker" && Array.isArray(json.picker) && json.picker.length > 0) {
+            const item = json.picker.find(p => p.type === "video") || json.picker[0];
+            directStream = item?.url;
+          } else if (json.download_url || json.downloadUrl) {
+            directStream = json.download_url || json.downloadUrl;
+          } else if (json.url && typeof json.url === "string") {
+            directStream = json.url;
+          }
+          if (mode === "audio" && json.audio) {
+            directStream = json.audio;
+          }
+        }
+      } catch (edgeErr) {
+        console.warn("Primary Edge Worker API warning:", edgeErr.message);
+      }
+    }
+
+    // 3. Multi-Gateway Cobalt Mirrors Fallback
+    if (!directStream && !isYtUrl) {
       const mirrorGateways = [
         "https://cobalt-latest-a04h.onrender.com",
         "https://cobalt.api.redstream.org"
@@ -1109,7 +1125,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
               audioFormat: "mp3",
               alwaysProxy: true
             }),
-            signal: AbortSignal.timeout(isYtUrl ? 15000 : 5000)
+            signal: AbortSignal.timeout(5000)
           });
           if (mResp.ok) {
             const mJson = await mResp.json();
@@ -1121,7 +1137,7 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       }
     }
 
-    // 3. Server API fallback if available
+    // 4. Server API fallback if available
     if (!directStream) {
       updateStatus("Querying Engine...");
       try {
@@ -1140,21 +1156,6 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       } catch (_) {}
     }
 
-    // 4. Dedicated Server YouTube endpoint fallback
-    if (!directStream && isYtUrl) {
-      try {
-        const ytRes = await fetch(`/api/youtube?url=${encodeURIComponent(mediaUrl)}&format=${mode === 'audio' ? 'mp3' : '720'}`, {
-          signal: AbortSignal.timeout(8000)
-        });
-        if (ytRes.ok) {
-          const yJson = await ytRes.json();
-          if (yJson && yJson.url) {
-            directStream = yJson.url;
-          }
-        }
-      } catch (_) {}
-    }
-
     if (directStream && directStream.startsWith("http")) {
       btn.classList.remove("btn-downloading");
       btn.disabled = false;
@@ -1162,21 +1163,8 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
       return;
     }
 
-    // Clean fallback feedback
-    if (isYtUrl) {
-      updateStatus("🚀 Opening Telegram Bot for 1-Click Download...");
-      const botEl = document.getElementById("btn-youtube-fast-bot");
-      if (botEl) {
-        botEl.scrollIntoView({ behavior: "smooth", block: "center" });
-        botEl.style.outline = "2px solid #fff";
-        setTimeout(() => { if (botEl) botEl.style.outline = "none"; }, 3000);
-      }
-      setTimeout(() => {
-        window.open("https://t.me/OmniStream34_bot", "_blank");
-      }, 400);
-    } else {
-      updateStatus("⚠️ Stream Offline");
-    }
+    // Clean feedback without redirecting away from website
+    updateStatus("⚠️ Stream Offline - Please retry");
     setTimeout(() => {
       btn.innerHTML = originalHtml;
       btn.classList.remove("btn-downloading");
@@ -1574,6 +1562,49 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
   // Pre-fetch platform rich metadata & thumbnail in parallel
   const metaPromise = fetchPlatformMetadata(url);
 
+  // 2. Dedicated YouTube Engine (Direct Stream Resolver)
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    const tioMirrors = [
+      "https://backend1.tioo.eu.org/youtube?url=",
+      "https://backend2.tioo.eu.org/youtube?url="
+    ];
+
+    for (const mirror of tioMirrors) {
+      try {
+        const resp = await fetch(mirror + encodeURIComponent(url), {
+          headers: {
+            "User-Agent": "btch/3.0.9",
+            "X-Client-Version": "3.0.9"
+          },
+          signal: AbortSignal.timeout(9000)
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.status && (json.mp4 || json.mp3)) {
+            const meta = await metaPromise.catch(() => ({}));
+            const vUrl = json.mp4 || json.mp3;
+            const aUrl = json.mp3 || json.mp4;
+            const finalTitle = json.title || meta.title || 'YouTube Video';
+            const finalAuthor = json.author || meta.author || 'YouTube Channel';
+            const finalThumb = json.thumbnail || meta.thumbnail;
+
+            return {
+              success: true,
+              platform: 'YouTube',
+              title: finalTitle,
+              author: finalAuthor,
+              thumbnail: finalThumb,
+              videoUrl: isAudio ? null : vUrl,
+              audioUrl: aUrl,
+              quality: isAudio ? '320kbps MP3' : '720p HD',
+              directStream: true
+            };
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
   // 3. Cloudflare Edge Worker API & Multi-Gateway Cobalt Engine
   const gateways = [
     "https://omnistream-api.alexraselchodhury.workers.dev",
@@ -1655,31 +1686,11 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
     } catch (_) {}
   }
 
-  // 4. Dedicated YouTube Fallback Engine
+  // 4. Final YouTube Fallback Check
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
-    const meta = await metaPromise.catch(() => ({}));
-    let videoId = null;
-    const m1 = url.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|(?:watch|watch_popup)\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/(?:v|e(?:mbed)?)\/|.*[?&]v=)([a-zA-Z0-9_-]{11})/i);
-    if (m1 && m1[1]) {
-      videoId = m1[1];
-    }
-    const ytTitle = meta.title && meta.title !== 'YouTube Video' ? meta.title : (videoId ? `YouTube Video (${videoId})` : 'YouTube Video');
-    const ytAuthor = meta.author || 'YouTube Creator';
-    const ytThumb = meta.thumbnail || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null);
-
     return {
-      success: true,
-      platform: 'YouTube',
-      title: ytTitle,
-      author: ytAuthor,
-      thumbnail: ytThumb,
-      videoId: videoId,
-      originalUrl: url,
-      isYouTube: true,
-      videoUrl: null,
-      audioUrl: null,
-      quality: isAudio ? '320kbps MP3' : (mode === '1080' ? '1080p Full HD' : (mode === 'max' ? '4K / 8K Master' : '720p HD')),
-      readyToDownload: true
+      success: false,
+      message: 'Could not extract direct media stream from this YouTube link. Please check if the video is publicly accessible or try another quality.'
     };
   }
 

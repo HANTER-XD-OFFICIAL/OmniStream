@@ -173,23 +173,29 @@ async function resolveYouTube(targetUrl, format = "720") {
   const isAudio = format === "mp3" || format === "audio";
   const reqFmt = isAudio ? "mp3" : (format === "1080" || format === "max" ? "1080" : "720");
 
-  // 1. High-Speed Direct Engine
-  try {
-    const tioRes = await fetch(`https://backend1.tioo.eu.org/youtube?url=${encodeURIComponent(targetUrl)}`, {
-      headers: {
-        "User-Agent": "btch/3.0.9",
-        "X-Client-Version": "3.0.9",
-        "Content-Type": "application/json"
+  // 1. High-Speed Direct Engine (Primary & Secondary mirrors)
+  const tioMirrors = [
+    "https://backend1.tioo.eu.org/youtube?url=",
+    "https://backend2.tioo.eu.org/youtube?url="
+  ];
+  for (const mirror of tioMirrors) {
+    try {
+      const tioRes = await fetch(mirror + encodeURIComponent(targetUrl), {
+        headers: {
+          "User-Agent": "btch/3.0.9",
+          "X-Client-Version": "3.0.9",
+          "Content-Type": "application/json"
+        }
+      });
+      if (tioRes.ok) {
+        const tJson = await tioRes.json();
+        const directUrl = isAudio ? (tJson.mp3 || tJson.mp4) : (tJson.mp4 || tJson.mp3);
+        if (tJson && tJson.status && directUrl) {
+          return { url: directUrl, title: tJson.title || "YouTube_Media" };
+        }
       }
-    });
-    if (tioRes.ok) {
-      const tJson = await tioRes.json();
-      const directUrl = isAudio ? (tJson.mp3 || tJson.mp4) : (tJson.mp4 || tJson.mp3);
-      if (tJson && tJson.status && directUrl) {
-        return { url: directUrl, title: tJson.title || "YouTube_Media" };
-      }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
   const hosts = ["https://loader.to", "https://en.loader.to"];
 
