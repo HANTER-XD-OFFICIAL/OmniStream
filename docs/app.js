@@ -1042,19 +1042,20 @@ async function resolveAndDownloadMedia(mediaUrl, mode, filename, btn, typeLabel 
     // 1. Primary for YouTube: Direct High-Speed Stream Engine (Direct MP4/MP3)
     if (isYtUrl) {
       updateStatus("Resolving YouTube Media Stream...");
+      const ytTargetUrl = mediaUrl.includes("/shorts/")
+        ? mediaUrl.replace("/shorts/", "/watch?v=")
+        : mediaUrl;
       const tioMirrors = [
         "https://backend1.tioo.eu.org/youtube?url=",
+        "https://backend4.tioo.eu.org/youtube?url=",
+        "https://backend3.tioo.eu.org/youtube?url=",
         "https://backend2.tioo.eu.org/youtube?url="
       ];
       for (const mirror of tioMirrors) {
         if (directStream) break;
         try {
-          const resp = await fetch(mirror + encodeURIComponent(mediaUrl), {
-            headers: {
-              "User-Agent": "btch/3.0.9",
-              "X-Client-Version": "3.0.9"
-            },
-            signal: AbortSignal.timeout(8000)
+          const resp = await fetch(mirror + encodeURIComponent(ytTargetUrl), {
+            signal: AbortSignal.timeout(9000)
           });
           if (resp.ok) {
             const json = await resp.json();
@@ -1564,18 +1565,19 @@ async function resolveMediaClientSide(rawUrl, mode = 'auto') {
 
   // 2. Dedicated YouTube Engine (Direct Stream Resolver)
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    const ytTargetUrl = url.includes('/shorts/')
+      ? url.replace('/shorts/', '/watch?v=')
+      : url;
     const tioMirrors = [
       "https://backend1.tioo.eu.org/youtube?url=",
+      "https://backend4.tioo.eu.org/youtube?url=",
+      "https://backend3.tioo.eu.org/youtube?url=",
       "https://backend2.tioo.eu.org/youtube?url="
     ];
 
     for (const mirror of tioMirrors) {
       try {
-        const resp = await fetch(mirror + encodeURIComponent(url), {
-          headers: {
-            "User-Agent": "btch/3.0.9",
-            "X-Client-Version": "3.0.9"
-          },
+        const resp = await fetch(mirror + encodeURIComponent(ytTargetUrl), {
           signal: AbortSignal.timeout(9000)
         });
         if (resp.ok) {

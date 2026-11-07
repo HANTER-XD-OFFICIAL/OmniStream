@@ -438,18 +438,15 @@ async function resolveYouTube(url, mode = 'auto') {
     // 1. Primary: High-Speed Direct Stream Resolver (Direct MP4 / MP3 with fast streaming)
     const tioMirrors = [
       "https://backend1.tioo.eu.org/youtube?url=",
+      "https://backend4.tioo.eu.org/youtube?url=",
+      "https://backend3.tioo.eu.org/youtube?url=",
       "https://backend2.tioo.eu.org/youtube?url="
     ];
     for (const mirror of tioMirrors) {
       for (const targetUrl of targetUrls) {
         try {
           const tioRes = await fetch(mirror + encodeURIComponent(targetUrl), {
-            headers: {
-              "User-Agent": "btch/3.0.9",
-              "X-Client-Version": "3.0.9",
-              "Content-Type": "application/json"
-            },
-            signal: AbortSignal.timeout(6000)
+            signal: AbortSignal.timeout(9000)
           });
           if (tioRes.ok) {
             const tJson = await tioRes.json();
