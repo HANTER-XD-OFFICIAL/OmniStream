@@ -76,6 +76,9 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
 import com.example.ui.theme.liquidGlass
 import com.example.ui.theme.liquidGlassButton
 
@@ -140,9 +143,13 @@ fun DeveloperSupportCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(22.dp))
+            .liquidGlass(
+                shape = LiquidGlassDefaultShape,
+                borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                ambientGlowColor = CyanBright
+            )
             .testTag("developer_support_card"),
-        shape = RoundedCornerShape(22.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(
@@ -350,12 +357,16 @@ fun DeveloperSupportCard(
             ) {
                 Button(
                     onClick = { openWhatsApp() },
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = EmeraldSuccess),
+                    shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF25D366),
+                        containerColor = Color.Transparent,
                         contentColor = Color.Black
-                    )
+                    ),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
                     Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -364,12 +375,16 @@ fun DeveloperSupportCard(
 
                 Button(
                     onClick = { openUrl(devTelegram) },
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright),
+                    shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF229ED9),
-                        contentColor = Color.White
-                    )
+                        containerColor = Color.Transparent,
+                        contentColor = Color.Black
+                    ),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
                     Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -378,12 +393,16 @@ fun DeveloperSupportCard(
 
                 Button(
                     onClick = { openUrl(devFacebook) },
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = NeonPurple),
+                    shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1877F2),
-                        contentColor = Color.White
-                    )
+                        containerColor = Color.Transparent,
+                        contentColor = Color.Black
+                    ),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
                     Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -392,15 +411,20 @@ fun DeveloperSupportCard(
             }
 
             // Dedicated Official Website Action Button
-            Surface(
+            Button(
                 onClick = { openUrl(officialWebsite) },
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF0C2444),
-                border = BorderStroke(1.2.dp, CyanBright),
-                modifier = Modifier.fillMaxWidth()
+                shape = LiquidGlassPillShape,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright, isSecondary = true),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = CyanBright
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -425,10 +449,21 @@ fun DeveloperContactItem(
     onCopyClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = CyberDarkSurface,
-        border = BorderStroke(1.dp, CyberBorder),
-        modifier = Modifier.fillMaxWidth()
+        shape = LiquidGlassInnerShape,
+        color = Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = LiquidGlassInnerShape,
+                borderBrush = LiquidGlassBrushes.SpecularBorderSubtle,
+                backgroundBrush = Brush.verticalGradient(
+                    listOf(
+                        Color(0x2EFFFFFF),
+                        Color(0x38122036),
+                        Color(0x290C1628)
+                    )
+                )
+            )
     ) {
         Row(
             modifier = Modifier

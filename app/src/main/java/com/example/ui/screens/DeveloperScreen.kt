@@ -295,9 +295,13 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(22.dp))
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                        ambientGlowColor = CyanBright
+                    )
                     .testTag("developer_hero_card"),
-                shape = RoundedCornerShape(22.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
@@ -521,56 +525,62 @@ fun DeveloperScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // WhatsApp
-                        Surface(
+                        androidx.compose.material3.Button(
                             onClick = { openWhatsApp() },
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF10B981),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = EmeraldSuccess),
+                            shape = LiquidGlassPillShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
+                            contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(vertical = 10.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Default.Chat, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text("WhatsApp", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.Black)
                             }
                         }
 
                         // Telegram
-                        Surface(
+                        androidx.compose.material3.Button(
                             onClick = { openUrl(devTelegramUrl) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF38BDF8),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright),
+                            shape = LiquidGlassPillShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
+                            contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(vertical = 10.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text("Telegram", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Telegram", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.Black)
                             }
                         }
 
                         // Facebook
-                        Surface(
+                        androidx.compose.material3.Button(
                             onClick = { openUrl(devFacebookUrl) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF3B82F6),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = NeonPurple),
+                            shape = LiquidGlassPillShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
+                            contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(vertical = 10.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Public, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text("Facebook", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                Icon(Icons.Default.Public, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Facebook", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.Black)
                             }
                         }
                     }
@@ -578,15 +588,16 @@ fun DeveloperScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // Dedicated Official Website Button
-                    Surface(
+                    androidx.compose.material3.Button(
                         onClick = { openUrl(officialWebsiteUrl) },
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF0C2444),
-                        border = BorderStroke(1.2.dp, CyanBright),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = LiquidGlassPillShape,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright, isSecondary = true),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = CyanBright),
+                        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -605,16 +616,12 @@ fun DeveloperScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .liquidGlass(
-                        shape = RoundedCornerShape(18.dp),
-                        borderBrush = Brush.linearGradient(
-                            listOf(Color.White.copy(alpha = 0.6f), EmeraldSuccess, Color(0x1F0F172A))
-                        ),
-                        backgroundBrush = Brush.verticalGradient(
-                            listOf(Color(0x38042F2E), Color(0x24021E1E))
-                        )
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.GlowingBorderEmerald,
+                        ambientGlowColor = EmeraldSuccess
                     )
                     .clickable { showPrivacyHubModal = true },
-                shape = RoundedCornerShape(18.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
@@ -671,9 +678,13 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp))
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = if (isUpdateAvailable) LiquidGlassBrushes.GlowingBorderPurple else LiquidGlassBrushes.SpecularBorder,
+                        ambientGlowColor = if (isUpdateAvailable) NeonPurple else null
+                    )
                     .testTag("developer_in_app_update_card"),
-                shape = RoundedCornerShape(20.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
@@ -927,9 +938,12 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(18.dp))
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorder
+                    )
                     .clickable { showSupportHubModal = true },
-                shape = RoundedCornerShape(18.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
@@ -980,8 +994,11 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorderSubtle
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -1030,17 +1047,27 @@ private fun DeveloperActionButtonRow(
     onOpen: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF0F172A),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+        shape = LiquidGlassInnerShape,
+        color = Color.Transparent,
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(
+                shape = LiquidGlassInnerShape,
+                borderBrush = LiquidGlassBrushes.SpecularBorderSubtle,
+                backgroundBrush = Brush.verticalGradient(
+                    listOf(
+                        Color(0x2EFFFFFF),
+                        Color(0x38122036),
+                        Color(0x290C1628)
+                    )
+                )
+            )
             .clickable { onOpen() }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 9.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1051,17 +1078,17 @@ private fun DeveloperActionButtonRow(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(iconBgColor)
-                        .border(0.8.dp, iconColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                        .border(1.dp, iconColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = iconColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
 
@@ -1095,12 +1122,12 @@ private fun DeveloperActionButtonRow(
             // Right: 1-Click Action Button
             Surface(
                 onClick = onOpen,
-                shape = RoundedCornerShape(8.dp),
+                shape = LiquidGlassPillShape,
                 color = buttonBg,
-                border = BorderStroke(1.dp, buttonBorder)
+                border = BorderStroke(1.2.dp, buttonBorder)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(

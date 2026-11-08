@@ -202,32 +202,43 @@ fun MainApp(viewModel: DownloadViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
+                    // Soft ambient elevation glow behind the floating glass pill
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .clip(LiquidGlassPillShape)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        CyanBright.copy(alpha = 0.22f),
+                                        NeonPurple.copy(alpha = 0.20f)
+                                    )
+                                )
+                            )
+                    )
+
                     NavigationBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .liquidGlass(
                                 shape = LiquidGlassPillShape,
-                                borderWidth = 1.2.dp,
-                                borderBrush = Brush.horizontalGradient(
-                                    listOf(
-                                        Color(0x66FFFFFF),
-                                        CyanBright.copy(alpha = 0.5f),
-                                        NeonPurple.copy(alpha = 0.4f),
-                                        Color(0x33FFFFFF)
-                                    )
-                                ),
+                                borderWidth = 1.4.dp,
+                                borderBrush = LiquidGlassBrushes.SpecularBorder,
                                 backgroundBrush = Brush.verticalGradient(
                                     listOf(
-                                        Color(0xD90D1424),
-                                        Color(0xBF101B2E)
+                                        Color(0x38FFFFFF), // Specular low-alpha white highlight overlay
+                                        Color(0xEE0B1426), // Translucent frosted deep glass
+                                        Color(0xD9080F1E)  // Deep atmospheric base
                                     )
                                 )
                             )
                             .testTag("bottom_nav_bar"),
                         containerColor = Color.Transparent,
-                        contentColor = TextPrimary
+                        contentColor = TextPrimary,
+                        tonalElevation = 0.dp
                     ) {
                 // Tab 0: Downloader
                 NavigationBarItem(
@@ -248,9 +259,9 @@ fun MainApp(viewModel: DownloadViewModel) {
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
+                        selectedIconColor = CyanBright,
                         selectedTextColor = CyanBright,
-                        indicatorColor = CyanBright,
+                        indicatorColor = CyanBright.copy(alpha = 0.22f),
                         unselectedIconColor = TextMuted,
                         unselectedTextColor = TextMuted
                     ),
@@ -286,9 +297,9 @@ fun MainApp(viewModel: DownloadViewModel) {
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
+                        selectedIconColor = CyanBright,
                         selectedTextColor = CyanBright,
-                        indicatorColor = CyanBright,
+                        indicatorColor = CyanBright.copy(alpha = 0.22f),
                         unselectedIconColor = TextMuted,
                         unselectedTextColor = TextMuted
                     ),
@@ -314,9 +325,9 @@ fun MainApp(viewModel: DownloadViewModel) {
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
+                        selectedIconColor = CyanBright,
                         selectedTextColor = CyanBright,
-                        indicatorColor = CyanBright,
+                        indicatorColor = CyanBright.copy(alpha = 0.22f),
                         unselectedIconColor = TextMuted,
                         unselectedTextColor = TextMuted
                     ),
@@ -342,9 +353,9 @@ fun MainApp(viewModel: DownloadViewModel) {
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
+                        selectedIconColor = NeonPurple,
                         selectedTextColor = NeonPurple,
-                        indicatorColor = NeonPurple,
+                        indicatorColor = NeonPurple.copy(alpha = 0.25f),
                         unselectedIconColor = TextMuted,
                         unselectedTextColor = TextMuted
                     ),

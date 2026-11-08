@@ -286,9 +286,13 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(22.dp))
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorder,
+                        ambientGlowColor = CyanBright
+                    )
                     .testTag("home_command_header"),
-                shape = RoundedCornerShape(22.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
@@ -425,9 +429,13 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(22.dp))
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                        ambientGlowColor = CyanBright
+                    )
                     .testTag("home_url_input_card"),
-                shape = RoundedCornerShape(22.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -632,11 +640,11 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .height(52.dp)
                             .liquidGlassButton(
-                                shape = RoundedCornerShape(16.dp),
+                                shape = LiquidGlassPillShape,
                                 glowColor = CyanBright
                             )
                             .testTag("fetch_formats_button"),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = LiquidGlassPillShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
                             contentColor = Color.Black
@@ -821,18 +829,19 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .liquidGlass(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = LiquidGlassDefaultShape,
                             borderBrush = LiquidGlassBrushes.ErrorBorder,
-                            backgroundBrush = LiquidGlassBrushes.ErrorGlass
+                            backgroundBrush = LiquidGlassBrushes.ErrorGlass,
+                            ambientGlowColor = Color(0xFFF43F5E)
                         ),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = LiquidGlassDefaultShape,
                     colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Text(
                         text = fetchError ?: "",
                         color = Color(0xFFFECDD3),
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(12.dp)
+                        modifier = Modifier.padding(14.dp)
                     )
                 }
             }
@@ -845,8 +854,12 @@ fun HomeScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .liquidGlass(shape = RoundedCornerShape(22.dp)),
-                    shape = RoundedCornerShape(22.dp),
+                        .liquidGlass(
+                            shape = LiquidGlassDefaultShape,
+                            borderBrush = LiquidGlassBrushes.SpecularBorder,
+                            ambientGlowColor = CyanBright
+                        ),
+                    shape = LiquidGlassDefaultShape,
                     colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -1239,11 +1252,11 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .heightIn(min = 58.dp)
                             .liquidGlassButton(
-                                shape = RoundedCornerShape(18.dp),
+                                shape = LiquidGlassPillShape,
                                 glowColor = if (isAudioSelected) NeonPurple else CyanBright
                             )
                             .testTag("start_download_button"),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = LiquidGlassPillShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
                             contentColor = Color.Black
@@ -1298,11 +1311,11 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .heightIn(min = 54.dp)
                             .liquidGlassButton(
-                                shape = RoundedCornerShape(18.dp),
+                                shape = LiquidGlassPillShape,
                                 glowColor = NeonPurple
                             )
                             .testTag("download_audio_mp3_button"),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = LiquidGlassPillShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
                             contentColor = Color.Black

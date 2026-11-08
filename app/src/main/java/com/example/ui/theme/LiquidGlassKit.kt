@@ -30,77 +30,130 @@ import androidx.compose.ui.unit.dp
  * and animated dynamic refractive light orbs.
  */
 
-val LiquidGlassDefaultShape = RoundedCornerShape(22.dp)
+val LiquidGlassDefaultShape = RoundedCornerShape(24.dp)
 val LiquidGlassInnerShape = RoundedCornerShape(16.dp)
 val LiquidGlassPillShape = RoundedCornerShape(32.dp)
+val LiquidGlassModalShape = RoundedCornerShape(28.dp)
 
 object LiquidGlassBrushes {
+    // Distinct soft specular border with chromatic refraction highlights
     val SpecularBorder = Brush.linearGradient(
         listOf(
-            Color(0x73FFFFFF),
-            Color(0x3838BDF8),
-            Color(0x140F172A),
-            Color(0x4DA855F7)
+            Color(0x8CFFFFFF), // Crisp specular white edge
+            Color(0x5938BDF8), // Cyan glow refraction
+            Color(0x1F0F172A), // Shadow bevel
+            Color(0x59C084FC)  // Soft purple chromatic edge
         )
     )
 
     val SpecularBorderSubtle = Brush.linearGradient(
         listOf(
-            Color(0x40FFFFFF),
-            Color(0x2038BDF8),
-            Color(0x100F172A),
-            Color(0x28A855F7)
+            Color(0x59FFFFFF),
+            Color(0x3338BDF8),
+            Color(0x140F172A),
+            Color(0x38A855F7)
         )
     )
 
+    val GlowingBorderCyan = Brush.linearGradient(
+        listOf(
+            Color(0x99FFFFFF),
+            CyanBright,
+            Color(0x260F172A),
+            CyanBright.copy(alpha = 0.75f)
+        )
+    )
+
+    val GlowingBorderPurple = Brush.linearGradient(
+        listOf(
+            Color(0x99FFFFFF),
+            NeonPurple,
+            Color(0x260F172A),
+            NeonPurple.copy(alpha = 0.75f)
+        )
+    )
+
+    val GlowingBorderEmerald = Brush.linearGradient(
+        listOf(
+            Color(0x99FFFFFF),
+            EmeraldSuccess,
+            Color(0x260F172A),
+            EmeraldSuccess.copy(alpha = 0.75f)
+        )
+    )
+
+    // True frosted glass surfaces with low-alpha white overlay + translucent dark sapphire base
     val CardBackground = Brush.verticalGradient(
         listOf(
-            Color(0x4D1B2D4D),
-            Color(0x33101E36),
-            Color(0x401C3154)
+            Color(0x26FFFFFF), // Specular low-alpha white frosted overlay
+            Color(0x4014233D), // Semi-transparent sapphire glass
+            Color(0x4D0E1A2E)  // Deep atmospheric base
         )
     )
 
     val CardBackgroundElevated = Brush.verticalGradient(
         listOf(
-            Color(0x66223B64),
-            Color(0x47142442),
-            Color(0x52233E68)
+            Color(0x33FFFFFF), // Elevated low-alpha white highlight
+            Color(0x521D3254), // Ambient glow core
+            Color(0x5C13223A)  // Deep rich backing
+        )
+    )
+
+    val ModalGlassBackground = Brush.verticalGradient(
+        listOf(
+            Color(0x38FFFFFF), // Top specular reflection overlay
+            Color(0xEE0B1528), // High opacity frosted glass for dialog legibility
+            Color(0xF2070E1C)  // Dark foundation
         )
     )
 
     val InputBackground = Brush.verticalGradient(
         listOf(
-            Color(0x380F1B2E),
-            Color(0x260A121F)
+            Color(0x3D0F1C30),
+            Color(0x290A1322)
         )
     )
 
     val ErrorGlass = Brush.verticalGradient(
         listOf(
+            Color(0x40FFFFFF),
             Color(0x594C0519),
-            Color(0x332E0510)
+            Color(0x4D2E0510)
         )
     )
 
     val ErrorBorder = Brush.linearGradient(
         listOf(
+            Color(0x99FFFFFF),
             Color(0x80F43F5E),
-            Color(0x40FB7185),
-            Color(0x1AE11D48)
+            Color(0x33E11D48),
+            Color(0x66FB7185)
         )
     )
 }
 
 /**
- * Liquid Glass frosted card background modifier with gradient refraction and specular border.
+ * Liquid Glass frosted card background modifier with gradient refraction,
+ * low-alpha white overlay, and distinct specular border.
  */
 fun Modifier.liquidGlass(
     shape: Shape = LiquidGlassDefaultShape,
     borderBrush: Brush = LiquidGlassBrushes.SpecularBorder,
     backgroundBrush: Brush = LiquidGlassBrushes.CardBackground,
-    borderWidth: Dp = 1.2.dp
+    borderWidth: Dp = 1.3.dp,
+    ambientGlowColor: Color? = null
 ): Modifier = this
+    .then(
+        if (ambientGlowColor != null) {
+            Modifier.drawBehind {
+                drawCircle(
+                    color = ambientGlowColor.copy(alpha = 0.18f),
+                    radius = size.maxDimension * 0.55f,
+                    center = center
+                )
+            }
+        } else Modifier
+    )
     .clip(shape)
     .background(backgroundBrush)
     .border(width = borderWidth, brush = borderBrush, shape = shape)
@@ -118,26 +171,26 @@ fun Modifier.liquidGlassButton(
         if (isSecondary) {
             Brush.horizontalGradient(
                 listOf(
-                    Color(0x401E293B),
-                    Color(0x59334155)
+                    Color(0x4D1E293B),
+                    Color(0x66334155)
                 )
             )
         } else {
             Brush.horizontalGradient(
                 listOf(
-                    glowColor.copy(alpha = 0.90f),
-                    NeonPurple.copy(alpha = 0.85f)
+                    glowColor.copy(alpha = 0.92f),
+                    NeonPurple.copy(alpha = 0.88f)
                 )
             )
         }
     )
     .border(
-        width = 1.2.dp,
+        width = 1.3.dp,
         brush = Brush.horizontalGradient(
             listOf(
-                Color.White.copy(alpha = 0.7f),
-                glowColor.copy(alpha = 0.5f),
-                Color.White.copy(alpha = 0.3f)
+                Color.White.copy(alpha = 0.8f),
+                glowColor.copy(alpha = 0.6f),
+                Color.White.copy(alpha = 0.35f)
             )
         ),
         shape = shape
@@ -156,34 +209,35 @@ fun Modifier.liquidGlassChip(
         if (isSelected) {
             Brush.horizontalGradient(
                 listOf(
-                    accentColor.copy(alpha = 0.28f),
-                    NeonPurple.copy(alpha = 0.22f)
+                    accentColor.copy(alpha = 0.32f),
+                    NeonPurple.copy(alpha = 0.25f)
                 )
             )
         } else {
             Brush.horizontalGradient(
                 listOf(
-                    Color(0x2B1A2840),
-                    Color(0x1F111E30)
+                    Color(0x331E2E4A),
+                    Color(0x24111D30)
                 )
             )
         }
     )
     .border(
-        width = 1.dp,
+        width = 1.1.dp,
         brush = if (isSelected) {
             Brush.horizontalGradient(
                 listOf(
-                    Color.White.copy(alpha = 0.6f),
-                    accentColor.copy(alpha = 0.8f)
+                    Color.White.copy(alpha = 0.7f),
+                    accentColor.copy(alpha = 0.85f),
+                    Color.White.copy(alpha = 0.3f)
                 )
             )
         } else {
             Brush.horizontalGradient(
                 listOf(
-                    Color.White.copy(alpha = 0.25f),
-                    accentColor.copy(alpha = 0.35f),
-                    Color.White.copy(alpha = 0.1f)
+                    Color.White.copy(alpha = 0.35f),
+                    accentColor.copy(alpha = 0.45f),
+                    Color.White.copy(alpha = 0.15f)
                 )
             )
         },

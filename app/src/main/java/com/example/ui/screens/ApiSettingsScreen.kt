@@ -153,8 +153,12 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(22.dp)),
-                shape = RoundedCornerShape(22.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                        ambientGlowColor = CyanBright
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Box(
@@ -331,9 +335,13 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp))
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = if (isUpdateAvailable) LiquidGlassBrushes.GlowingBorderPurple else LiquidGlassBrushes.SpecularBorder,
+                        ambientGlowColor = if (isUpdateAvailable) NeonPurple else null
+                    )
                     .testTag("in_app_update_card"),
-                shape = RoundedCornerShape(20.dp),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
@@ -587,8 +595,12 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                        ambientGlowColor = CyanBright
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -763,8 +775,12 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorder,
+                        ambientGlowColor = CyanAccent
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1234,8 +1250,11 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorderSubtle
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1292,8 +1311,11 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorderSubtle
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1376,8 +1398,11 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlass(shape = RoundedCornerShape(18.dp)),
-                shape = RoundedCornerShape(18.dp),
+                    .liquidGlass(
+                        shape = LiquidGlassDefaultShape,
+                        borderBrush = LiquidGlassBrushes.SpecularBorderSubtle
+                    ),
+                shape = LiquidGlassDefaultShape,
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
@@ -1420,11 +1445,12 @@ fun ApiSettingsScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(54.dp)
+                    .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright)
                     .testTag("save_settings_button"),
-                shape = RoundedCornerShape(14.dp),
+                shape = LiquidGlassPillShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CyanBright,
+                    containerColor = Color.Transparent,
                     contentColor = Color.Black
                 )
             ) {
