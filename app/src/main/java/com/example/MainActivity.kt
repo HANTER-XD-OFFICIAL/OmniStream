@@ -65,10 +65,15 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.theme.CyberBlack
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyanBright
+import com.example.ui.theme.LiquidGlassAtmosphere
+import com.example.ui.theme.LiquidGlassPillShape
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.liquidGlass
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.fillMaxWidth
 
 class MainActivity : ComponentActivity() {
 
@@ -185,19 +190,45 @@ fun MainApp(viewModel: DownloadViewModel) {
         )
     }
 
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CyberBlack),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            NavigationBar(
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .testTag("bottom_nav_bar"),
-                containerColor = CyberDarkSurface,
-                contentColor = TextPrimary
-            ) {
+    LiquidGlassAtmosphere {
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Transparent),
+            containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    NavigationBar(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liquidGlass(
+                                shape = LiquidGlassPillShape,
+                                borderWidth = 1.2.dp,
+                                borderBrush = Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0x66FFFFFF),
+                                        CyanBright.copy(alpha = 0.5f),
+                                        NeonPurple.copy(alpha = 0.4f),
+                                        Color(0x33FFFFFF)
+                                    )
+                                ),
+                                backgroundBrush = Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xD90D1424),
+                                        Color(0xBF101B2E)
+                                    )
+                                )
+                            )
+                            .testTag("bottom_nav_bar"),
+                        containerColor = Color.Transparent,
+                        contentColor = TextPrimary
+                    ) {
                 // Tab 0: Downloader
                 NavigationBarItem(
                     selected = currentTab == 0,
@@ -319,34 +350,36 @@ fun MainApp(viewModel: DownloadViewModel) {
                     ),
                     modifier = Modifier.testTag("nav_tab_developer")
                 )
+                    }
+                }
             }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(CyberBlack)
-                .padding(innerPadding)
-        ) {
-            Crossfade(targetState = currentTab, label = "tab_crossfade") { tab ->
-                when (tab) {
-                    0 -> HomeScreen(
-                        viewModel = viewModel,
-                        onNavigateToDownloads = { currentTab = 1 },
-                        onNavigateToSettings = { currentTab = 2 }
-                    )
-                    1 -> DownloadsScreen(
-                        viewModel = viewModel,
-                        onNavigateToHome = { currentTab = 0 }
-                    )
-                    2 -> ApiSettingsScreen(
-                        viewModel = viewModel,
-                        onCheckForUpdates = { appUpdateManager.checkForUpdates(isManual = true) }
-                    )
-                    3 -> DeveloperScreen(
-                        onNavigateToHome = { currentTab = 0 },
-                        onCheckForUpdates = { appUpdateManager.checkForUpdates(isManual = true) }
-                    )
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Transparent)
+                    .padding(innerPadding)
+            ) {
+                Crossfade(targetState = currentTab, label = "tab_crossfade") { tab ->
+                    when (tab) {
+                        0 -> HomeScreen(
+                            viewModel = viewModel,
+                            onNavigateToDownloads = { currentTab = 1 },
+                            onNavigateToSettings = { currentTab = 2 }
+                        )
+                        1 -> DownloadsScreen(
+                            viewModel = viewModel,
+                            onNavigateToHome = { currentTab = 0 }
+                        )
+                        2 -> ApiSettingsScreen(
+                            viewModel = viewModel,
+                            onCheckForUpdates = { appUpdateManager.checkForUpdates(isManual = true) }
+                        )
+                        3 -> DeveloperScreen(
+                            onNavigateToHome = { currentTab = 0 },
+                            onCheckForUpdates = { appUpdateManager.checkForUpdates(isManual = true) }
+                        )
+                    }
                 }
             }
         }

@@ -96,6 +96,11 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
+import com.example.ui.theme.liquidGlassChip
 
 /**
  * Dedicated Developer Hub Screen (4th Tab in Navigation Bar)
@@ -290,19 +295,10 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(22.dp))
                     .testTag("developer_hero_card"),
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(
-                    1.4.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            CyanBright.copy(alpha = 0.9f),
-                            NeonPurple.copy(alpha = 0.6f),
-                            Color(0xFF0F172A)
-                        )
-                    )
-                )
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     // Profile Header
@@ -608,10 +604,18 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(18.dp),
+                        borderBrush = Brush.linearGradient(
+                            listOf(Color.White.copy(alpha = 0.6f), EmeraldSuccess, Color(0x1F0F172A))
+                        ),
+                        backgroundBrush = Brush.verticalGradient(
+                            listOf(Color(0x38042F2E), Color(0x24021E1E))
+                        )
+                    )
                     .clickable { showPrivacyHubModal = true },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF042F2E).copy(alpha = 0.5f)),
-                border = BorderStroke(1.2.dp, EmeraldSuccess.copy(alpha = 0.6f))
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
                     modifier = Modifier
@@ -667,18 +671,10 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp))
                     .testTag("developer_in_app_update_card"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            if (isUpdateAvailable) NeonPurple else CyanBright.copy(alpha = 0.5f),
-                            CyberBorder
-                        )
-                    )
-                )
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -931,10 +927,10 @@ fun DeveloperScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(18.dp))
                     .clickable { showSupportHubModal = true },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
                     modifier = Modifier
@@ -982,10 +978,11 @@ fun DeveloperScreen(
         // Developer Mission & Technical Architecture
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

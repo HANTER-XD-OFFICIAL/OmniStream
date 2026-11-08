@@ -78,6 +78,12 @@ import com.example.ui.theme.RoseError
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import androidx.compose.ui.graphics.Brush
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
+import com.example.ui.theme.liquidGlassChip
 
 @Composable
 fun DownloadsScreen(
@@ -136,10 +142,17 @@ fun DownloadsScreen(
 
             // Location Banner
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                color = CyberDarkSurface,
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(16.dp),
+                        borderBrush = LiquidGlassBrushes.SpecularBorderSubtle,
+                        backgroundBrush = Brush.verticalGradient(
+                            listOf(Color(0x33101E36), Color(0x220B1424))
+                        )
+                    ),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.Transparent
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -192,10 +205,12 @@ fun DownloadsScreen(
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0x380F1B2E),
+                    unfocusedContainerColor = Color(0x260A121F),
                     focusedBorderColor = CyanBright,
-                    unfocusedBorderColor = CyberBorder,
+                    unfocusedBorderColor = Color(0x4038BDF8),
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary,
                     cursorColor = CyanBright
@@ -261,18 +276,23 @@ fun DownloadItemCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                borderBrush = when {
+                    isDownloading -> Brush.linearGradient(listOf(Color.White.copy(alpha = 0.8f), CyanBright, Color.White.copy(alpha = 0.3f)))
+                    isCompleted -> Brush.linearGradient(listOf(Color.White.copy(alpha = 0.5f), EmeraldSuccess, Color(0x1F0F172A)))
+                    isFailed -> LiquidGlassBrushes.ErrorBorder
+                    else -> LiquidGlassBrushes.SpecularBorderSubtle
+                },
+                backgroundBrush = when {
+                    isDownloading -> LiquidGlassBrushes.CardBackgroundElevated
+                    isFailed -> LiquidGlassBrushes.ErrorGlass
+                    else -> LiquidGlassBrushes.CardBackground
+                }
+            )
             .testTag("download_item_${item.id}"),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-        border = BorderStroke(
-            1.dp,
-            when {
-                isDownloading -> CyanBright.copy(alpha = 0.5f)
-                isCompleted -> EmeraldSuccess.copy(alpha = 0.3f)
-                isFailed -> RoseError.copy(alpha = 0.3f)
-                else -> CyberBorder
-            }
-        )
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -418,14 +438,18 @@ fun DownloadItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isCompleted) {
-                    OutlinedButton(
+                    androidx.compose.material3.Button(
                         onClick = onPlay,
-                        modifier = Modifier.height(34.dp).testTag("play_button_${item.id}"),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            contentColor = CyanBright
+                        modifier = Modifier
+                            .height(36.dp)
+                            .liquidGlassButton(shape = RoundedCornerShape(12.dp), glowColor = CyanBright)
+                            .testTag("play_button_${item.id}"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.Black
                         ),
-                        border = BorderStroke(1.dp, CyanBright)
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -494,16 +518,20 @@ fun StatusPill(status: DownloadStatus) {
 fun FilterTabChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) CyanBright.copy(alpha = 0.2f) else CyberDarkSurface,
-        border = BorderStroke(1.dp, if (isSelected) CyanBright else CyberBorder)
+        shape = LiquidGlassPillShape,
+        color = Color.Transparent,
+        modifier = Modifier.liquidGlassChip(
+            shape = LiquidGlassPillShape,
+            accentColor = CyanBright,
+            isSelected = isSelected
+        )
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
+            fontSize = 11.5.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
             color = if (isSelected) CyanBright else TextSecondary,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
         )
     }
 }
@@ -555,11 +583,14 @@ fun EmptyDownloadsState(onNavigateToHome: () -> Unit) {
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            OutlinedButton(
+            androidx.compose.material3.Button(
                 onClick = onNavigateToHome,
-                shape = RoundedCornerShape(10.dp),
-                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = CyanBright),
-                border = BorderStroke(1.dp, CyanBright)
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.liquidGlassButton(shape = RoundedCornerShape(14.dp), glowColor = CyanBright),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = Color.Black
+                )
             ) {
                 Text("Go to Downloader", fontWeight = FontWeight.Bold)
             }

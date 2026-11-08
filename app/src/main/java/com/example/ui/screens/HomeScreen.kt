@@ -126,6 +126,13 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
+import com.example.ui.theme.liquidGlassChip
 
 import com.example.ui.components.StoragePermissionDialog
 import com.example.ui.components.StoragePermissionHelper
@@ -279,10 +286,10 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(22.dp))
                     .testTag("home_command_header"),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CyanBright.copy(alpha = 0.7f), NeonPurple.copy(alpha = 0.5f))))
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
                     modifier = Modifier
@@ -418,10 +425,10 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(22.dp))
                     .testTag("home_url_input_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.2.dp, Brush.verticalGradient(listOf(CyberBorder, CyanBright.copy(alpha = 0.35f))))
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     // Header Bar of Input Box
@@ -566,10 +573,10 @@ fun HomeScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = CyberBlack.copy(alpha = 0.7f),
-                            unfocusedContainerColor = CyberBlack.copy(alpha = 0.5f),
+                            focusedContainerColor = Color(0x380F1B2E),
+                            unfocusedContainerColor = Color(0x260A121F),
                             focusedBorderColor = CyanBright,
-                            unfocusedBorderColor = CyberBorder,
+                            unfocusedBorderColor = Color(0x4038BDF8),
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary,
                             cursorColor = CyanBright
@@ -623,9 +630,13 @@ fun HomeScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(52.dp)
+                            .liquidGlassButton(
+                                shape = RoundedCornerShape(16.dp),
+                                glowColor = CyanBright
+                            )
                             .testTag("fetch_formats_button"),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
                             contentColor = Color.Black
@@ -807,10 +818,15 @@ fun HomeScreen(
         if (fetchError != null) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF4C0519)),
-                    border = BorderStroke(1.dp, Color(0xFFBE123C))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(
+                            shape = RoundedCornerShape(16.dp),
+                            borderBrush = LiquidGlassBrushes.ErrorBorder,
+                            backgroundBrush = LiquidGlassBrushes.ErrorGlass
+                        ),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Text(
                         text = fetchError ?: "",
@@ -827,10 +843,11 @@ fun HomeScreen(
         if (info != null) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(shape = RoundedCornerShape(22.dp)),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         // Thumbnail & Meta
@@ -978,9 +995,11 @@ fun HomeScreen(
                         // Category Tabs: Dynamic Quality Matrix vs Raw Streams vs Controller
                         TabRow(
                             selectedTabIndex = selectedTab,
-                            containerColor = CyberDarkSurface,
+                            containerColor = Color(0x2E14223A),
                             contentColor = CyanBright,
-                            modifier = Modifier.clip(RoundedCornerShape(10.dp)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.dp, Color(0x3838BDF8), RoundedCornerShape(12.dp)),
                             indicator = { tabPositions ->
                                 TabRowDefaults.SecondaryIndicator(
                                     modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
@@ -1150,10 +1169,17 @@ fun HomeScreen(
             // Storage Location Indicator
             item {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    color = CyberDarkSurface,
-                    border = BorderStroke(1.dp, CyberBorder)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(
+                            shape = RoundedCornerShape(14.dp),
+                            borderBrush = LiquidGlassBrushes.SpecularBorderSubtle,
+                            backgroundBrush = Brush.verticalGradient(
+                                listOf(Color(0x33101E36), Color(0x220B1424))
+                            )
+                        ),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -1211,11 +1237,15 @@ fun HomeScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 56.dp)
+                            .heightIn(min = 58.dp)
+                            .liquidGlassButton(
+                                shape = RoundedCornerShape(18.dp),
+                                glowColor = if (isAudioSelected) NeonPurple else CyanBright
+                            )
                             .testTag("start_download_button"),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isAudioSelected) NeonPurple else CyanBright,
+                            containerColor = Color.Transparent,
                             contentColor = Color.Black
                         ),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -1254,7 +1284,7 @@ fun HomeScreen(
                     }
 
                     // Direct MP3 320k Audio Extract Button (Always Active for Any Video)
-                    OutlinedButton(
+                    Button(
                         onClick = {
                             if (!StoragePermissionHelper.hasStoragePermission(context)) {
                                 pendingDownloadAudioOnly = true
@@ -1266,13 +1296,16 @@ fun HomeScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 52.dp)
+                            .heightIn(min = 54.dp)
+                            .liquidGlassButton(
+                                shape = RoundedCornerShape(18.dp),
+                                glowColor = NeonPurple
+                            )
                             .testTag("download_audio_mp3_button"),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.5.dp, NeonPurple),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = NeonPurple.copy(alpha = 0.12f),
-                            contentColor = NeonPurple
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color.Black
                         ),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -1367,17 +1400,27 @@ fun FormatItemCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .liquidGlass(
+                shape = RoundedCornerShape(14.dp),
+                backgroundBrush = if (isSelected) {
+                    Brush.verticalGradient(
+                        listOf(CyanBright.copy(alpha = 0.22f), Color(0x38101E36))
+                    )
+                } else {
+                    LiquidGlassBrushes.CardBackground
+                },
+                borderBrush = if (isSelected) {
+                    Brush.linearGradient(
+                        listOf(Color.White.copy(alpha = 0.8f), CyanBright, Color.White.copy(alpha = 0.4f))
+                    )
+                } else {
+                    LiquidGlassBrushes.SpecularBorderSubtle
+                }
+            )
             .clickable(onClick = onSelect)
             .testTag("format_card_${format.formatId}"),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) CyanBright.copy(alpha = 0.12f) else CyberDarkSurface
-        ),
-        border = BorderStroke(
-            width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) CyanBright else CyberBorder
-        )
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Row(
             modifier = Modifier
@@ -1447,17 +1490,18 @@ fun FormatItemCard(
 fun DemoChip(label: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = CyberDarkSurface,
-        border = BorderStroke(1.dp, CyberBorder),
-        modifier = Modifier.testTag("demo_chip_$label")
+        shape = LiquidGlassPillShape,
+        color = Color.Transparent,
+        modifier = Modifier
+            .liquidGlassChip(shape = LiquidGlassPillShape, accentColor = CyanBright)
+            .testTag("demo_chip_$label")
     ) {
         Text(
             text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.SemiBold,
             color = CyanAccent,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
         )
     }
 }
@@ -1473,10 +1517,10 @@ private fun HomePlatformsShowcaseCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(shape = RoundedCornerShape(22.dp))
             .testTag("home_platforms_showcase_card"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-        border = BorderStroke(1.dp, CyberBorder)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header
@@ -1631,10 +1675,10 @@ private fun HomeEngineCapabilitiesCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(shape = RoundedCornerShape(22.dp))
             .testTag("home_engine_capabilities_card"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-        border = BorderStroke(1.dp, CyberBorder)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header
@@ -1780,10 +1824,10 @@ private fun HomeHowItWorksCard() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(shape = RoundedCornerShape(22.dp))
             .testTag("home_how_it_works_card"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-        border = BorderStroke(1.dp, CyberBorder)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -1928,10 +1972,15 @@ private fun HomeDeveloperSupportBanner(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(22.dp),
+                borderBrush = Brush.linearGradient(
+                    listOf(Color.White.copy(alpha = 0.7f), CyanBright, NeonPurple)
+                )
+            )
             .testTag("home_developer_support_banner"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-        border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CyanBright.copy(alpha = 0.8f), NeonPurple.copy(alpha = 0.6f))))
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header

@@ -102,6 +102,11 @@ import com.example.ui.theme.RoseError
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
+import com.example.ui.theme.liquidGlassChip
 
 @Composable
 fun ApiSettingsScreen(
@@ -146,19 +151,11 @@ fun ApiSettingsScreen(
         item {
             Spacer(modifier = Modifier.height(4.dp))
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            CyanBright.copy(alpha = 0.55f),
-                            NeonPurple.copy(alpha = 0.35f),
-                            CyberBorder
-                        )
-                    )
-                )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(22.dp)),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Box(
                     modifier = Modifier
@@ -334,18 +331,10 @@ fun ApiSettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp))
                     .testTag("in_app_update_card"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            if (isUpdateAvailable) NeonPurple else CyanBright.copy(alpha = 0.5f),
-                            CyberBorder
-                        )
-                    )
-                )
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -596,15 +585,11 @@ fun ApiSettingsScreen(
         // Custom API URL Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.horizontalGradient(
-                        listOf(CyanBright.copy(alpha = 0.45f), CyberBorder)
-                    )
-                )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -776,10 +761,11 @@ fun ApiSettingsScreen(
         // Telegram Bot Hub Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     // Header Row: Bot Identity + Live Status Badge
@@ -1246,10 +1232,11 @@ fun ApiSettingsScreen(
         // Quality Preferences Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1303,10 +1290,11 @@ fun ApiSettingsScreen(
         // Pro yt-dlp CLI Flags Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1386,10 +1374,11 @@ fun ApiSettingsScreen(
         // Storage Directory Info Card
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                border = BorderStroke(1.dp, CyberBorder)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(shape = RoundedCornerShape(18.dp)),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -1459,15 +1448,16 @@ fun PresetChip(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = if (isActive) CyanBright.copy(alpha = 0.18f) else CyberDarkSurface,
-        border = BorderStroke(
-            1.dp,
-            if (isActive) CyanBright else CyberBorder
+        shape = LiquidGlassPillShape,
+        color = Color.Transparent,
+        modifier = Modifier.liquidGlassChip(
+            shape = LiquidGlassPillShape,
+            accentColor = CyanBright,
+            isSelected = isActive
         )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isActive) {
@@ -1498,12 +1488,16 @@ fun QualitySelectionChip(
 ) {
     Surface(
         onClick = onSelect,
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) accentColor.copy(alpha = 0.2f) else CyberDarkSurface,
-        border = BorderStroke(1.dp, if (isSelected) accentColor else CyberBorder)
+        shape = LiquidGlassPillShape,
+        color = Color.Transparent,
+        modifier = Modifier.liquidGlassChip(
+            shape = LiquidGlassPillShape,
+            accentColor = accentColor,
+            isSelected = isSelected
+        )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSelected) {
@@ -1512,7 +1506,7 @@ fun QualitySelectionChip(
             }
             Text(
                 text = label,
-                fontSize = 11.sp,
+                fontSize = 11.5.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = if (isSelected) accentColor else TextSecondary
             )

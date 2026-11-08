@@ -75,6 +75,9 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 
 @Composable
 fun DeveloperSupportCard(
@@ -137,10 +140,10 @@ fun DeveloperSupportCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .liquidGlass(shape = RoundedCornerShape(22.dp))
             .testTag("developer_support_card"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-        border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CyanBright, NeonPurple, EmeraldSuccess)))
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(
             modifier = Modifier

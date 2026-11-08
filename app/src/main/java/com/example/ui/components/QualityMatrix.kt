@@ -50,6 +50,8 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.liquidGlass
 
 data class QualityTier(
     val id: String,
@@ -299,10 +301,10 @@ fun QualityMatrixView(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidGlass(shape = RoundedCornerShape(22.dp))
             .testTag("quality_matrix_container"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-        border = BorderStroke(1.dp, CyberBorder)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // Matrix Header with live stats
@@ -546,17 +548,17 @@ fun QualityTierCard(
     val fmt = tier.matchingFormat
 
     val containerColor = when {
-        isSelected -> CyanBright.copy(alpha = 0.14f)
-        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.08f)
-        isAvailable -> Color(0xFF0B132B)
-        else -> Color(0xFF060911)
+        isSelected -> CyanBright.copy(alpha = 0.20f)
+        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.14f)
+        isAvailable -> Color(0x38142442)
+        else -> Color(0x1F0B1322)
     }
 
     val borderColor = when {
         isSelected -> CyanBright
-        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.6f)
-        isAvailable -> tier.badgeColor.copy(alpha = 0.4f)
-        else -> CyberBorder.copy(alpha = 0.3f)
+        tier.isRecommended -> EmeraldSuccess.copy(alpha = 0.8f)
+        isAvailable -> tier.badgeColor.copy(alpha = 0.5f)
+        else -> Color(0x2BFFFFFF)
     }
 
     val borderStrokeWidth = when {
