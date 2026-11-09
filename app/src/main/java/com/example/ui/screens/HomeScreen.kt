@@ -1530,9 +1530,13 @@ private fun HomePlatformsShowcaseCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(22.dp))
+            .liquidGlass(
+                shape = LiquidGlassDefaultShape,
+                borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                ambientGlowColor = CyanBright
+            )
             .testTag("home_platforms_showcase_card"),
-        shape = RoundedCornerShape(22.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1688,9 +1692,13 @@ private fun HomeEngineCapabilitiesCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(22.dp))
+            .liquidGlass(
+                shape = LiquidGlassDefaultShape,
+                borderBrush = LiquidGlassBrushes.GlowingBorderPurple,
+                ambientGlowColor = NeonPurple
+            )
             .testTag("home_engine_capabilities_card"),
-        shape = RoundedCornerShape(22.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1837,9 +1845,12 @@ private fun HomeHowItWorksCard() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(22.dp))
+            .liquidGlass(
+                shape = LiquidGlassDefaultShape,
+                borderBrush = LiquidGlassBrushes.SpecularBorder
+            )
             .testTag("home_how_it_works_card"),
-        shape = RoundedCornerShape(22.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1986,13 +1997,12 @@ private fun HomeDeveloperSupportBanner(
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(
-                shape = RoundedCornerShape(22.dp),
-                borderBrush = Brush.linearGradient(
-                    listOf(Color.White.copy(alpha = 0.7f), CyanBright, NeonPurple)
-                )
+                shape = LiquidGlassDefaultShape,
+                borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                ambientGlowColor = CyanBright
             )
             .testTag("home_developer_support_banner"),
-        shape = RoundedCornerShape(22.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

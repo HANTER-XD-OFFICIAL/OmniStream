@@ -65,6 +65,10 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
 
 @Composable
 fun SupportedPlatformsDialog(
@@ -89,13 +93,16 @@ fun SupportedPlatformsDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.90f)
-                .clip(RoundedCornerShape(24.dp)),
-            color = CyberDarkSurface,
-            border = BorderStroke(1.dp, CyberBorder)
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.GlowingBorderCyan,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = CyanBright
+                )
         ) {
             Column(
                 modifier = Modifier

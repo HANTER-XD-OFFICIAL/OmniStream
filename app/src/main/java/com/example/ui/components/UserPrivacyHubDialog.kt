@@ -70,6 +70,13 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 
 /**
  * Complete User Privacy & Data Safety Hub Dialog.
@@ -106,20 +113,11 @@ fun UserPrivacyHubDialog(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .fillMaxHeight(0.88f)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Color(0xFF070D1E))
-                .border(
-                    BorderStroke(
-                        1.5.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                EmeraldSuccess,
-                                CyanBright,
-                                Color(0xFF0F172A)
-                            )
-                        )
-                    ),
-                    RoundedCornerShape(26.dp)
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.GlowingBorderEmerald,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = EmeraldSuccess
                 )
                 .padding(18.dp)
                 .testTag("user_privacy_hub_dialog")
@@ -290,7 +288,7 @@ fun UserPrivacyHubDialog(
 
                                 Button(
                                     onClick = { clearLocalAppCache() },
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = LiquidGlassPillShape,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (clearedStatus) EmeraldSuccess else Color(0xFF7F1D1D),
                                         contentColor = Color.White
@@ -321,8 +319,8 @@ fun UserPrivacyHubDialog(
                     onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(46.dp),
-                    shape = RoundedCornerShape(12.dp),
+                        .height(48.dp),
+                    shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = CyanBright,
                         contentColor = Color.Black

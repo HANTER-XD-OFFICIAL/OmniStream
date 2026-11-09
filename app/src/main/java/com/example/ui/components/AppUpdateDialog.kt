@@ -84,6 +84,13 @@ import com.example.ui.theme.RoseError
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 import java.io.File
 
 /**
@@ -125,16 +132,18 @@ fun AppUpdateDialog(
             usePlatformDefaultWidth = false
         )
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 500.dp)
                 .padding(vertical = 24.dp)
-                .testTag("update_dialog"),
-            shape = RoundedCornerShape(24.dp),
-            color = CyberDarkSurface,
-            border = BorderStroke(1.5.dp, CyanBright.copy(alpha = 0.7f)),
-            shadowElevation = 16.dp
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.SpecularBorder,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = CyanBright
+                )
+                .testTag("update_dialog")
         ) {
             Column(
                 modifier = Modifier
@@ -429,7 +438,7 @@ private fun UpdateDetailsSection(
         ) {
             OutlinedButton(
                 onClick = onLater,
-                shape = RoundedCornerShape(12.dp),
+                shape = LiquidGlassPillShape,
                 border = BorderStroke(1.dp, CyberBorder),
                 modifier = Modifier
                     .weight(1f)
@@ -446,7 +455,7 @@ private fun UpdateDetailsSection(
 
             Button(
                 onClick = onUpdateNow,
-                shape = RoundedCornerShape(12.dp),
+                shape = LiquidGlassPillShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CyanBright,
                     contentColor = CyberBlack
@@ -571,11 +580,11 @@ private fun DownloadingProgressSection(
 
         OutlinedButton(
             onClick = onCancel,
-            shape = RoundedCornerShape(10.dp),
+            shape = LiquidGlassPillShape,
             border = BorderStroke(1.dp, RoseError.copy(alpha = 0.6f)),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(42.dp)
+                .height(44.dp)
         ) {
             Text(
                 text = "Cancel Download",
@@ -636,7 +645,7 @@ private fun DownloadCompletedSection(
 
         Button(
             onClick = onInstall,
-            shape = RoundedCornerShape(12.dp),
+            shape = LiquidGlassPillShape,
             colors = ButtonDefaults.buttonColors(
                 containerColor = EmeraldSuccess,
                 contentColor = Color.Black

@@ -97,6 +97,8 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
 import com.example.ui.theme.LiquidGlassPillShape
 import com.example.ui.theme.liquidGlass
 import com.example.ui.theme.liquidGlassButton

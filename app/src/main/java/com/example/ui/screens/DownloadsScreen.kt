@@ -80,6 +80,8 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import androidx.compose.ui.graphics.Brush
 import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
 import com.example.ui.theme.LiquidGlassPillShape
 import com.example.ui.theme.liquidGlass
 import com.example.ui.theme.liquidGlassButton
@@ -277,7 +279,7 @@ fun DownloadItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(
-                shape = RoundedCornerShape(18.dp),
+                shape = LiquidGlassDefaultShape,
                 borderBrush = when {
                     isDownloading -> Brush.linearGradient(listOf(Color.White.copy(alpha = 0.8f), CyanBright, Color.White.copy(alpha = 0.3f)))
                     isCompleted -> Brush.linearGradient(listOf(Color.White.copy(alpha = 0.5f), EmeraldSuccess, Color(0x1F0F172A)))
@@ -288,10 +290,16 @@ fun DownloadItemCard(
                     isDownloading -> LiquidGlassBrushes.CardBackgroundElevated
                     isFailed -> LiquidGlassBrushes.ErrorGlass
                     else -> LiquidGlassBrushes.CardBackground
+                },
+                ambientGlowColor = when {
+                    isDownloading -> CyanBright
+                    isCompleted -> EmeraldSuccess
+                    isFailed -> Color(0xFFF43F5E)
+                    else -> Color.Transparent
                 }
             )
             .testTag("download_item_${item.id}"),
-        shape = RoundedCornerShape(18.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -585,8 +593,8 @@ fun EmptyDownloadsState(onNavigateToHome: () -> Unit) {
 
             androidx.compose.material3.Button(
                 onClick = onNavigateToHome,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.liquidGlassButton(shape = RoundedCornerShape(14.dp), glowColor = CyanBright),
+                shape = LiquidGlassPillShape,
+                modifier = Modifier.liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                     containerColor = Color.Transparent,
                     contentColor = Color.Black

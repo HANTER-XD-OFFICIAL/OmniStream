@@ -79,6 +79,13 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 
 /**
  * Developer Support Hub Dialog matching the exact high-polish UI design.
@@ -157,20 +164,11 @@ fun DeveloperSupportHubDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Color(0xFF0B132B))
-                .border(
-                    BorderStroke(
-                        1.2.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                CyanBright.copy(alpha = 0.8f),
-                                Color(0xFF1E293B),
-                                Color(0xFF0F172A)
-                            )
-                        )
-                    ),
-                    RoundedCornerShape(26.dp)
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.SpecularBorder,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = CyanBright
                 )
                 .padding(20.dp)
                 .testTag("developer_support_hub_dialog")
@@ -613,7 +611,7 @@ fun DeveloperSupportHubDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = LiquidGlassPillShape,
                         border = BorderStroke(1.2.dp, Color(0xFF334155)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color(0xFF0F172A),
@@ -652,9 +650,9 @@ private fun HubContactChannelCard(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF111C33),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+        shape = LiquidGlassInnerShape,
+        color = Color(0x33111C33),
+        border = BorderStroke(1.dp, Color(0x3838BDF8)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -716,7 +714,7 @@ private fun HubContactChannelCard(
             // Right: Pill Action Button
             Surface(
                 onClick = onClick,
-                shape = RoundedCornerShape(8.dp),
+                shape = LiquidGlassPillShape,
                 color = buttonBgColor,
                 border = BorderStroke(1.dp, buttonBorderColor)
             ) {
@@ -726,7 +724,7 @@ private fun HubContactChannelCard(
                     fontWeight = FontWeight.Bold,
                     color = buttonTextColor,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
         }

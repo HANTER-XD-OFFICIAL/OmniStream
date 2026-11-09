@@ -51,6 +51,8 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
 import com.example.ui.theme.liquidGlass
 
 data class QualityTier(
@@ -301,9 +303,13 @@ fun QualityMatrixView(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(22.dp))
+            .liquidGlass(
+                shape = LiquidGlassDefaultShape,
+                borderBrush = LiquidGlassBrushes.SpecularBorder,
+                ambientGlowColor = CyanBright
+            )
             .testTag("quality_matrix_container"),
-        shape = RoundedCornerShape(22.dp),
+        shape = LiquidGlassDefaultShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {

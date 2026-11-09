@@ -58,6 +58,10 @@ import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberCardSurface
 import com.example.ui.theme.CyanBright
 import com.example.ui.theme.EmeraldSuccess
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
 import java.io.File
 
 @Composable
@@ -71,13 +75,16 @@ fun MediaPreviewDialog(
     val fileExists = localFile != null && localFile.exists()
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .testTag("media_preview_dialog"),
-            color = CyberCardSurface,
-            tonalElevation = 8.dp
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.SpecularBorder,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = CyanBright
+                )
+                .testTag("media_preview_dialog")
         ) {
             Column(
                 modifier = Modifier

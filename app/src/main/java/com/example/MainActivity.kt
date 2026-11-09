@@ -66,12 +66,14 @@ import com.example.ui.theme.CyberBlack
 import com.example.ui.theme.CyberDarkSurface
 import com.example.ui.theme.CyanBright
 import com.example.ui.theme.LiquidGlassAtmosphere
+import com.example.ui.theme.LiquidGlassBrushes
 import com.example.ui.theme.LiquidGlassPillShape
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.liquidGlass
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.fillMaxWidth
 

@@ -72,6 +72,13 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassDefaultShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 
 /**
  * Animated Cyber Welcome & Onboarding Dialog.
@@ -122,20 +129,11 @@ fun WelcomeOnboardingDialog(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .fillMaxHeight(0.88f)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Color(0xFF070D1E))
-                .border(
-                    BorderStroke(
-                        1.5.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                CyanBright,
-                                NeonPurple,
-                                Color(0xFF0F172A)
-                            )
-                        )
-                    ),
-                    RoundedCornerShape(26.dp)
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.SpecularBorder,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = CyanBright
                 )
                 .padding(16.dp)
                 .testTag("welcome_onboarding_dialog")
@@ -467,9 +465,9 @@ fun WelcomeOnboardingDialog(
                         onClick = onDismiss,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(46.dp)
+                            .height(48.dp)
                             .testTag("welcome_start_app_button"),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = LiquidGlassPillShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CyanBright,
                             contentColor = Color.Black
@@ -493,9 +491,9 @@ fun WelcomeOnboardingDialog(
                         onClick = { openUrl(officialWebsiteUrl) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(40.dp)
+                            .height(42.dp)
                             .testTag("welcome_official_website_button"),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = LiquidGlassPillShape,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF0C2444),
                             contentColor = CyanBright
@@ -525,8 +523,8 @@ fun WelcomeOnboardingDialog(
                             onClick = { openUrl(devFacebookUrl) },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp),
-                            shape = RoundedCornerShape(10.dp),
+                                .height(42.dp),
+                            shape = LiquidGlassPillShape,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF1877F2),
                                 contentColor = Color.White
@@ -553,8 +551,8 @@ fun WelcomeOnboardingDialog(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp),
-                            shape = RoundedCornerShape(10.dp),
+                                .height(42.dp),
+                            shape = LiquidGlassPillShape,
                             border = BorderStroke(1.dp, NeonPurple),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = NeonPurple.copy(alpha = 0.12f),
