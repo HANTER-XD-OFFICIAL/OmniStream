@@ -416,22 +416,23 @@ fun DeveloperScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF064E3B).copy(alpha = 0.35f))
-                            .border(0.8.dp, Color(0xFF10B981).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .clip(LiquidGlassInnerShape)
+                            .background(Color(0x33064E3B))
+                            .border(1.dp, Color(0x6610B981), LiquidGlassInnerShape)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = null,
                             tint = EmeraldSuccess,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Official 24/7 Developer Support • Tap any button below for instant 1-click access",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
                             color = Color(0xFF34D399)
                         )
                     }
@@ -1029,7 +1030,7 @@ fun DeveloperScreen(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(30.dp)) }
+        item { Spacer(modifier = Modifier.height(96.dp)) }
     }
 }
 

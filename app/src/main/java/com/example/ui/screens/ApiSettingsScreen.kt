@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -273,53 +274,65 @@ fun ApiSettingsScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Surface(
-                                modifier = Modifier.weight(1f).height(30.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                color = CyberDarkSurface,
-                                border = BorderStroke(1.dp, CyberBorder)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 32.dp),
+                                shape = LiquidGlassInnerShape,
+                                color = Color(0x3314243D),
+                                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Cobalt 10.x", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                    Text("Cobalt 10.x", fontSize = 10.5.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
 
                             Surface(
-                                modifier = Modifier.weight(1f).height(30.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                color = CyberDarkSurface,
-                                border = BorderStroke(1.dp, CyberBorder)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 32.dp),
+                                shape = LiquidGlassInnerShape,
+                                color = Color(0x3314243D),
+                                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Shield, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Default.Shield, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("SSL Secure", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                    Text("SSL Secure", fontSize = 10.5.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
 
                             Surface(
-                                modifier = Modifier.weight(1f).height(30.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                color = CyberDarkSurface,
-                                border = BorderStroke(1.dp, CyberBorder)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 32.dp),
+                                shape = LiquidGlassInnerShape,
+                                color = Color(0x3314243D),
+                                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Default.Public, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("21+ Sites", fontSize = 10.sp, color = CyanAccent, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                    Text("21+ Sites", fontSize = 10.5.sp, color = CyanAccent, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
                         }
@@ -479,53 +492,65 @@ fun ApiSettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Surface(
-                            modifier = Modifier.weight(1f).height(30.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyberDarkSurface,
-                            border = BorderStroke(1.dp, CyberBorder)
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 32.dp),
+                            shape = LiquidGlassInnerShape,
+                            color = Color(0x3314243D),
+                            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("GitHub API", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                Text("GitHub API", fontSize = 10.5.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
 
                         Surface(
-                            modifier = Modifier.weight(1f).height(30.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyberDarkSurface,
-                            border = BorderStroke(1.dp, CyberBorder)
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 32.dp),
+                            shape = LiquidGlassInnerShape,
+                            color = Color(0x3314243D),
+                            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("OTA Direct", fontSize = 10.sp, color = AmberWarning, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                Text("OTA Direct", fontSize = 10.5.sp, color = AmberWarning, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
 
                         Surface(
-                            modifier = Modifier.weight(1f).height(30.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyberDarkSurface,
-                            border = BorderStroke(1.dp, CyberBorder)
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 32.dp),
+                            shape = LiquidGlassInnerShape,
+                            color = Color(0x3314243D),
+                            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Auto Install", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                Text("Auto Install", fontSize = 10.5.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
                     }
@@ -561,13 +586,18 @@ fun ApiSettingsScreen(
                                 }
                             },
                             enabled = !isChecking,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = LiquidGlassPillShape,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isUpdateAvailable) EmeraldSuccess else CyanBright,
+                                containerColor = Color.Transparent,
                                 contentColor = CyberBlack
                             ),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier.height(38.dp)
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .height(38.dp)
+                                .liquidGlassButton(
+                                    glowColor = if (isUpdateAvailable) EmeraldSuccess else CyanBright,
+                                    shape = LiquidGlassPillShape
+                                )
                         ) {
                             if (isChecking) {
                                 CircularProgressIndicator(
@@ -1463,7 +1493,7 @@ fun ApiSettingsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(96.dp))
         }
     }
 }

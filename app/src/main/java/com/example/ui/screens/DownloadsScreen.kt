@@ -255,7 +255,7 @@ fun DownloadsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(96.dp))
         }
     }
 }

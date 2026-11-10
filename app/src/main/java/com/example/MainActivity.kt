@@ -228,7 +228,8 @@ fun MainApp(viewModel: DownloadViewModel) {
                             .liquidGlass(
                                 shape = LiquidGlassPillShape,
                                 borderWidth = 1.4.dp,
-                                borderBrush = LiquidGlassBrushes.SpecularBorder,
+                                borderBrush = LiquidGlassBrushes.PrismaticCausticBorder,
+                                ambientGlowColor = CyanBright.copy(alpha = 0.35f),
                                 backgroundBrush = Brush.verticalGradient(
                                     listOf(
                                         Color(0x38FFFFFF), // Specular low-alpha white highlight overlay

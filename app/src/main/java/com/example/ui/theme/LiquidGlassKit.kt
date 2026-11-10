@@ -82,18 +82,41 @@ object LiquidGlassBrushes {
         )
     )
 
+    // Multi-color iridescent prismatic border matching Liquid Glass Kit reference
+    val PrismaticCausticBorder = Brush.linearGradient(
+        listOf(
+            Color(0xE6FFFFFF), // Specular crisp white top-left highlight
+            Color(0x9938BDF8), // Cyan optical refraction
+            Color(0x732DD4BF), // Turquoise caustic flare
+            Color(0x8CC084FC), // Lavender / violet prismatic stop
+            Color(0x66F472B6), // Soft rose magenta
+            Color(0x260F172A), // Shadow bevel
+            Color(0x8038BDF8)  // Bottom-right rim return
+        )
+    )
+
     // True frosted glass surfaces with low-alpha white overlay + translucent dark sapphire base
     val CardBackground = Brush.verticalGradient(
         listOf(
-            Color(0x26FFFFFF), // Specular low-alpha white frosted overlay
-            Color(0x4014233D), // Semi-transparent sapphire glass
-            Color(0x4D0E1A2E)  // Deep atmospheric base
+            Color(0x2EFFFFFF), // Specular low-alpha white frosted overlay (18%)
+            Color(0x3D14243D), // Semi-transparent sapphire glass
+            Color(0x4D0C1628)  // Deep atmospheric base
+        )
+    )
+
+    // Aurora iridescent frosted card background matching bottom-right card in reference image
+    val CardBackgroundAurora = Brush.verticalGradient(
+        listOf(
+            Color(0x33FFFFFF), // Specular white gloss top
+            Color(0x401E2E4E), // Translucent indigo
+            Color(0x33281E44), // Translucent amethyst
+            Color(0x400C1628)  // Dark sapphire foundation
         )
     )
 
     val CardBackgroundElevated = Brush.verticalGradient(
         listOf(
-            Color(0x33FFFFFF), // Elevated low-alpha white highlight
+            Color(0x3DFFFFFF), // Elevated low-alpha white highlight
             Color(0x521D3254), // Ambient glow core
             Color(0x5C13223A)  // Deep rich backing
         )
@@ -101,9 +124,9 @@ object LiquidGlassBrushes {
 
     val ModalGlassBackground = Brush.verticalGradient(
         listOf(
-            Color(0x38FFFFFF), // Top specular reflection overlay
-            Color(0xEE0B1528), // High opacity frosted glass for dialog legibility
-            Color(0xF2070E1C)  // Dark foundation
+            Color(0x40FFFFFF), // Top specular reflection overlay
+            Color(0xF00B1528), // High opacity frosted glass for dialog legibility
+            Color(0xF5070E1C)  // Dark foundation
         )
     )
 
@@ -134,11 +157,11 @@ object LiquidGlassBrushes {
 
 /**
  * Liquid Glass frosted card background modifier with gradient refraction,
- * low-alpha white overlay, and distinct specular border.
+ * low-alpha white overlay, and distinct specular border matching the Liquid Glass Kit.
  */
 fun Modifier.liquidGlass(
     shape: Shape = LiquidGlassDefaultShape,
-    borderBrush: Brush = LiquidGlassBrushes.SpecularBorder,
+    borderBrush: Brush = LiquidGlassBrushes.PrismaticCausticBorder,
     backgroundBrush: Brush = LiquidGlassBrushes.CardBackground,
     borderWidth: Dp = 1.3.dp,
     ambientGlowColor: Color? = null
@@ -146,10 +169,19 @@ fun Modifier.liquidGlass(
     .then(
         if (ambientGlowColor != null) {
             Modifier.drawBehind {
+                // Volumetric caustic drop glow matching Liquid Glass Kit buttons & cards
                 drawCircle(
-                    color = ambientGlowColor.copy(alpha = 0.18f),
-                    radius = size.maxDimension * 0.55f,
-                    center = center
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            ambientGlowColor.copy(alpha = 0.30f),
+                            ambientGlowColor.copy(alpha = 0.12f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.5f, size.height * 0.65f),
+                        radius = size.maxDimension * 0.60f
+                    ),
+                    radius = size.maxDimension * 0.60f,
+                    center = Offset(size.width * 0.5f, size.height * 0.65f)
                 )
             }
         } else Modifier
