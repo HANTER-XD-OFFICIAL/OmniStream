@@ -163,29 +163,27 @@ fun Modifier.liquidGlass(
     shape: Shape = LiquidGlassDefaultShape,
     borderBrush: Brush = LiquidGlassBrushes.PrismaticCausticBorder,
     backgroundBrush: Brush = LiquidGlassBrushes.CardBackground,
-    borderWidth: Dp = 1.3.dp,
-    ambientGlowColor: Color? = null
+    borderWidth: Dp = 1.4.dp,
+    ambientGlowColor: Color? = CyanBright
 ): Modifier = this
-    .then(
-        if (ambientGlowColor != null) {
-            Modifier.drawBehind {
-                // Volumetric caustic drop glow matching Liquid Glass Kit buttons & cards
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            ambientGlowColor.copy(alpha = 0.30f),
-                            ambientGlowColor.copy(alpha = 0.12f),
-                            Color.Transparent
-                        ),
-                        center = Offset(size.width * 0.5f, size.height * 0.65f),
-                        radius = size.maxDimension * 0.60f
-                    ),
-                    radius = size.maxDimension * 0.60f,
-                    center = Offset(size.width * 0.5f, size.height * 0.65f)
-                )
-            }
-        } else Modifier
-    )
+    .drawBehind {
+        // Volumetric radial caustic drop glow matching Liquid Glass Kit reference
+        val glowColor = ambientGlowColor ?: CyanBright
+        val glowRadius = size.maxDimension * 0.70f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    glowColor.copy(alpha = 0.35f),
+                    NeonPurple.copy(alpha = 0.18f),
+                    Color.Transparent
+                ),
+                center = Offset(size.width * 0.5f, size.height * 0.70f),
+                radius = glowRadius
+            ),
+            radius = glowRadius,
+            center = Offset(size.width * 0.5f, size.height * 0.70f)
+        )
+    }
     .clip(shape)
     .background(backgroundBrush)
     .border(width = borderWidth, brush = borderBrush, shape = shape)
@@ -198,31 +196,50 @@ fun Modifier.liquidGlassButton(
     glowColor: Color = CyanBright,
     isSecondary: Boolean = false
 ): Modifier = this
+    .drawBehind {
+        val glowRadius = size.maxDimension * 0.65f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    glowColor.copy(alpha = 0.55f),
+                    NeonPurple.copy(alpha = 0.28f),
+                    Color.Transparent
+                ),
+                center = Offset(size.width * 0.5f, size.height * 0.85f),
+                radius = glowRadius
+            ),
+            radius = glowRadius,
+            center = Offset(size.width * 0.5f, size.height * 0.85f)
+        )
+    }
     .clip(shape)
     .background(
         if (isSecondary) {
-            Brush.horizontalGradient(
+            Brush.verticalGradient(
                 listOf(
+                    Color(0x4DFFFFFF),
                     Color(0x4D1E293B),
                     Color(0x66334155)
                 )
             )
         } else {
-            Brush.horizontalGradient(
+            Brush.verticalGradient(
                 listOf(
-                    glowColor.copy(alpha = 0.92f),
-                    NeonPurple.copy(alpha = 0.88f)
+                    Color.White.copy(alpha = 0.45f), // Top specular gloss line
+                    glowColor.copy(alpha = 0.95f),
+                    glowColor.copy(alpha = 0.80f)
                 )
             )
         }
     )
     .border(
-        width = 1.3.dp,
+        width = 1.4.dp,
         brush = Brush.horizontalGradient(
             listOf(
-                Color.White.copy(alpha = 0.8f),
-                glowColor.copy(alpha = 0.6f),
-                Color.White.copy(alpha = 0.35f)
+                Color.White.copy(alpha = 0.92f),
+                glowColor.copy(alpha = 0.75f),
+                Color.White.copy(alpha = 0.45f),
+                NeonPurple.copy(alpha = 0.65f)
             )
         ),
         shape = shape
@@ -357,6 +374,21 @@ fun LiquidGlassAtmosphere(
                     ),
                     radius = canvasW * 0.55f,
                     center = Offset(canvasW * 0.5f - animOffset1, canvasH * 0.42f)
+                )
+
+                // Orb 4: Rose Peach / Sunset Magenta Caustic Glow (Bottom Right, matching reference kit)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFFFB7185).copy(alpha = 0.28f),
+                            Color(0xFFFDA4AF).copy(alpha = 0.14f),
+                            Color.Transparent
+                        ),
+                        center = Offset(canvasW * 0.85f - animOffset2, canvasH * 0.85f - animOffset1),
+                        radius = canvasW * 0.65f
+                    ),
+                    radius = canvasW * 0.65f,
+                    center = Offset(canvasW * 0.85f - animOffset2, canvasH * 0.85f - animOffset1)
                 )
             }
     ) {

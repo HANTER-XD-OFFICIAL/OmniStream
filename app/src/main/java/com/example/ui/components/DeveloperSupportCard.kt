@@ -182,7 +182,8 @@ fun DeveloperSupportCard(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
-                                .background(CyberDarkSurface),
+                                .background(Color(0x3314223A))
+                                .border(1.dp, LiquidGlassBrushes.SpecularBorder, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -235,8 +236,8 @@ fun DeveloperSupportCard(
                 // Privacy Shield Toggle
                 Surface(
                     onClick = { isDetailsRevealed = !isDetailsRevealed },
-                    shape = RoundedCornerShape(10.dp),
-                    color = if (isDetailsRevealed) NeonPurple.copy(alpha = 0.2f) else CyberDarkSurface,
+                    shape = LiquidGlassPillShape,
+                    color = if (isDetailsRevealed) NeonPurple.copy(alpha = 0.25f) else Color(0x3314223A),
                     border = BorderStroke(1.dp, if (isDetailsRevealed) NeonPurple else CyberBorder)
                 ) {
                     Row(
@@ -263,9 +264,9 @@ fun DeveloperSupportCard(
 
             // Developer Support Commitment Badge
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF0F172A),
-                border = BorderStroke(1.dp, CyberBorder.copy(alpha = 0.6f)),
+                shape = LiquidGlassInnerShape,
+                color = Color(0x3314223A),
+                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(

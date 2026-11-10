@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -753,17 +754,17 @@ fun DeveloperScreen(
 
                         // Dynamic Status Badge on Top Right
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = LiquidGlassPillShape,
                             color = when {
-                                isChecking -> CyanBright.copy(alpha = 0.15f)
-                                isUpdateAvailable -> EmeraldSuccess.copy(alpha = 0.15f)
-                                isUpToDate -> EmeraldSuccess.copy(alpha = 0.12f)
-                                else -> CyberDarkSurface
+                                isChecking -> CyanBright.copy(alpha = 0.20f)
+                                isUpdateAvailable -> EmeraldSuccess.copy(alpha = 0.20f)
+                                isUpToDate -> EmeraldSuccess.copy(alpha = 0.16f)
+                                else -> Color(0x3314223A)
                             },
                             border = BorderStroke(
                                 1.dp,
                                 when {
-                                    isChecking -> CyanBright.copy(alpha = 0.5f)
+                                    isChecking -> CyanBright.copy(alpha = 0.6f)
                                     isUpdateAvailable -> EmeraldSuccess
                                     isUpToDate -> EmeraldSuccess.copy(alpha = 0.6f)
                                     else -> CyberBorder
@@ -823,53 +824,65 @@ fun DeveloperScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Surface(
-                            modifier = Modifier.weight(1f).height(30.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyberDarkSurface,
-                            border = BorderStroke(1.dp, CyberBorder)
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 32.dp),
+                            shape = LiquidGlassInnerShape,
+                            color = Color(0x3314243D),
+                            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Dns, contentDescription = null, tint = CyanBright, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("GitHub API", fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                Text("GitHub API", fontSize = 10.5.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
 
                         Surface(
-                            modifier = Modifier.weight(1f).height(30.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyberDarkSurface,
-                            border = BorderStroke(1.dp, CyberBorder)
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 32.dp),
+                            shape = LiquidGlassInnerShape,
+                            color = Color(0x3314243D),
+                            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Direct OTA", fontSize = 10.sp, color = AmberWarning, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                Text("Direct OTA", fontSize = 10.5.sp, color = AmberWarning, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
 
                         Surface(
-                            modifier = Modifier.weight(1f).height(30.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = CyberDarkSurface,
-                            border = BorderStroke(1.dp, CyberBorder)
+                            modifier = Modifier
+                                .weight(1f)
+                                .defaultMinSize(minHeight = 32.dp),
+                            shape = LiquidGlassInnerShape,
+                            color = Color(0x3314243D),
+                            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Default.Verified, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Verified APK", fontSize = 10.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                                Text("Verified APK", fontSize = 10.5.sp, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
                     }

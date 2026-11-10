@@ -422,17 +422,17 @@ fun ApiSettingsScreen(
 
                         // Dynamic Status Badge on Top Right
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = LiquidGlassPillShape,
                             color = when {
-                                isChecking -> CyanBright.copy(alpha = 0.15f)
-                                isUpdateAvailable -> EmeraldSuccess.copy(alpha = 0.15f)
-                                isUpToDate -> EmeraldSuccess.copy(alpha = 0.12f)
-                                else -> CyberDarkSurface
+                                isChecking -> CyanBright.copy(alpha = 0.20f)
+                                isUpdateAvailable -> EmeraldSuccess.copy(alpha = 0.20f)
+                                isUpToDate -> EmeraldSuccess.copy(alpha = 0.16f)
+                                else -> Color(0x3314223A)
                             },
                             border = BorderStroke(
                                 1.dp,
                                 when {
-                                    isChecking -> CyanBright.copy(alpha = 0.5f)
+                                    isChecking -> CyanBright.copy(alpha = 0.6f)
                                     isUpdateAvailable -> EmeraldSuccess
                                     isUpToDate -> EmeraldSuccess.copy(alpha = 0.6f)
                                     else -> CyberBorder
@@ -895,9 +895,9 @@ fun ApiSettingsScreen(
                     // Unified Clean Status & Vault Banner
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = CyberDarkSurface,
-                        border = BorderStroke(1.dp, CyberBorder)
+                        shape = LiquidGlassInnerShape,
+                        color = Color(0x3314223A),
+                        border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
@@ -1011,9 +1011,9 @@ fun ApiSettingsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(CyberDarkSurface.copy(alpha = 0.5f))
-                            .border(BorderStroke(1.dp, CyberBorder.copy(alpha = 0.5f)), RoundedCornerShape(10.dp))
+                            .clip(LiquidGlassInnerShape)
+                            .background(Color(0x3314223A))
+                            .border(BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle), LiquidGlassInnerShape)
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -1262,10 +1262,13 @@ fun ApiSettingsScreen(
                         if (telegramChatId.isNotBlank()) {
                             Button(
                                 onClick = { viewModel.sendTestTelegramMessage(telegramChatId) },
-                                modifier = Modifier.fillMaxWidth().height(36.dp).testTag("send_telegram_test_msg_button"),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = CyberDarkSurface, contentColor = CyanAccent),
-                                border = BorderStroke(1.dp, CyberBorder)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                                    .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanAccent)
+                                    .testTag("send_telegram_test_msg_button"),
+                                shape = LiquidGlassPillShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))

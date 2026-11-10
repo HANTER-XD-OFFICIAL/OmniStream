@@ -1100,10 +1100,11 @@ fun HomeScreen(
             if (selectedTab == 2) {
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                        border = BorderStroke(1.dp, CyberBorder)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liquidGlass(shape = LiquidGlassInnerShape),
+                        shape = LiquidGlassInnerShape,
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
@@ -1782,9 +1783,9 @@ private fun EngineSpecRow(
     Surface(
         onClick = { onClick?.invoke() },
         enabled = isClickable,
-        shape = RoundedCornerShape(10.dp),
-        color = CyberCardSurface,
-        border = BorderStroke(0.8.dp, CyberBorder)
+        shape = LiquidGlassInnerShape,
+        color = Color(0x3314223A),
+        border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
     ) {
         Row(
             modifier = Modifier
@@ -1910,9 +1911,9 @@ private fun GuideStepTile(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = CyberCardSurface,
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+        shape = LiquidGlassInnerShape,
+        color = Color(0x3314223A),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.5f)),
         modifier = modifier
     ) {
         Column(

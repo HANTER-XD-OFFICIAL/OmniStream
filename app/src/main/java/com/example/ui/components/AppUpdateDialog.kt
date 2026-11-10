@@ -385,9 +385,9 @@ private fun UpdateDetailsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 180.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
-            border = BorderStroke(1.dp, CyberBorder)
+            shape = LiquidGlassInnerShape,
+            colors = CardDefaults.cardColors(containerColor = Color(0x3314223A)),
+            border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle)
         ) {
             Column(
                 modifier = Modifier
@@ -439,7 +439,7 @@ private fun UpdateDetailsSection(
             OutlinedButton(
                 onClick = onLater,
                 shape = LiquidGlassPillShape,
-                border = BorderStroke(1.dp, CyberBorder),
+                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
@@ -719,8 +719,8 @@ private fun UpToDateSection(
         ) {
             OutlinedButton(
                 onClick = onReinstall,
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, CyberBorder),
+                shape = LiquidGlassPillShape,
+                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp)
@@ -793,8 +793,8 @@ private fun ErrorSection(
         ) {
             OutlinedButton(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, CyberBorder),
+                shape = LiquidGlassPillShape,
+                border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp)

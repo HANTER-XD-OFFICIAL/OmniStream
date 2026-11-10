@@ -15,11 +15,11 @@ import androidx.core.view.WindowCompat
 private val DarkColorScheme = darkColorScheme(
     primary = CyanBright,
     onPrimary = Color.Black,
-    primaryContainer = Color(0xFF083344),
+    primaryContainer = Color(0x66083344),
     onPrimaryContainer = Color(0xFFCFFAFE),
     secondary = CobaltBlue,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFF1E3A8A),
+    secondaryContainer = Color(0x661E3A8A),
     onSecondaryContainer = Color(0xFFDBEAFE),
     tertiary = NeonPurple,
     onTertiary = Color.White,
@@ -30,7 +30,7 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = CyberCardSurface,
     onSurfaceVariant = TextSecondary,
     outline = CyberBorder,
-    outlineVariant = Color(0xFF1E293B),
+    outlineVariant = Color(0x66A855F7),
     error = RoseError,
     onError = Color.White
 )
