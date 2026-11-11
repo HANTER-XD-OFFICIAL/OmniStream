@@ -53,6 +53,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.border
 import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberCardSurface
 import com.example.ui.theme.CyberDarkSurface
@@ -61,6 +65,12 @@ import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 
 object StoragePermissionHelper {
 
@@ -111,38 +121,58 @@ fun StoragePermissionDialog(
         }
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        modifier = Modifier.testTag("storage_permission_dialog"),
-        containerColor = CyberCardSurface,
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(CyanBright.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = CyanBright,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Text(
-                    text = "Storage Permission Required",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 480.dp)
+                .liquidGlass(
+                    shape = LiquidGlassModalShape,
+                    borderBrush = LiquidGlassBrushes.PrismaticCausticBorder,
+                    backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
+                    ambientGlowColor = CyanBright
                 )
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                .padding(20.dp)
+                .testTag("storage_permission_dialog")
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Header Row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x3314223A))
+                            .border(1.2.dp, LiquidGlassBrushes.PrismaticCausticBorder, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = CyanBright,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Storage Permission Required",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Direct Media Storage Access",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
                 Text(
                     text = "OmniStream needs storage access to save downloaded videos & audio directly into your phone's internal storage under the 'Download/OmniStream' folder.",
                     color = TextSecondary,
@@ -150,13 +180,14 @@ fun StoragePermissionDialog(
                     lineHeight = 19.sp
                 )
 
-                Card(
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = CyberDarkSurface),
-                    border = BorderStroke(1.dp, CyberBorder)
+                Surface(
+                    shape = LiquidGlassInnerShape,
+                    color = Color(0x3314223A),
+                    border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -167,64 +198,75 @@ fun StoragePermissionDialog(
                         Text(
                             "Downloaded media will be visible directly in your Gallery, VLC, MX Player & File Manager.",
                             color = TextMuted,
-                            fontSize = 11.sp
+                            fontSize = 11.5.sp
                         )
                     }
                 }
 
                 if (permissionDeniedCount > 0) {
-                    Card(
-                        shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF7F1D1D).copy(alpha = 0.3f)),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444))
+                    Surface(
+                        shape = LiquidGlassInnerShape,
+                        color = Color(0x33EF4444),
+                        border = BorderStroke(1.dp, Color(0x80EF4444)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 "Permission is necessary to download files to device storage. Please allow in settings if blocked.",
                                 color = Color(0xFFFCA5A5),
-                                fontSize = 11.sp
+                                fontSize = 11.5.sp
                             )
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (permissionDeniedCount >= 2) {
-                        // Open app settings if denied multiple times
-                        try {
-                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = Uri.fromParts("package", context.packageName, null)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    } else {
-                        permissionLauncher.launch(StoragePermissionHelper.getRequiredPermissions())
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = LiquidGlassPillShape,
+                        border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                    ) {
+                        Text("Cancel", color = TextSecondary, fontSize = 13.sp)
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CyanBright, contentColor = Color.Black),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.testTag("grant_permission_button")
-            ) {
-                Text(
-                    text = if (permissionDeniedCount >= 2) "Open Settings" else "Grant Permission",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary)
-            ) {
-                Text("Cancel")
+
+                    Button(
+                        onClick = {
+                            if (permissionDeniedCount >= 2) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.fromParts("package", context.packageName, null)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            } else {
+                                permissionLauncher.launch(StoragePermissionHelper.getRequiredPermissions())
+                            }
+                        },
+                        shape = LiquidGlassPillShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright)
+                            .testTag("grant_permission_button")
+                    ) {
+                        Text(
+                            text = if (permissionDeniedCount >= 2) "Open Settings" else "Grant Permission",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
         }
-    )
+    }
 }

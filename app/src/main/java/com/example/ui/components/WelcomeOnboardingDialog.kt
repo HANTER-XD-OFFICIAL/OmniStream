@@ -131,7 +131,7 @@ fun WelcomeOnboardingDialog(
                 .fillMaxHeight(0.88f)
                 .liquidGlass(
                     shape = LiquidGlassModalShape,
-                    borderBrush = LiquidGlassBrushes.SpecularBorder,
+                    borderBrush = LiquidGlassBrushes.PrismaticCausticBorder,
                     backgroundBrush = LiquidGlassBrushes.ModalGlassBackground,
                     ambientGlowColor = CyanBright
                 )
@@ -313,7 +313,7 @@ fun WelcomeOnboardingDialog(
                                 // 1-Click Profile Button
                                 Surface(
                                     onClick = { openUrl(devFacebookUrl) },
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = LiquidGlassPillShape,
                                     color = Color(0xFF1877F2),
                                     border = BorderStroke(1.dp, Color(0xFF3B82F6))
                                 ) {
@@ -392,7 +392,7 @@ fun WelcomeOnboardingDialog(
 
                                 Surface(
                                     onClick = { openUrl(officialWebsiteUrl) },
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = LiquidGlassPillShape,
                                     color = CyanBright.copy(alpha = 0.2f),
                                     border = BorderStroke(1.dp, CyanBright)
                                 ) {
@@ -586,23 +586,23 @@ private fun WelcomeFeatureTile(
     desc: String
 ) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = Color(0xFF0E172C),
-        border = BorderStroke(0.8.dp, Color(0xFF1E293B)),
+        shape = LiquidGlassInnerShape,
+        color = Color(0x3314223A),
+        border = BorderStroke(1.dp, LiquidGlassBrushes.SpecularBorderSubtle),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(iconColor.copy(alpha = 0.15f))
-                    .border(0.8.dp, iconColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.20f))
+                    .border(1.dp, iconColor.copy(alpha = 0.6f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

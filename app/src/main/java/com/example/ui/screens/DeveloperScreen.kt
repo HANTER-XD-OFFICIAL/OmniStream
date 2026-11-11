@@ -227,17 +227,23 @@ fun DeveloperScreen(
                         text = "DEVELOPER HUB",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.2.sp
+                            fontFamily = FontFamily.Default,
+                            letterSpacing = 0.5.sp,
+                            fontSize = 20.sp
                         ),
-                        color = CyanBright
+                        color = CyanBright,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "Official Creator Profile & Direct Assistance",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = TextSecondary,
                             fontSize = 11.5.sp
-                        )
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -246,21 +252,21 @@ fun DeveloperScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         onClick = onCheckForUpdates,
-                        shape = RoundedCornerShape(10.dp),
-                        color = CyanBright.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.6f))
+                        shape = LiquidGlassPillShape,
+                        color = Color.Transparent,
+                        modifier = Modifier.liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = CyanBright, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color.Black, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Updates",
-                                fontSize = 10.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = CyanBright,
+                                color = Color.Black,
                                 maxLines = 1
                             )
                         }

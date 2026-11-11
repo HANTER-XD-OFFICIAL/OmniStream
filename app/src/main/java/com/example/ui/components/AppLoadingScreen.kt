@@ -71,6 +71,13 @@ import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.LiquidGlassAtmosphere
+import com.example.ui.theme.LiquidGlassBrushes
+import com.example.ui.theme.LiquidGlassModalShape
+import com.example.ui.theme.LiquidGlassInnerShape
+import com.example.ui.theme.LiquidGlassPillShape
+import com.example.ui.theme.liquidGlass
+import com.example.ui.theme.liquidGlassButton
 import kotlinx.coroutines.delay
 
 /**
@@ -148,13 +155,13 @@ fun AppLoadingScreen(
         onLoadingComplete()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CyberBlack)
-            .testTag("app_loading_screen"),
-        contentAlignment = Alignment.Center
-    ) {
+    LiquidGlassAtmosphere {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("app_loading_screen"),
+            contentAlignment = Alignment.Center
+        ) {
         // Subtle Cyber Ambient Radial Glow in background
         Box(
             modifier = Modifier
@@ -268,10 +275,15 @@ fun AppLoadingScreen(
 
             // Tech Telemetry Card with Glowing Progress
             Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = CyberDarkSurface,
-                border = BorderStroke(1.2.dp, CyberBorder),
-                modifier = Modifier.fillMaxWidth()
+                shape = LiquidGlassModalShape,
+                color = Color.Transparent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = LiquidGlassModalShape,
+                        borderBrush = LiquidGlassBrushes.PrismaticCausticBorder,
+                        ambientGlowColor = CyanBright
+                    )
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -368,29 +380,32 @@ fun AppLoadingScreen(
             // Fast Skip button if user wants to immediately enter
             Surface(
                 onClick = onLoadingComplete,
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF0F172A).copy(alpha = 0.8f),
-                border = BorderStroke(1.dp, Color(0xFF1E293B))
+                shape = LiquidGlassPillShape,
+                color = Color.Transparent,
+                modifier = Modifier.liquidGlassButton(shape = LiquidGlassPillShape, isSecondary = true)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastForward,
                         contentDescription = null,
-                        tint = TextSecondary,
+                        tint = TextPrimary,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Skip to App",
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextSecondary
+                        color = TextPrimary
                     )
                 }
             }
         }
     }
 }
+}
+
+
