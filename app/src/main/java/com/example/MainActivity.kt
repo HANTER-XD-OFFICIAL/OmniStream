@@ -142,12 +142,12 @@ private fun LiquidGlassNavButton(
                     if (isSelected) {
                         Modifier
                             .drawBehind {
-                                val r = size.maxDimension * 0.70f
+                                val r = size.maxDimension * 0.50f
                                 drawCircle(
                                     brush = Brush.radialGradient(
                                         colors = listOf(
-                                            accentColor.copy(alpha = 0.45f),
-                                            NeonPurple.copy(alpha = 0.22f),
+                                            accentColor.copy(alpha = 0.12f),
+                                            NeonPurple.copy(alpha = 0.05f),
                                             Color.Transparent
                                         ),
                                         center = Offset(size.width * 0.5f, size.height * 0.7f),
@@ -160,8 +160,8 @@ private fun LiquidGlassNavButton(
                             .background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color(0x40FFFFFF), // Specular dome reflection
-                                        accentColor.copy(alpha = 0.26f),
+                                        Color(0x4DFFFFFF), // Crisp specular dome reflection
+                                        accentColor.copy(alpha = 0.22f),
                                         Color(0x38121E38)
                                     )
                                 )
@@ -170,9 +170,9 @@ private fun LiquidGlassNavButton(
                                 width = 1.2.dp,
                                 brush = Brush.horizontalGradient(
                                     listOf(
-                                        Color.White.copy(alpha = 0.85f),
+                                        Color.White,
                                         accentColor,
-                                        Color.White.copy(alpha = 0.45f)
+                                        Color.White.copy(alpha = 0.60f)
                                     )
                                 ),
                                 shape = RoundedCornerShape(20.dp)
@@ -192,7 +192,7 @@ private fun LiquidGlassNavButton(
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        tint = if (isSelected) accentColor else Color(0xFF94A3B8),
+                        tint = if (isSelected) accentColor else Color(0xFFE2E8F0),
                         modifier = Modifier.size(22.dp)
                     )
 
@@ -219,8 +219,8 @@ private fun LiquidGlassNavButton(
                 Text(
                     text = title,
                     fontSize = 9.5.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) TextPrimary else TextMuted,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (isSelected) Color.White else Color(0xFFE2E8F0),
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis
@@ -356,7 +356,26 @@ fun MainApp(viewModel: DownloadViewModel) {
                 .fillMaxSize()
                 .background(Color.Transparent),
             containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { snackbarData ->
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xF00A1324),
+                        border = BorderStroke(1.2.dp, LiquidGlassBrushes.PrismaticCausticBorder),
+                        modifier = Modifier
+                            .padding(14.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                    ) {
+                        Text(
+                            text = snackbarData.visuals.message,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                }
+            },
             bottomBar = {
                 Box(
                     modifier = Modifier
@@ -364,7 +383,7 @@ fun MainApp(viewModel: DownloadViewModel) {
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    // Volumetric atmospheric glow aura underneath floating dock
+                    // Refined subtle rim elevation aura underneath floating dock (significantly reduced ambient glow)
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -373,16 +392,16 @@ fun MainApp(viewModel: DownloadViewModel) {
                             .background(
                                 Brush.horizontalGradient(
                                     listOf(
-                                        CyanBright.copy(alpha = 0.32f),
-                                        NeonPurple.copy(alpha = 0.30f),
-                                        Color(0xFFFB7185).copy(alpha = 0.22f),
-                                        CyanBright.copy(alpha = 0.26f)
+                                        CyanBright.copy(alpha = 0.10f),
+                                        NeonPurple.copy(alpha = 0.08f),
+                                        Color(0xFFFB7185).copy(alpha = 0.06f),
+                                        CyanBright.copy(alpha = 0.08f)
                                     )
                                 )
                             )
                     )
 
-                    // Liquid Glass Island Dock Frame
+                    // Liquid Glass Island Dock Frame with elevated frosted glass
                     Surface(
                         shape = RoundedCornerShape(28.dp),
                         color = Color.Transparent,
@@ -394,9 +413,9 @@ fun MainApp(viewModel: DownloadViewModel) {
                             .background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color(0x40FFFFFF), // Specular light edge highlight
-                                        Color(0xD90B1528), // Frosted obsidian glass
-                                        Color(0xFA070E1A)  // Deep atmospheric base
+                                        Color(0x4DFFFFFF), // Crisp frosted specular light edge highlight
+                                        Color(0xF008101E), // Deep high-opacity frosted obsidian glass
+                                        Color(0xFA040810)  // Solid true-black anchor
                                     )
                                 )
                             )

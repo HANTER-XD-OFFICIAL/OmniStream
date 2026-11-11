@@ -468,7 +468,7 @@ fun QualityMatrixView(
                                         text = videoInfo.nativeResolutionDimensions,
                                         fontSize = 9.5.sp,
                                         fontFamily = FontFamily.Monospace,
-                                        color = TextSecondary,
+                                        color = Color.White,
                                         maxLines = 1
                                     )
                                 }
@@ -505,7 +505,7 @@ fun QualityMatrixView(
                                         text = "Native Bitstream",
                                         fontSize = 9.5.sp,
                                         fontFamily = FontFamily.Monospace,
-                                        color = TextSecondary,
+                                        color = Color.White,
                                         maxLines = 1
                                     )
                                 }
@@ -532,9 +532,9 @@ fun QualityMatrixView(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Suggested: ${videoInfo.maxUploadedQualityLabel} • 100% native clarity from ${videoInfo.platformName}",
-                                    color = TextPrimary,
+                                    color = Color.White,
                                     fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.SemiBold,
                                     maxLines = 2,
                                     lineHeight = 14.sp
                                 )

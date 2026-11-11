@@ -31,7 +31,8 @@ val EmeraldSuccess = Color(0xFF10B981)
 val AmberWarning = Color(0xFFF59E0B)
 val RoseError = Color(0xFFF43F5E)
 
-// Liquid Textures
-val TextPrimary = Color(0xFFF8FAFC)
-val TextSecondary = Color(0xFF94A3B8)
-val TextMuted = Color(0xFF64748B)
+// High-Contrast Crisp Typography for Frosted Glass on True Black
+val TextPrimary = Color(0xFFFFFFFF) // 100% Crisp Solid Pure White
+val TextSecondary = Color(0xFFE2E8F0) // 90% High-Contrast Light Slate
+val TextMuted = Color(0xFFCBD5E1) // 80% High-Legibility Light Neutral Slate
+

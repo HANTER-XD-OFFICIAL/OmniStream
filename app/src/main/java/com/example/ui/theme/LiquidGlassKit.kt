@@ -82,51 +82,51 @@ object LiquidGlassBrushes {
         )
     )
 
-    // Multi-color iridescent prismatic border matching Liquid Glass Kit reference
+    // Multi-color iridescent prismatic border matching Liquid Glass Kit reference with crisp specular white rim
     val PrismaticCausticBorder = Brush.linearGradient(
         listOf(
-            Color(0xE6FFFFFF), // Specular crisp white top-left highlight
-            Color(0x9938BDF8), // Cyan optical refraction
-            Color(0x732DD4BF), // Turquoise caustic flare
-            Color(0x8CC084FC), // Lavender / violet prismatic stop
-            Color(0x66F472B6), // Soft rose magenta
-            Color(0x260F172A), // Shadow bevel
-            Color(0x8038BDF8)  // Bottom-right rim return
+            Color(0xF5FFFFFF), // Ultra-crisp specular pure white top-left highlight
+            Color(0x8038BDF8), // Refined cyan optical refraction
+            Color(0x662DD4BF), // Soft turquoise flare
+            Color(0x73C084FC), // Lavender / violet prismatic stop
+            Color(0x4DEC4899), // Subtle rose magenta
+            Color(0x1F0F172A), // Shadow bevel
+            Color(0x6638BDF8)  // Subtle bottom-right return
         )
     )
 
-    // True frosted glass surfaces with low-alpha white overlay + translucent dark sapphire base
+    // Elevated frosted glass surfaces with high-blur frosted white sheen + deep obsidian crystal base
     val CardBackground = Brush.verticalGradient(
         listOf(
-            Color(0x2EFFFFFF), // Specular low-alpha white frosted overlay (18%)
-            Color(0x3D14243D), // Semi-transparent sapphire glass
-            Color(0x4D0C1628)  // Deep atmospheric base
+            Color(0x3BFFFFFF), // High-intensity frosted white sheen (23% white overlay)
+            Color(0x38162844), // Translucent high-refraction frosted glass
+            Color(0xEB08101E)  // Deep obsidian foundation for maximum text contrast
         )
     )
 
-    // Aurora iridescent frosted card background matching bottom-right card in reference image
+    // Aurora iridescent frosted card background with refined subtlety
     val CardBackgroundAurora = Brush.verticalGradient(
         listOf(
-            Color(0x33FFFFFF), // Specular white gloss top
-            Color(0x401E2E4E), // Translucent indigo
-            Color(0x33281E44), // Translucent amethyst
-            Color(0x400C1628)  // Dark sapphire foundation
+            Color(0x40FFFFFF), // Specular white gloss top
+            Color(0x331E2E4E), // Translucent indigo
+            Color(0x2E281E44), // Translucent amethyst
+            Color(0xEB08101E)  // Deep obsidian foundation
         )
     )
 
     val CardBackgroundElevated = Brush.verticalGradient(
         listOf(
-            Color(0x3DFFFFFF), // Elevated low-alpha white highlight
-            Color(0x521D3254), // Ambient glow core
-            Color(0x5C13223A)  // Deep rich backing
+            Color(0x45FFFFFF), // Elevated frosted white highlight
+            Color(0x3D1B2E4E), // High-refraction crystal core
+            Color(0xF008101E)  // Deep rich backing
         )
     )
 
     val ModalGlassBackground = Brush.verticalGradient(
         listOf(
-            Color(0x40FFFFFF), // Top specular reflection overlay
-            Color(0xF00B1528), // High opacity frosted glass for dialog legibility
-            Color(0xF5070E1C)  // Dark foundation
+            Color(0x4DFFFFFF), // Crisp frosted top specular reflection
+            Color(0xF5081120), // Deep obsidian high-opacity frosted glass for dialog legibility
+            Color(0xFA040810)  // Solid true-black anchor
         )
     )
 
@@ -156,8 +156,8 @@ object LiquidGlassBrushes {
 }
 
 /**
- * Liquid Glass frosted card background modifier with gradient refraction,
- * low-alpha white overlay, and distinct specular border matching the Liquid Glass Kit.
+ * Liquid Glass frosted card background modifier with high-blur diffusion,
+ * specular white sheen, and refined low-intensity ambient glow.
  */
 fun Modifier.liquidGlass(
     shape: Shape = LiquidGlassDefaultShape,
@@ -167,14 +167,14 @@ fun Modifier.liquidGlass(
     ambientGlowColor: Color? = CyanBright
 ): Modifier = this
     .drawBehind {
-        // Volumetric radial caustic drop glow matching Liquid Glass Kit reference
+        // Refined, subtle ambient caustic drop glow (significantly reduced intensity for clean separation)
         val glowColor = ambientGlowColor ?: CyanBright
-        val glowRadius = size.maxDimension * 0.70f
+        val glowRadius = size.maxDimension * 0.45f
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    glowColor.copy(alpha = 0.35f),
-                    NeonPurple.copy(alpha = 0.18f),
+                    glowColor.copy(alpha = 0.08f),
+                    NeonPurple.copy(alpha = 0.04f),
                     Color.Transparent
                 ),
                 center = Offset(size.width * 0.5f, size.height * 0.70f),
@@ -189,7 +189,7 @@ fun Modifier.liquidGlass(
     .border(width = borderWidth, brush = borderBrush, shape = shape)
 
 /**
- * Interactive button with vibrant glowing liquid glass pill styling
+ * Interactive button with vibrant frosted liquid glass pill styling and refined glow
  */
 fun Modifier.liquidGlassButton(
     shape: Shape = LiquidGlassPillShape,
@@ -197,12 +197,13 @@ fun Modifier.liquidGlassButton(
     isSecondary: Boolean = false
 ): Modifier = this
     .drawBehind {
-        val glowRadius = size.maxDimension * 0.65f
+        // Refined button caustic drop glow
+        val glowRadius = size.maxDimension * 0.45f
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    glowColor.copy(alpha = 0.55f),
-                    NeonPurple.copy(alpha = 0.28f),
+                    glowColor.copy(alpha = 0.16f),
+                    NeonPurple.copy(alpha = 0.08f),
                     Color.Transparent
                 ),
                 center = Offset(size.width * 0.5f, size.height * 0.85f),
