@@ -294,104 +294,21 @@ fun Modifier.liquidGlassChip(
     )
 
 /**
- * Fullscreen atmospheric Liquid Glass Ambient Canvas that renders
- * layered floating chromatic gradient orbs behind all screens to provide
- * natural, rich refraction for frosted glass cards.
+ * Deep True Black canvas for Liquid Glass UI.
+ * Strictly enforces pure #000000 true black dark mode without gradient washes or grey tones,
+ * ensuring all frosted glass cards, glowing specular borders, and floating navigation bar pop brightly with high contrast.
  */
 @Composable
 fun LiquidGlassAtmosphere(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "glass_orbs")
-    val animOffset1 by infiniteTransition.animateFloat(
-        initialValue = -50f,
-        targetValue = 60f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 9000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "orb1"
-    )
-    val animOffset2 by infiniteTransition.animateFloat(
-        initialValue = 40f,
-        targetValue = -70f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 11000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "orb2"
-    )
-
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CyberBlack)
-            .drawBehind {
-                val canvasW = size.width
-                val canvasH = size.height
-
-                // Orb 1: Cyan/Aquamarine Liquid Glow (Top Right)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            CyanBright.copy(alpha = 0.32f),
-                            CyanAccent.copy(alpha = 0.16f),
-                            Color.Transparent
-                        ),
-                        center = Offset(canvasW * 0.82f + animOffset1, canvasH * 0.15f + animOffset2),
-                        radius = canvasW * 0.65f
-                    ),
-                    radius = canvasW * 0.65f,
-                    center = Offset(canvasW * 0.82f + animOffset1, canvasH * 0.15f + animOffset2)
-                )
-
-                // Orb 2: Neon Purple / Violet Glow (Bottom Left)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            NeonPurple.copy(alpha = 0.28f),
-                            CobaltBlue.copy(alpha = 0.14f),
-                            Color.Transparent
-                        ),
-                        center = Offset(canvasW * 0.15f + animOffset2, canvasH * 0.72f + animOffset1),
-                        radius = canvasW * 0.70f
-                    ),
-                    radius = canvasW * 0.70f,
-                    center = Offset(canvasW * 0.15f + animOffset2, canvasH * 0.72f + animOffset1)
-                )
-
-                // Orb 3: Radiant Sapphire Glow (Center Accent)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            CobaltBlue.copy(alpha = 0.22f),
-                            CyanAccent.copy(alpha = 0.08f),
-                            Color.Transparent
-                        ),
-                        center = Offset(canvasW * 0.5f - animOffset1, canvasH * 0.42f),
-                        radius = canvasW * 0.55f
-                    ),
-                    radius = canvasW * 0.55f,
-                    center = Offset(canvasW * 0.5f - animOffset1, canvasH * 0.42f)
-                )
-
-                // Orb 4: Rose Peach / Sunset Magenta Caustic Glow (Bottom Right, matching reference kit)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFFFB7185).copy(alpha = 0.28f),
-                            Color(0xFFFDA4AF).copy(alpha = 0.14f),
-                            Color.Transparent
-                        ),
-                        center = Offset(canvasW * 0.85f - animOffset2, canvasH * 0.85f - animOffset1),
-                        radius = canvasW * 0.65f
-                    ),
-                    radius = canvasW * 0.65f,
-                    center = Offset(canvasW * 0.85f - animOffset2, canvasH * 0.85f - animOffset1)
-                )
-            }
+            .background(Color.Black)
     ) {
         content()
     }
 }
+

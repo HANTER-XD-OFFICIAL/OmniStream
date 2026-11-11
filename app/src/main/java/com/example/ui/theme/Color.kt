@@ -2,11 +2,12 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Deep atmospheric canvas base & Liquid Glass Surfaces
-val CyberBlack = Color(0xFF060A14)
+// Deep true black canvas base & Liquid Glass Surfaces
+val CyberBlack = Color(0xFF000000) // Pure True Black (0x000000)
 val CyberDarkSurface = Color(0x3314223A) // Translucent ~20% frosted glass
 val CyberCardSurface = Color(0x401E2E4E) // Translucent ~25% frosted glass
 val CyberBorder = Color(0x6638BDF8) // Vibrant cyan specular tint edge
+
 
 // Liquid Glass Palette (Semi-transparent frost with refraction layers)
 val LiquidGlassBackground = Color(0x3314223A) // ~20% alpha frosted surface

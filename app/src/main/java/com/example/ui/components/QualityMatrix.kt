@@ -362,15 +362,20 @@ fun QualityMatrixView(
             // Platform & Upload Quality Intelligence Insights
             if (videoInfo != null) {
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF0F172A),
-                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x380F1D36),
+                    border = BorderStroke(1.2.dp, LiquidGlassBrushes.SpecularBorderSubtle),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
                 ) {
                     Column(
-                        modifier = Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Header Bar: Platform + Stream Intelligence + Authentic Badge
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -379,61 +384,161 @@ fun QualityMatrixView(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = CyanBright.copy(alpha = 0.15f),
-                                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.5f))
+                                    color = CyanBright.copy(alpha = 0.20f),
+                                    border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.65f))
                                 ) {
                                     Text(
                                         text = videoInfo.platformName.uppercase(),
                                         color = CyanBright,
-                                        fontSize = 9.5.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Source Stream Analysis",
+                                    text = "Source Stream Intelligence",
                                     color = TextPrimary,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
 
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = EmeraldSuccess.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.6f))
+                                color = EmeraldSuccess.copy(alpha = 0.18f),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.70f))
                             ) {
-                                Text(
-                                    text = "ORIGINAL: ${videoInfo.maxUploadedQualityLabel}",
-                                    color = EmeraldSuccess,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(EmeraldSuccess)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "AUTHENTIC",
+                                        color = EmeraldSuccess,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
                             }
                         }
 
+                        // 2-Column Balanced Metric Cards: Original Resolution & Video Aspect Ratio
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = EmeraldSuccess,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = "Suggested: ${videoInfo.maxUploadedQualityLabel} (100% native clarity from ${videoInfo.platformName})",
-                                color = TextSecondary,
-                                fontSize = 10.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            // Column 1: Video Resolution
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0x38132442),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.40f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                                ) {
+                                    Text(
+                                        text = "MAX RESOLUTION",
+                                        fontSize = 8.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = videoInfo.maxUploadedQualityLabel,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldSuccess,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(1.dp))
+                                    Text(
+                                        text = videoInfo.nativeResolutionDimensions,
+                                        fontSize = 9.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TextSecondary,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            // Column 2: Video Aspect Ratio
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0x38132442),
+                                border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.40f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                                ) {
+                                    Text(
+                                        text = "VIDEO RATIO",
+                                        fontSize = 8.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = videoInfo.videoAspectRatioLabel,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CyanBright,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(1.dp))
+                                    Text(
+                                        text = "Native Bitstream",
+                                        fontSize = 9.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TextSecondary,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+
+                        // Full-width Recommendation Banner with zero truncation
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0x280A1426),
+                            border = BorderStroke(0.8.dp, CyanBright.copy(alpha = 0.25f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = EmeraldSuccess,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Suggested: ${videoInfo.maxUploadedQualityLabel} • 100% native clarity from ${videoInfo.platformName}",
+                                    color = TextPrimary,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 2,
+                                    lineHeight = 14.sp
+                                )
+                            }
                         }
                     }
                 }

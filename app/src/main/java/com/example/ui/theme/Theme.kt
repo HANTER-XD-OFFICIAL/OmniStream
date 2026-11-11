@@ -48,8 +48,8 @@ fun MyApplicationTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = CyberBlack.toArgb()
-                window.navigationBarColor = CyberDarkSurface.toArgb()
+                window.statusBarColor = Color.Black.toArgb()
+                window.navigationBarColor = Color.Black.toArgb()
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
                 WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
             }

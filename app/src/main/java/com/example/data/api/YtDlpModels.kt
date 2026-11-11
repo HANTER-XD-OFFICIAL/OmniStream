@@ -48,6 +48,44 @@ data class VideoInfoResponse(
             else -> "360p Standard"
         }
 
+    val videoAspectRatioLabel: String
+        get() {
+            val topVideo = formats.firstOrNull { !it.isAudioOnly && (it.width ?: 0) > 0 && (it.height ?: 0) > 0 }
+            if (topVideo != null) {
+                val w = topVideo.width ?: 0
+                val h = topVideo.height ?: 0
+                val ratio = w.toFloat() / h.coerceAtLeast(1)
+                return when {
+                    ratio in 1.70f..1.85f -> "16:9 Widescreen"
+                    ratio in 0.52f..0.60f -> "9:16 Vertical (Reel/Short)"
+                    ratio in 0.95f..1.05f -> "1:1 Square"
+                    ratio in 1.30f..1.38f -> "4:3 Standard"
+                    ratio in 2.30f..2.45f -> "21:9 Ultrawide"
+                    w > h -> "Landscape (${w}×${h})"
+                    else -> "Portrait (${w}×${h})"
+                }
+            }
+            return if (platformName == "TikTok" || platformName == "Instagram") "9:16 Vertical" else "16:9 Widescreen"
+        }
+
+    val nativeResolutionDimensions: String
+        get() {
+            val topVideo = formats.firstOrNull { !it.isAudioOnly && (it.width ?: 0) > 0 && (it.height ?: 0) > 0 }
+            return if (topVideo != null && (topVideo.width ?: 0) > 0 && (topVideo.height ?: 0) > 0) {
+                "${topVideo.width} × ${topVideo.height} px"
+            } else {
+                when {
+                    maxUploadedHeight >= 4000 -> "7680 × 4320 px"
+                    maxUploadedHeight >= 2000 -> "3840 × 2160 px"
+                    maxUploadedHeight >= 1400 -> "2560 × 1440 px"
+                    maxUploadedHeight >= 1000 -> "1920 × 1080 px"
+                    maxUploadedHeight >= 700 -> "1280 × 720 px"
+                    maxUploadedHeight >= 400 -> "854 × 480 px"
+                    else -> "640 × 360 px"
+                }
+            }
+        }
+
     val platformMaxSupportedLabel: String
         get() = when (platformName) {
             "TikTok" -> "1080p Full HD (No Watermark)"
@@ -62,6 +100,7 @@ data class VideoInfoResponse(
 
     val suggestedQualityLabel: String
         get() = "$maxUploadedQualityLabel (Native Creator Stream)"
+
 
     val displayDuration: String
         get() {
