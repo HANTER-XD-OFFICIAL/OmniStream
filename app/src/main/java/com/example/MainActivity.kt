@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -68,6 +69,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -279,7 +282,10 @@ private fun LiquidGlassMorphingDock(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Box(contentAlignment = Alignment.TopEnd) {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
                                         imageVector = icon,
                                         contentDescription = title,
@@ -290,18 +296,37 @@ private fun LiquidGlassMorphingDock(
                                     )
 
                                     if (index == 1 && activeCount > 0) {
+                                        val badgeText = if (activeCount > 99) "99+" else "$activeCount"
                                         Box(
                                             modifier = Modifier
-                                                .padding(start = 12.dp, bottom = 8.dp)
+                                                .align(Alignment.TopEnd)
+                                                .offset(x = 7.dp, y = (-3).dp)
+                                                .defaultMinSize(minWidth = 15.dp, minHeight = 15.dp)
+                                                .height(15.dp)
                                                 .clip(CircleShape)
-                                                .background(CyanBright)
-                                                .padding(horizontal = 4.5.dp, vertical = 1.dp)
+                                                .background(
+                                                    Brush.linearGradient(
+                                                        listOf(
+                                                            Color(0xFFA855F7),
+                                                            Color(0xFFEC4899)
+                                                        )
+                                                    )
+                                                )
+                                                .border(1.4.dp, Color(0xFF060E1C), CircleShape)
+                                                .padding(horizontal = if (badgeText.length > 1) 4.dp else 0.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "$activeCount",
-                                                color = Color.Black,
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Black
+                                                text = badgeText,
+                                                style = TextStyle(
+                                                    color = Color.White,
+                                                    fontSize = 8.5.sp,
+                                                    lineHeight = 9.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                                                ),
+                                                maxLines = 1,
+                                                softWrap = false
                                             )
                                         }
                                     }
