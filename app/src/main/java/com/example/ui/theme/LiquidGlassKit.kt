@@ -219,16 +219,16 @@ fun Modifier.liquidGlassButton(
             Brush.verticalGradient(
                 listOf(
                     Color(0x4DFFFFFF),
-                    Color(0x4D1E293B),
-                    Color(0x66334155)
+                    Color(0x381E293B),
+                    Color(0x550F172A)
                 )
             )
         } else {
             Brush.verticalGradient(
                 listOf(
-                    Color.White.copy(alpha = 0.45f), // Top specular gloss line
-                    glowColor.copy(alpha = 0.95f),
-                    glowColor.copy(alpha = 0.80f)
+                    Color.White.copy(alpha = 0.50f), // Top specular gloss line
+                    glowColor.copy(alpha = 0.35f),  // Translucent glowing liquid tint
+                    Color(0xDD081120)               // Frosted deep obsidian core
                 )
             )
         }

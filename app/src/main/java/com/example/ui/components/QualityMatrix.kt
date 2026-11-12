@@ -381,7 +381,10 @@ fun QualityMatrixView(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f, fill = false),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = CyanBright.copy(alpha = 0.20f),
@@ -393,6 +396,8 @@ fun QualityMatrixView(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
+                                        softWrap = false,
+                                        maxLines = 1,
                                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                                     )
                                 }
@@ -401,9 +406,14 @@ fun QualityMatrixView(
                                     text = "Source Stream Intelligence",
                                     color = TextPrimary,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
+
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
@@ -411,7 +421,7 @@ fun QualityMatrixView(
                                 border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.70f))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -426,7 +436,9 @@ fun QualityMatrixView(
                                         color = EmeraldSuccess,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace
+                                        fontFamily = FontFamily.Monospace,
+                                        softWrap = false,
+                                        maxLines = 1
                                     )
                                 }
                             }

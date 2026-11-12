@@ -94,8 +94,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -1237,9 +1240,9 @@ fun HomeScreen(
                 val ext = format?.ext?.uppercase() ?: (if (isAudioSelected) "M4A" else "MP4")
                 val size = format?.readableSize ?: ""
 
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     // Primary Video Download Button
-                    Button(
+                    LiquidGlassHeroActionButton(
                         onClick = {
                             if (!StoragePermissionHelper.hasStoragePermission(context)) {
                                 pendingDownloadAudioOnly = isAudioSelected
@@ -1249,56 +1252,15 @@ fun HomeScreen(
                                 onNavigateToDownloads()
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 58.dp)
-                            .liquidGlassButton(
-                                shape = LiquidGlassPillShape,
-                                glowColor = if (isAudioSelected) NeonPurple else CyanBright
-                            )
-                            .testTag("start_download_button"),
-                        shape = LiquidGlassPillShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.Black
-                        ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isAudioSelected) Icons.Default.Audiotrack else Icons.Default.Download,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = if (isAudioSelected) "DOWNLOAD AUDIO STREAM" else "DOWNLOAD VIDEO STREAM",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 13.5.sp,
-                                        letterSpacing = 0.5.sp
-                                    )
-                                )
-                                Text(
-                                    text = "$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = Color.Black.copy(alpha = 0.85f)
-                                )
-                            }
-                        }
-                    }
+                        title = if (isAudioSelected) "DOWNLOAD AUDIO STREAM" else "DOWNLOAD VIDEO STREAM",
+                        subtitle = "$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}",
+                        icon = if (isAudioSelected) Icons.Default.Audiotrack else Icons.Default.Download,
+                        accentColor = if (isAudioSelected) NeonPurple else CyanBright,
+                        testTag = "start_download_button"
+                    )
 
                     // Direct MP3 320k Audio Extract Button (Always Active for Any Video)
-                    Button(
+                    LiquidGlassHeroActionButton(
                         onClick = {
                             if (!StoragePermissionHelper.hasStoragePermission(context)) {
                                 pendingDownloadAudioOnly = true
@@ -1308,51 +1270,12 @@ fun HomeScreen(
                                 onNavigateToDownloads()
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 54.dp)
-                            .liquidGlassButton(
-                                shape = LiquidGlassPillShape,
-                                glowColor = NeonPurple
-                            )
-                            .testTag("download_audio_mp3_button"),
-                        shape = LiquidGlassPillShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.Black
-                        ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Audiotrack,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = NeonPurple
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "EXTRACT MP3 MASTER AUDIO (320 KBPS)",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        letterSpacing = 0.3.sp
-                                    ),
-                                    color = NeonPurple
-                                )
-                                Text(
-                                    text = "High Fidelity Studio Sound • Universal Compatibility",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                    }
+                        title = "EXTRACT MP3 MASTER AUDIO (320 KBPS)",
+                        subtitle = "High Fidelity Studio Sound • Universal Compatibility",
+                        icon = Icons.Default.Audiotrack,
+                        accentColor = NeonPurple,
+                        testTag = "download_audio_mp3_button"
+                    )
                 }
                 Spacer(modifier = Modifier.height(36.dp))
             }
@@ -2144,6 +2067,180 @@ private fun HomeDeveloperSupportBanner(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = CyanBright
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiquidGlassHeroActionButton(
+    onClick: () -> Unit,
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    testTag: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 62.dp)
+            .testTag(testTag)
+            .drawBehind {
+                // Volumetric soft caustic radial glow
+                val r = size.maxDimension * 0.48f
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.22f),
+                            NeonPurple.copy(alpha = 0.08f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.5f, size.height * 0.85f),
+                        radius = r
+                    ),
+                    radius = r,
+                    center = Offset(size.width * 0.5f, size.height * 0.85f)
+                )
+            },
+        shape = RoundedCornerShape(32.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = 1.4.dp,
+            brush = Brush.horizontalGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.95f),
+                    accentColor,
+                    Color.White.copy(alpha = 0.75f),
+                    NeonPurple.copy(alpha = 0.70f),
+                    Color.White.copy(alpha = 0.90f)
+                )
+            )
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0x55FFFFFF),                 // Specular top highlight
+                            accentColor.copy(alpha = 0.38f),   // Translucent liquid glow
+                            Color(0xDD081122),                 // Deep obsidian crystal core
+                            Color(0xF5040812)                  // Solid dark anchor
+                        )
+                    )
+                )
+        ) {
+            // Inner 3D Dome Glass reflection across top half
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0x38FFFFFF),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // Button Content Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Frosted Circular Glass Icon Bubble
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0x45FFFFFF),
+                                    accentColor.copy(alpha = 0.30f),
+                                    Color(0x3008101E)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 1.2.dp,
+                            brush = Brush.horizontalGradient(
+                                listOf(Color.White, accentColor.copy(alpha = 0.80f))
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Text Stack
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            fontSize = 13.5.sp,
+                            letterSpacing = 0.6.sp
+                        ),
+                        color = Color.White,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        color = Color(0xFFE2E8F0),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Right Glowing Action Indicator Pill
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.18f))
+                        .border(1.dp, accentColor.copy(alpha = 0.45f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
