@@ -17,9 +17,19 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.ripple
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -108,147 +118,236 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-
-private fun LiquidGlassNavButton(
-    title: String,
-    icon: ImageVector,
-    isSelected: Boolean,
-    testTag: String,
-    badgeCount: Int = 0,
-    accentColor: Color = CyanBright,
-    onClick: () -> Unit,
+private fun LiquidGlassMorphingDock(
+    currentTab: Int,
+    activeCount: Int,
+    onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.0f else 0.94f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-        label = "nav_btn_scale"
+    val items = remember {
+        listOf(
+            Triple("Downloader", Icons.Default.Download, "nav_tab_downloader"),
+            Triple("Downloads", Icons.Default.Folder, "nav_tab_downloads"),
+            Triple("API & Engine", Icons.Default.Dns, "nav_tab_settings"),
+            Triple("Developer", Icons.Default.Code, "nav_tab_developer")
+        )
+    }
+
+    val animatedAccentColor by animateColorAsState(
+        targetValue = if (currentTab == 3) NeonPurple else CyanBright,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
+        label = "dock_accent_color"
     )
 
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = Color.Transparent,
+    Box(
         modifier = modifier
-            .testTag(testTag)
-            .scale(scale)
-            .padding(horizontal = 2.dp, vertical = 2.dp)
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
+        // Refined subtle rim elevation aura directly beneath the dock
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .then(
-                    if (isSelected) {
-                        Modifier
-                            .drawBehind {
-                                val r = size.maxDimension * 0.50f
-                                drawCircle(
-                                    brush = Brush.radialGradient(
-                                        colors = listOf(
-                                            accentColor.copy(alpha = 0.12f),
-                                            NeonPurple.copy(alpha = 0.05f),
-                                            Color.Transparent
-                                        ),
-                                        center = Offset(size.width * 0.5f, size.height * 0.7f),
-                                        radius = r
-                                    ),
-                                    radius = r,
-                                    center = Offset(size.width * 0.5f, size.height * 0.7f)
-                                )
-                            }
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color(0x4DFFFFFF), // Crisp specular dome reflection
-                                        accentColor.copy(alpha = 0.22f),
-                                        Color(0x38121E38)
-                                    )
-                                )
-                            )
-                            .border(
-                                width = 1.2.dp,
-                                brush = Brush.horizontalGradient(
-                                    listOf(
-                                        Color.White,
-                                        accentColor,
-                                        Color.White.copy(alpha = 0.60f)
-                                    )
-                                ),
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                    } else {
-                        Modifier.background(Color.Transparent)
-                    }
-                )
-                .padding(vertical = 7.dp, horizontal = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Box(contentAlignment = Alignment.TopEnd) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = title,
-                        tint = if (isSelected) accentColor else Color(0xFFE2E8F0),
-                        modifier = Modifier.size(22.dp)
+                .matchParentSize()
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            animatedAccentColor.copy(alpha = 0.12f),
+                            NeonPurple.copy(alpha = 0.08f),
+                            Color(0xFFFB7185).copy(alpha = 0.06f),
+                            animatedAccentColor.copy(alpha = 0.10f)
+                        )
                     )
+                )
+        )
 
-                    if (badgeCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .padding(start = 13.dp, bottom = 8.dp)
-                                .clip(CircleShape)
-                                .background(CyanBright)
-                                .padding(horizontal = 4.5.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "$badgeCount",
-                                color = Color.Black,
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.ExtraBold
+        // Floating Frosted Crystal Dock Container
+        Surface(
+            shape = RoundedCornerShape(30.dp),
+            color = Color.Transparent,
+            border = BorderStroke(1.4.dp, LiquidGlassBrushes.PrismaticCausticBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(68.dp)
+                .testTag("bottom_nav_bar")
+                .clip(RoundedCornerShape(30.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0x40FFFFFF), // Specular light edge highlight
+                            Color(0xF008101E), // Frosted obsidian deep glass
+                            Color(0xFA040810)  // Solid true-black anchor
+                        )
+                    )
+                )
+        ) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 5.dp, vertical = 5.dp)
+            ) {
+                val tabWidth = maxWidth / items.size
+                val animatedPillOffset by animateDpAsState(
+                    targetValue = tabWidth * currentTab,
+                    animationSpec = spring(
+                        dampingRatio = 0.74f, // Organic liquid spring bounce
+                        stiffness = 380f
+                    ),
+                    label = "dock_sliding_pill_offset"
+                )
+
+                // 1. Fluid Sliding Liquid Glass Capsule Pill (Masterpiece Hero Effect)
+                Box(
+                    modifier = Modifier
+                        .offset(x = animatedPillOffset)
+                        .width(tabWidth)
+                        .fillMaxHeight()
+                        .padding(horizontal = 2.dp, vertical = 1.dp)
+                        .drawBehind {
+                            val r = size.maxDimension * 0.52f
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        animatedAccentColor.copy(alpha = 0.16f),
+                                        NeonPurple.copy(alpha = 0.06f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(size.width * 0.5f, size.height * 0.75f),
+                                    radius = r
+                                ),
+                                radius = r,
+                                center = Offset(size.width * 0.5f, size.height * 0.75f)
                             )
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = title,
-                    fontSize = 9.5.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (isSelected) Color.White else Color(0xFFE2E8F0),
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (isSelected) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp, 2.5.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        accentColor.copy(alpha = 0.5f),
-                                        accentColor,
-                                        accentColor.copy(alpha = 0.5f)
-                                    )
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0x4DFFFFFF), // Top specular dome reflection
+                                    animatedAccentColor.copy(alpha = 0.22f), // Translucent liquid tint
+                                    Color(0x38121E38)  // Deep obsidian backing
                                 )
                             )
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(4.5.dp))
+                        )
+                        .border(
+                            width = 1.3.dp,
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.White,
+                                    animatedAccentColor,
+                                    Color.White.copy(alpha = 0.65f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                )
+
+                // 2. Interactive Navigation Tabs Layer
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items.forEachIndexed { index, item ->
+                        val (title, icon, testTag) = item
+                        val isSelected = currentTab == index
+                        val iconScale by animateFloatAsState(
+                            targetValue = if (isSelected) 1.14f else 0.96f,
+                            animationSpec = spring(dampingRatio = 0.68f, stiffness = 420f),
+                            label = "tab_icon_scale_$index"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(24.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(
+                                        bounded = true,
+                                        color = if (index == 3) NeonPurple else CyanBright
+                                    )
+                                ) {
+                                    onTabSelected(index)
+                                }
+                                .testTag(testTag),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Box(contentAlignment = Alignment.TopEnd) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = title,
+                                        tint = if (isSelected) animatedAccentColor else Color(0xFFCBD5E1),
+                                        modifier = Modifier
+                                            .size(21.dp)
+                                            .scale(iconScale)
+                                    )
+
+                                    if (index == 1 && activeCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 12.dp, bottom = 8.dp)
+                                                .clip(CircleShape)
+                                                .background(CyanBright)
+                                                .padding(horizontal = 4.5.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = "$activeCount",
+                                                color = Color.Black,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(3.dp))
+
+                                Text(
+                                    text = title,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                // Micro glowing liquid droplet indicator for active tab
+                                Spacer(modifier = Modifier.height(2.dp))
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp, 2.5.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(
+                                                        animatedAccentColor.copy(alpha = 0.6f),
+                                                        Color.White,
+                                                        animatedAccentColor.copy(alpha = 0.6f)
+                                                    )
+                                                )
+                                            )
+                                    )
+                                } else {
+                                    Box(modifier = Modifier.size(10.dp, 2.5.dp))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun MainApp(viewModel: DownloadViewModel) {
@@ -377,103 +476,11 @@ fun MainApp(viewModel: DownloadViewModel) {
                 }
             },
             bottomBar = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    // Refined subtle rim elevation aura underneath floating dock (significantly reduced ambient glow)
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(horizontal = 10.dp, vertical = 2.dp)
-                            .clip(RoundedCornerShape(30.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        CyanBright.copy(alpha = 0.10f),
-                                        NeonPurple.copy(alpha = 0.08f),
-                                        Color(0xFFFB7185).copy(alpha = 0.06f),
-                                        CyanBright.copy(alpha = 0.08f)
-                                    )
-                                )
-                            )
-                    )
-
-                    // Liquid Glass Island Dock Frame with elevated frosted glass
-                    Surface(
-                        shape = RoundedCornerShape(28.dp),
-                        color = Color.Transparent,
-                        border = BorderStroke(1.4.dp, LiquidGlassBrushes.PrismaticCausticBorder),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("bottom_nav_bar")
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color(0x4DFFFFFF), // Crisp frosted specular light edge highlight
-                                        Color(0xF008101E), // Deep high-opacity frosted obsidian glass
-                                        Color(0xFA040810)  // Solid true-black anchor
-                                    )
-                                )
-                            )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 6.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Tab 0: Downloader
-                            LiquidGlassNavButton(
-                                title = "Downloader",
-                                icon = Icons.Default.Download,
-                                isSelected = currentTab == 0,
-                                testTag = "nav_tab_downloader",
-                                accentColor = CyanBright,
-                                onClick = { currentTab = 0 },
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            // Tab 1: Downloads
-                            LiquidGlassNavButton(
-                                title = "Downloads",
-                                icon = Icons.Default.Folder,
-                                isSelected = currentTab == 1,
-                                testTag = "nav_tab_downloads",
-                                badgeCount = activeCount,
-                                accentColor = CyanBright,
-                                onClick = { currentTab = 1 },
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            // Tab 2: API & Engine
-                            LiquidGlassNavButton(
-                                title = "API & Engine",
-                                icon = Icons.Default.Dns,
-                                isSelected = currentTab == 2,
-                                testTag = "nav_tab_settings",
-                                accentColor = CyanBright,
-                                onClick = { currentTab = 2 },
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            // Tab 3: Developer Hub (MD RASEL)
-                            LiquidGlassNavButton(
-                                title = "Developer",
-                                icon = Icons.Default.Code,
-                                isSelected = currentTab == 3,
-                                testTag = "nav_tab_developer",
-                                accentColor = NeonPurple,
-                                onClick = { currentTab = 3 },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
+                LiquidGlassMorphingDock(
+                    currentTab = currentTab,
+                    activeCount = activeCount,
+                    onTabSelected = { currentTab = it }
+                )
             }
         ) { innerPadding ->
             Box(
