@@ -6,6 +6,7 @@ import android.os.Environment
 import android.os.PowerManager
 import com.example.data.api.TelegramBotClient
 import com.example.data.api.YtDlpClient
+import com.example.data.api.formatMediaSize
 import com.example.data.local.AppDatabase
 import com.example.data.local.DownloadDao
 import com.example.data.local.DownloadEntity
@@ -301,15 +302,32 @@ class DownloadRepository(
                 val appendMode = is206 && existingBytes > 0L
                 val body = streamBody
 
+                val contentRangeTotal = Regex("""bytes\s+\d+-\d+/(\d+)""", RegexOption.IGNORE_CASE)
+                    .find(activeResponse.header("Content-Range") ?: "")
+                    ?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
                 val remoteLength = body.contentLength()
-                val totalBytes = if (appendMode && remoteLength > 0L) {
-                    existingBytes + remoteLength
-                } else if (remoteLength > 0L) {
-                    remoteLength
-                } else if (item.totalBytes > 0L) {
-                    item.totalBytes
-                } else {
-                    0L
+                val totalBytes = when {
+                    contentRangeTotal > 0L -> contentRangeTotal
+                    appendMode && remoteLength > 0L -> existingBytes + remoteLength
+                    remoteLength > 0L -> remoteLength
+                    item.totalBytes > 0L -> item.totalBytes
+                    else -> 0L
+                }
+
+                if (totalBytes > 0L) {
+                    val initialPercent = if (appendMode) {
+                        ((existingBytes * 100L) / totalBytes).toInt().coerceIn(0, 99)
+                    } else {
+                        0
+                    }
+                    downloadDao.updateProgress(
+                        id = downloadId,
+                        percent = initialPercent,
+                        downloaded = if (appendMode) existingBytes else 0L,
+                        total = totalBytes,
+                        speed = "Connecting...",
+                        eta = ""
+                    )
                 }
 
                 var inputStream: InputStream? = null
@@ -372,7 +390,7 @@ class DownloadRepository(
                                 id = downloadId,
                                 percent = percent,
                                 downloaded = totalDownloaded,
-                                total = if (totalBytes > 0) totalBytes else totalDownloaded,
+                                total = totalBytes,
                                 speed = speedText,
                                 eta = etaText
                             )
@@ -416,12 +434,15 @@ class DownloadRepository(
                         )
                     } catch (_: Exception) {}
 
-                    // Mark complete in Database
+                    // Mark complete in Database with exact saved file size on disk
+                    val actualSavedBytes = File(finalSavedPath).let {
+                        if (it.exists() && it.length() > 0L) it.length() else totalDownloaded
+                    }
                     downloadDao.updateProgress(
                         id = downloadId,
                         percent = 100,
-                        downloaded = totalDownloaded,
-                        total = totalDownloaded,
+                        downloaded = actualSavedBytes,
+                        total = actualSavedBytes,
                         speed = "",
                         eta = ""
                     )
@@ -436,13 +457,13 @@ class DownloadRepository(
                     try {
                         val s = SettingsRepository(context).settings.value
                         if (s.telegramSyncEnabled && s.telegramChatId.isNotBlank()) {
-                            val sizeMb = if (totalDownloaded > 0) String.format(java.util.Locale.US, "%.1f MB", totalDownloaded / (1024.0 * 1024.0)) else "Unknown"
+                            val sizeLabel = formatMediaSize(actualSavedBytes).ifEmpty { "Unknown" }
                             val msg = """
                                 📥 <b>Download Completed on OmniStream</b>
                                 🎬 <b>Title:</b> ${item.title.take(60)}
                                 👤 <b>Creator:</b> ${item.authorOrChannel}
                                 📊 <b>Quality:</b> ${item.resolution} (${item.ext})
-                                💾 <b>Size:</b> $sizeMb
+                                💾 <b>Size:</b> $sizeLabel
                                 📁 <b>Saved to:</b> Internal Storage/Download/$APP_FOLDER_NAME
                             """.trimIndent()
                             TelegramBotClient().sendMessage(s.telegramBotToken, s.telegramChatId, msg)

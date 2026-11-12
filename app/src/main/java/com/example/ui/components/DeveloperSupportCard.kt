@@ -366,13 +366,13 @@ fun DeveloperSupportCard(
                     shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
-                        contentColor = Color.Black
+                        contentColor = Color.White
                     ),
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
 
                 Button(
@@ -384,13 +384,13 @@ fun DeveloperSupportCard(
                     shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
-                        contentColor = Color.Black
+                        contentColor = Color.White
                     ),
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Telegram", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Telegram", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
 
                 Button(
@@ -402,13 +402,13 @@ fun DeveloperSupportCard(
                     shape = LiquidGlassPillShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
-                        contentColor = Color.Black
+                        contentColor = Color.White
                     ),
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Facebook", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Facebook", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
 

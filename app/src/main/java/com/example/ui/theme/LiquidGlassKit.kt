@@ -124,9 +124,9 @@ object LiquidGlassBrushes {
 
     val ModalGlassBackground = Brush.verticalGradient(
         listOf(
-            Color(0x4DFFFFFF), // Crisp frosted top specular reflection
-            Color(0xF5081120), // Deep obsidian high-opacity frosted glass for dialog legibility
-            Color(0xFA040810)  // Solid true-black anchor
+            Color(0xF60E1729), // High-opacity frosted obsidian crystal top (prevents messy bleed-through)
+            Color(0xFA070D19), // Deep crystal mid
+            Color(0xFC03060C)  // True-black anchor
         )
     )
 
@@ -189,7 +189,8 @@ fun Modifier.liquidGlass(
     .border(width = borderWidth, brush = borderBrush, shape = shape)
 
 /**
- * Interactive button with vibrant frosted liquid glass pill styling and refined glow
+ * Interactive button with vibrant frosted liquid glass pill styling and refined glow.
+ * Designed for high-contrast luminous white text and icons.
  */
 fun Modifier.liquidGlassButton(
     shape: Shape = LiquidGlassPillShape,
@@ -202,8 +203,8 @@ fun Modifier.liquidGlassButton(
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    glowColor.copy(alpha = 0.16f),
-                    NeonPurple.copy(alpha = 0.08f),
+                    glowColor.copy(alpha = if (isSecondary) 0.07f else 0.18f),
+                    NeonPurple.copy(alpha = if (isSecondary) 0.03f else 0.08f),
                     Color.Transparent
                 ),
                 center = Offset(size.width * 0.5f, size.height * 0.85f),
@@ -218,31 +219,36 @@ fun Modifier.liquidGlassButton(
         if (isSecondary) {
             Brush.verticalGradient(
                 listOf(
-                    Color(0x4DFFFFFF),
-                    Color(0x381E293B),
-                    Color(0x550F172A)
+                    Color(0x28FFFFFF),
+                    Color(0xEB0B1424),
+                    Color(0xF5060B15)
                 )
             )
         } else {
             Brush.verticalGradient(
                 listOf(
-                    Color.White.copy(alpha = 0.50f), // Top specular gloss line
-                    glowColor.copy(alpha = 0.35f),  // Translucent glowing liquid tint
-                    Color(0xDD081120)               // Frosted deep obsidian core
+                    Color(0x3DFFFFFF),              // Crisp top specular sheen
+                    glowColor.copy(alpha = 0.42f),  // Translucent liquid tint
+                    Color(0xE0081224),              // Deep frosted obsidian glass
+                    Color(0xF4040914)               // Solid anchor
                 )
             )
         }
     )
     .border(
-        width = 1.4.dp,
-        brush = Brush.horizontalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.92f),
-                glowColor.copy(alpha = 0.75f),
-                Color.White.copy(alpha = 0.45f),
-                NeonPurple.copy(alpha = 0.65f)
+        width = if (isSecondary) 1.1.dp else 1.4.dp,
+        brush = if (isSecondary) {
+            LiquidGlassBrushes.SpecularBorder
+        } else {
+            Brush.horizontalGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.92f),
+                    glowColor.copy(alpha = 0.85f),
+                    Color.White.copy(alpha = 0.50f),
+                    NeonPurple.copy(alpha = 0.70f)
+                )
             )
-        ),
+        },
         shape = shape
     )
 

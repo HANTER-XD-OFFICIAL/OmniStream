@@ -152,20 +152,19 @@ data class FormatInfo(
         get() = (vcodec != null && vcodec != "none") && (acodec != null && acodec != "none")
 
     val estimatedBytes: Long
-        get() = filesize ?: filesizeApprox ?: 0L
+        get() = (filesize?.takeIf { it > 0L }) ?: (filesizeApprox?.takeIf { it > 0L }) ?: 0L
+
+    val hasExactSize: Boolean
+        get() = (filesize ?: 0L) > 0L
+
+    val hasKnownSize: Boolean
+        get() = estimatedBytes > 0L
 
     val readableSize: String
         get() {
             val bytes = estimatedBytes
-            if (bytes <= 0) return "Dynamic / Stream"
-            val kb = bytes / 1024.0
-            val mb = kb / 1024.0
-            val gb = mb / 1024.0
-            return when {
-                gb >= 1.0 -> String.format("%.2f GB", gb)
-                mb >= 1.0 -> String.format("%.1f MB", mb)
-                else -> String.format("%.0f KB", kb)
-            }
+            if (bytes <= 0L) return "Size via server"
+            return formatMediaSize(bytes)
         }
 
     val displayQualityBadge: String
@@ -195,3 +194,18 @@ data class ApiHealthResponse(
     val latencyMs: Long = 0L,
     val message: String = "yt-dlp engine online"
 )
+
+fun formatMediaSize(bytes: Long): String {
+    if (bytes <= 0L) return ""
+    val kb = bytes / 1024.0
+    val mb = kb / 1024.0
+    val gb = mb / 1024.0
+    return when {
+        gb >= 1.0 -> String.format(java.util.Locale.US, "%.2f GB", gb)
+        mb >= 100.0 -> String.format(java.util.Locale.US, "%.1f MB", mb)
+        mb >= 1.0 -> String.format(java.util.Locale.US, "%.2f MB", mb)
+        kb >= 1.0 -> String.format(java.util.Locale.US, "%.0f KB", kb)
+        else -> "$bytes B"
+    }
+}
+

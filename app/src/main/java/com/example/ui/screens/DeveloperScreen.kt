@@ -260,14 +260,15 @@ fun DeveloperScreen(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color.Black, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Updates",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                maxLines = 1
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -541,16 +542,16 @@ fun DeveloperScreen(
                                 .weight(1f)
                                 .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = EmeraldSuccess),
                             shape = LiquidGlassPillShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Chat, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                                Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                             }
                         }
 
@@ -561,16 +562,16 @@ fun DeveloperScreen(
                                 .weight(1f)
                                 .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright),
                             shape = LiquidGlassPillShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Send, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Telegram", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                                Text("Telegram", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                             }
                         }
 
@@ -581,16 +582,16 @@ fun DeveloperScreen(
                                 .weight(1f)
                                 .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = NeonPurple),
                             shape = LiquidGlassPillShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Public, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Public, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Facebook", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                                Text("Facebook", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                             }
                         }
                     }

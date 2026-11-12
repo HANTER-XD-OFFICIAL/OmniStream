@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
+import com.example.data.api.formatMediaSize
 import com.example.data.local.DownloadEntity
 import com.example.data.local.MediaType
 import com.example.ui.theme.CyberBorder
@@ -282,8 +283,11 @@ fun MediaPreviewDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("File Size:", color = Color.Gray, fontSize = 12.sp)
-                            val mb = item.downloadedBytes / (1024.0 * 1024.0)
-                            Text(String.format("%.1f MB", mb), color = EmeraldSuccess, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            val exactBytes = localFile?.takeIf { it.exists() && it.length() > 0L }?.length()
+                                ?: item.downloadedBytes.takeIf { it > 0L }
+                                ?: item.totalBytes
+                            val formattedSize = formatMediaSize(exactBytes).ifEmpty { "Unknown" }
+                            Text(formattedSize, color = EmeraldSuccess, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         if (localFile != null) {
                             Row(

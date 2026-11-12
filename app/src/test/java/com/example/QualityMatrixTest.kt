@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.data.api.FormatInfo
+import com.example.data.api.formatMediaSize
 import com.example.ui.components.PlatformDetector
 import com.example.ui.components.QualityTierResolver
 import org.junit.Assert.assertEquals
@@ -124,5 +125,40 @@ class QualityMatrixTest {
 
         assertTrue("8K should be available", tier8K.isAvailable)
         assertTrue("4K should be available", tier4K.isAvailable)
+    }
+
+    @Test
+    fun `formatMediaSize formats KB MB and GB accurately`() {
+        assertEquals("", formatMediaSize(0L))
+        assertEquals("512 B", formatMediaSize(512L))
+        assertEquals("640 KB", formatMediaSize(640L * 1024L))
+        assertEquals("14.50 MB", formatMediaSize((14.5 * 1024.0 * 1024.0).toLong()))
+        assertEquals("250.5 MB", formatMediaSize((250.5 * 1024.0 * 1024.0).toLong()))
+        assertEquals("1.85 GB", formatMediaSize((1.85 * 1024.0 * 1024.0 * 1024.0).toLong()))
+    }
+
+    @Test
+    fun `synthetic audio fallback tiers never fabricate fake sizes from video`() {
+        val formats = listOf(
+            FormatInfo(
+                formatId = "720p_hd",
+                formatNote = "720p HD",
+                resolution = "1280x720",
+                width = 1280,
+                height = 720,
+                fps = 30,
+                ext = "mp4",
+                filesize = 128_000_000L
+            )
+        )
+
+        val tiers = QualityTierResolver.resolveTiers(formats)
+        val tierMp3 = tiers.first { it.id == "tier_audio_mp3" }
+        val mp3Format = tierMp3.matchingFormat
+
+        assertNotNull(mp3Format)
+        assertEquals(0L, mp3Format?.estimatedBytes)
+        assertFalse(mp3Format?.hasKnownSize ?: true)
+        assertEquals("Size via server", mp3Format?.readableSize)
     }
 }

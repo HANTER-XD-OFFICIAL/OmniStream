@@ -13,6 +13,7 @@ import com.example.data.api.TelegramBotInfo
 import com.example.data.api.TelegramBotResult
 import com.example.data.api.VideoInfoResponse
 import com.example.data.api.YtDlpClient
+import com.example.data.api.formatMediaSize
 import com.example.data.local.AppDatabase
 import com.example.data.local.DownloadEntity
 import com.example.data.local.DownloadStatus
@@ -192,12 +193,12 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             } else {
                 s.telegramBotToken
             }
-            val sizeMb = if (item.totalBytes > 0) String.format(java.util.Locale.US, "%.1f MB", item.totalBytes / (1024.0 * 1024.0)) else "Unknown"
+            val sizeLabel = formatMediaSize(item.totalBytes).ifEmpty { "Unknown" }
             val caption = """
                 🎬 <b>${item.title.take(60)}</b>
                 👤 <b>Creator:</b> ${item.authorOrChannel}
                 📊 <b>Quality:</b> ${item.resolution} (${item.ext})
-                💾 <b>Size:</b> $sizeMb
+                💾 <b>Size:</b> $sizeLabel
                 ⚡ <i>Downloaded via OmniStream (@OmniStream34_bot)</i>
             """.trimIndent()
 
@@ -295,27 +296,39 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         val format = _selectedFormat.value ?: return
 
         viewModelScope.launch {
-            val isAudio = audioOnlyOverride || format.isAudioOnly
-            val mediaType = if (isAudio) MediaType.AUDIO else MediaType.VIDEO
-            val ext = customExt ?: (if (isAudio) "mp3" else format.ext)
+            val targetFormat = if (audioOnlyOverride && !format.isAudioOnly) {
+                info.formats.firstOrNull {
+                    it.isAudioOnly && (customExt == null || it.ext.equals(customExt, ignoreCase = true))
+                } ?: info.formats.firstOrNull { it.isAudioOnly } ?: format
+            } else {
+                format
+            }
 
-            val downloadUrl = format.url ?: info.webpageUrl ?: _urlInput.value.trim()
+            val isAudio = audioOnlyOverride || targetFormat.isAudioOnly
+            val mediaType = if (isAudio) MediaType.AUDIO else MediaType.VIDEO
+            val ext = customExt ?: (if (isAudio) "mp3" else targetFormat.ext)
+            val downloadUrl = targetFormat.url ?: format.url ?: info.webpageUrl ?: _urlInput.value.trim()
+            val estimatedSize = if (audioOnlyOverride && !format.isAudioOnly && targetFormat === format) {
+                0L
+            } else {
+                targetFormat.estimatedBytes
+            }
 
             downloadRepo.enqueueDownload(
                 title = info.title,
                 sourceUrl = info.webpageUrl ?: _urlInput.value,
                 downloadUrl = downloadUrl,
-                formatId = format.formatId,
-                formatNote = format.formatNote ?: format.displayQualityBadge,
-                resolution = if (isAudio) "Audio HQ" else (format.resolution ?: format.displayQualityBadge),
-                fps = format.fps ?: 30,
+                formatId = targetFormat.formatId,
+                formatNote = targetFormat.formatNote ?: targetFormat.displayQualityBadge,
+                resolution = if (isAudio) "Audio HQ" else (targetFormat.resolution ?: targetFormat.displayQualityBadge),
+                fps = targetFormat.fps ?: 30,
                 ext = ext,
                 mediaType = mediaType,
                 thumbnailUrl = info.thumbnail ?: "",
                 durationFormatted = info.displayDuration,
                 authorOrChannel = info.author,
                 platformName = info.extractor ?: "Web",
-                totalBytesEstimated = format.estimatedBytes
+                totalBytesEstimated = estimatedSize
             )
 
             _statusMessage.value = "Saving to ${DownloadRepository.APP_FOLDER_NAME}: ${info.title.take(28)}..."

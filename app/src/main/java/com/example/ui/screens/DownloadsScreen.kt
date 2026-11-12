@@ -48,6 +48,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.example.data.api.formatMediaSize
+import java.io.File
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -368,8 +371,22 @@ fun DownloadItemCard(
                             )
                         }
 
+                        val knownBytes = remember(item.status, item.localFilePath, item.totalBytes, item.downloadedBytes) {
+                            when {
+                                isCompleted && !item.localFilePath.isNullOrBlank() -> {
+                                    val savedFile = File(item.localFilePath)
+                                    if (savedFile.exists() && savedFile.length() > 0L) savedFile.length()
+                                    else item.totalBytes.takeIf { it > 0L } ?: item.downloadedBytes
+                                }
+                                isCompleted -> item.totalBytes.takeIf { it > 0L } ?: item.downloadedBytes
+                                !isDownloading && item.totalBytes > 0L -> item.totalBytes
+                                else -> 0L
+                            }
+                        }
+                        val sizeSuffix = if (knownBytes > 0L) " • ${formatMediaSize(knownBytes)}" else ""
+
                         Text(
-                            text = "${item.ext.uppercase()} • ${item.authorOrChannel}",
+                            text = "${item.ext.uppercase()} • ${item.authorOrChannel}$sizeSuffix",
                             fontSize = 11.sp,
                             color = TextSecondary,
                             maxLines = 1,
@@ -402,12 +419,12 @@ fun DownloadItemCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val downloadedMb = item.downloadedBytes / (1024.0 * 1024.0)
-                        val totalMb = item.totalBytes / (1024.0 * 1024.0)
-                        val sizeString = if (totalMb > 0) {
-                            String.format("%.1f / %.1f MB (%d%%)", downloadedMb, totalMb, item.progressPercent)
+                        val downloadedLabel = formatMediaSize(item.downloadedBytes).ifEmpty { "0 KB" }
+                        val sizeString = if (item.totalBytes > 0L) {
+                            val totalLabel = formatMediaSize(item.totalBytes)
+                            "$downloadedLabel / $totalLabel (${item.progressPercent}%)"
                         } else {
-                            String.format("%.1f MB downloaded", downloadedMb)
+                            "$downloadedLabel downloaded"
                         }
 
                         Text(text = sizeString, fontSize = 11.sp, color = TextSecondary)
@@ -455,13 +472,13 @@ fun DownloadItemCard(
                         shape = RoundedCornerShape(12.dp),
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
-                            contentColor = Color.Black
+                            contentColor = Color.White
                         ),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Play / Open", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Play / Open", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -597,10 +614,10 @@ fun EmptyDownloadsState(onNavigateToHome: () -> Unit) {
                 modifier = Modifier.liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanBright),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                     containerColor = Color.Transparent,
-                    contentColor = Color.Black
+                    contentColor = Color.White
                 )
             ) {
-                Text("Go to Downloader", fontWeight = FontWeight.Bold)
+                Text("Go to Downloader", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
     }

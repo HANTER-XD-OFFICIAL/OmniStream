@@ -589,7 +589,7 @@ fun ApiSettingsScreen(
                             shape = LiquidGlassPillShape,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.Transparent,
-                                contentColor = CyberBlack
+                                contentColor = Color.White
                             ),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             modifier = Modifier
@@ -602,7 +602,7 @@ fun ApiSettingsScreen(
                             if (isChecking) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(14.dp),
-                                    color = CyberBlack,
+                                    color = Color.White,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -1268,11 +1268,11 @@ fun ApiSettingsScreen(
                                     .liquidGlassButton(shape = LiquidGlassPillShape, glowColor = CyanAccent)
                                     .testTag("send_telegram_test_msg_button"),
                                 shape = LiquidGlassPillShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.Black)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Send Test Message via Bot", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Send Test Message via Bot", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -1486,12 +1486,12 @@ fun ApiSettingsScreen(
                 shape = LiquidGlassPillShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Transparent,
-                    contentColor = Color.Black
+                    contentColor = Color.White
                 )
             ) {
                 Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Save Settings & Apply", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Save Settings & Apply", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
             }
         }
 

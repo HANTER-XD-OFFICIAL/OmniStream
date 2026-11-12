@@ -2,6 +2,9 @@ package com.example.data.api
 
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -138,7 +141,7 @@ class YtDlpClient(
         val ytVideoId = extractYouTubeId(trimmed)
         if (ytVideoId != null) {
             val ytResult = extractYouTubeVideo(trimmed, ytVideoId)
-            if (ytResult != null) return@withContext ytResult
+            if (ytResult != null) return@withContext enrichResponseWithRealSizes(ytResult)
         }
 
         val lowerUrl = trimmed.lowercase()
@@ -146,7 +149,7 @@ class YtDlpClient(
         // 0b. Dedicated MEGA Cloud Extractor (SyntexCore + High-Speed Direct - bypass Cobalt)
         if ("mega.nz" in lowerUrl || "mega.co.nz" in lowerUrl || "mega.io" in lowerUrl) {
             val megaResult = extractMegaVideo(trimmed)
-            if (megaResult != null) return@withContext megaResult
+            if (megaResult != null) return@withContext enrichResponseWithRealSizes(megaResult)
         }
 
         val cleanBaseUrl = baseUrl.trim().trimEnd('/')
@@ -212,7 +215,132 @@ class YtDlpClient(
             parsedResult = extractRealMetadataFromWeb(url)
         }
 
-        parsedResult ?: generateIntelligentFallback(url)
+        val baseResponse = parsedResult ?: generateIntelligentFallback(url)
+        enrichResponseWithRealSizes(baseResponse)
+    }
+
+    /**
+     * Enriches every FormatInfo containing a direct http/https stream URL with the REAL byte size
+     * reported by the remote media server via parallel HTTP HEAD / Range(0-0) probes.
+     * Deduplicates URLs so shared streams are only probed once.
+     */
+    private suspend fun enrichResponseWithRealSizes(response: VideoInfoResponse): VideoInfoResponse {
+        val urlsToProbe = response.formats
+            .asSequence()
+            .filter { (it.filesize ?: 0L) <= 0L }
+            .mapNotNull { it.url }
+            .filter { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
+            .distinct()
+            .take(6)
+            .toList()
+
+        if (urlsToProbe.isEmpty()) return response
+
+        val probedSizes: Map<String, Long> = coroutineScope {
+            urlsToProbe.map { streamUrl ->
+                async(Dispatchers.IO) {
+                    val bytes = probeRealStreamSizeBytes(streamUrl)
+                    if (bytes != null && bytes > 0L) streamUrl to bytes else null
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }
+
+        if (probedSizes.isEmpty()) return response
+
+        val updatedFormats = response.formats.map { fmt ->
+            val u = fmt.url
+            val realBytes = if ((fmt.filesize ?: 0L) <= 0L && u != null) probedSizes[u] else null
+            if (realBytes != null && realBytes > 0L) {
+                fmt.copy(filesize = realBytes, filesizeApprox = null)
+            } else {
+                fmt
+            }
+        }
+        return response.copy(formats = updatedFormats)
+    }
+
+    /**
+     * Queries the remote CDN for the exact byte length of a media URL without downloading it.
+     * 1. HTTP HEAD -> Content-Length
+     * 2. Fallback: HTTP GET (Range: bytes=0-0) -> Content-Range total bytes (or 200 Content-Length)
+     */
+    private fun probeRealStreamSizeBytes(streamUrl: String): Long? {
+        val probeClient = okHttpClient.newBuilder()
+            .connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(4, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+
+        fun isMediaHeader(contentType: String?): Boolean {
+            if (contentType.isNullOrBlank()) return true
+            val lower = contentType.lowercase()
+            return !lower.contains("text/html") &&
+                !lower.contains("application/json") &&
+                !lower.contains("text/plain") &&
+                !lower.contains("application/xhtml") &&
+                !lower.contains("application/xml")
+        }
+
+        fun Request.Builder.applyStreamHeaders(): Request.Builder {
+            addHeader("Accept-Encoding", "identity")
+            if (streamUrl.contains("savenow.to") || streamUrl.contains("loader.to") || streamUrl.contains("affadaffa.com")) {
+                addHeader("Referer", "https://loader.to/")
+                addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            } else if (streamUrl.contains("googlevideo.com")) {
+                addHeader("User-Agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 14; US) gzip")
+            } else {
+                addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            }
+            return this
+        }
+
+        // 1. Lightweight HEAD probe
+        try {
+            val headReq = Request.Builder()
+                .url(streamUrl)
+                .head()
+                .applyStreamHeaders()
+                .build()
+            probeClient.newCall(headReq).execute().use { resp ->
+                if (resp.isSuccessful && isMediaHeader(resp.header("Content-Type"))) {
+                    val cl = resp.header("Content-Length")?.toLongOrNull()
+                    if (cl != null && cl > 1024L) {
+                        return cl
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Fallback Range probe (fetches only byte 0 to read Content-Range: bytes 0-0/<total>)
+        try {
+            val rangeReq = Request.Builder()
+                .url(streamUrl)
+                .get()
+                .addHeader("Range", "bytes=0-0")
+                .applyStreamHeaders()
+                .build()
+            probeClient.newCall(rangeReq).execute().use { resp ->
+                if (resp.isSuccessful && isMediaHeader(resp.header("Content-Type"))) {
+                    val contentRange = resp.header("Content-Range")
+                    if (!contentRange.isNullOrBlank()) {
+                        val total = Regex("""bytes\s+\d+-\d+/(\d+)""", RegexOption.IGNORE_CASE)
+                            .find(contentRange)?.groupValues?.get(1)?.toLongOrNull()
+                        if (total != null && total > 1024L) {
+                            return total
+                        }
+                    }
+                    if (resp.code == 200) {
+                        val cl = resp.header("Content-Length")?.toLongOrNull()
+                        if (cl != null && cl > 1024L) {
+                            return cl
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        return null
     }
 
     /**
@@ -1288,7 +1416,9 @@ class YtDlpClient(
             } catch (_: Exception) {}
         }
 
-        // 3. Fallback metadata check from Piped
+        // 3. Fallback metadata & real stream size resolution from Piped
+        val pipedVideoSizeByHeight = mutableMapOf<Int, Pair<String?, Long?>>()
+        var pipedAudioStream: Pair<String?, Long?>? = null
         try {
             val pipedReq = Request.Builder()
                 .url("https://api.piped.private.coffee/streams/$videoId")
@@ -1311,11 +1441,53 @@ class YtDlpClient(
                         val secs = pDuration % 60
                         ytDurationStr = String.format(java.util.Locale.US, "%02d:%02d", mins, secs)
                     }
+
+                    // Parse genuine stream URLs and real contentLength from Piped videoStreams / audioStreams
+                    val vStreams = pJson.optJSONArray("videoStreams")
+                    if (vStreams != null) {
+                        for (i in 0 until vStreams.length()) {
+                            val vs = vStreams.optJSONObject(i) ?: continue
+                            val videoOnly = vs.optBoolean("videoOnly", true)
+                            val sUrl = vs.optString("url", "").takeIf { it.startsWith("http") }
+                            val h = vs.optInt("height", 0)
+                            val cLen = vs.optLong("contentLength", 0L).takeIf { it > 1024L }
+                            if (h > 0 && (!videoOnly || !pipedVideoSizeByHeight.containsKey(h))) {
+                                if (!videoOnly || cLen != null) {
+                                    val existing = pipedVideoSizeByHeight[h]
+                                    if (existing == null || (!videoOnly && existing.first == null)) {
+                                        pipedVideoSizeByHeight[h] = Pair(if (!videoOnly) sUrl else existing?.first, cLen ?: existing?.second)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val aStreams = pJson.optJSONArray("audioStreams")
+                    if (aStreams != null) {
+                        var bestBitrate = -1
+                        for (i in 0 until aStreams.length()) {
+                            val `as` = aStreams.optJSONObject(i) ?: continue
+                            val sUrl = `as`.optString("url", "").takeIf { it.startsWith("http") }
+                            val bitrate = `as`.optInt("bitrate", 0)
+                            val cLen = `as`.optLong("contentLength", 0L).takeIf { it > 1024L }
+                            if (bitrate > bestBitrate && (sUrl != null || cLen != null)) {
+                                bestBitrate = bitrate
+                                pipedAudioStream = Pair(sUrl, cLen)
+                            }
+                        }
+                    }
                 }
             }
         } catch (_: Exception) {}
 
-        val formats = generateYouTubeFormats(ytTitle, videoId, maxHeight = 1080, direct720Url = direct720Url)
+        val formats = generateYouTubeFormats(
+            title = ytTitle,
+            videoId = videoId,
+            maxHeight = 1080,
+            direct720Url = direct720Url,
+            pipedVideoByHeight = pipedVideoSizeByHeight,
+            pipedAudio = pipedAudioStream
+        )
 
         return VideoInfoResponse(
             id = videoId,
@@ -1332,18 +1504,22 @@ class YtDlpClient(
     }
 
     /**
-     * Generates reliable multi-quality direct YouTube streams using high-speed token resolvers
+     * Generates reliable multi-quality direct YouTube streams using high-speed token resolvers.
+     * Never injects fake file sizes; only real server contentLength or probed byte counts are surfaced.
      */
     fun generateYouTubeFormats(
         title: String,
         videoId: String,
         maxHeight: Int = 1080,
-        direct720Url: String? = null
+        direct720Url: String? = null,
+        pipedVideoByHeight: Map<Int, Pair<String?, Long?>> = emptyMap(),
+        pipedAudio: Pair<String?, Long?>? = null
     ): List<FormatInfo> {
         val formats = mutableListOf<FormatInfo>()
 
         // 1080p Full HD
         if (maxHeight >= 1080) {
+            val piped1080 = pipedVideoByHeight[1080]
             formats.add(
                 FormatInfo(
                     formatId = "yt_1080p",
@@ -1355,15 +1531,16 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 75_000_000L,
+                    filesize = piped1080?.second,
                     tbr = 3800.0,
-                    url = "yt_loader:$videoId:1080"
+                    url = piped1080?.first ?: "yt_loader:$videoId:1080"
                 )
             )
         }
 
         // 720p HD
         if (maxHeight >= 720) {
+            val piped720 = pipedVideoByHeight[720]
             formats.add(
                 FormatInfo(
                     formatId = "yt_720p",
@@ -1375,15 +1552,16 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 42_000_000L,
+                    filesize = piped720?.second,
                     tbr = 2400.0,
-                    url = direct720Url ?: "yt_loader:$videoId:720"
+                    url = direct720Url ?: piped720?.first ?: "yt_loader:$videoId:720"
                 )
             )
         }
 
         // 480p SD
         if (maxHeight >= 480) {
+            val piped480 = pipedVideoByHeight[480]
             formats.add(
                 FormatInfo(
                     formatId = "yt_480p",
@@ -1395,14 +1573,15 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 24_000_000L,
+                    filesize = piped480?.second,
                     tbr = 1500.0,
-                    url = "yt_loader:$videoId:480"
+                    url = piped480?.first ?: "yt_loader:$videoId:480"
                 )
             )
         }
 
         // 360p Fast Mobile
+        val piped360 = pipedVideoByHeight[360]
         formats.add(
             FormatInfo(
                 formatId = "yt_360p",
@@ -1414,9 +1593,9 @@ class YtDlpClient(
                 ext = "mp4",
                 vcodec = "h264",
                 acodec = "aac",
-                filesizeApprox = 14_000_000L,
+                filesize = piped360?.second,
                 tbr = 1100.0,
-                url = "yt_loader:$videoId:360"
+                url = piped360?.first ?: "yt_loader:$videoId:360"
             )
         )
 
@@ -1429,9 +1608,9 @@ class YtDlpClient(
                 ext = "mp3",
                 vcodec = "none",
                 acodec = "mp3",
-                filesizeApprox = 9_500_000L,
+                filesize = pipedAudio?.second,
                 abr = 320.0,
-                url = "yt_loader:$videoId:mp3"
+                url = pipedAudio?.first ?: "yt_loader:$videoId:mp3"
             )
         )
 
@@ -2178,6 +2357,9 @@ class YtDlpClient(
                         val hdPlayUrl = data.optString("hdplay", playUrl)
                         val musicUrl = data.optString("music", "")
 
+                        val hdSize = data.optLong("hd_size", 0L).takeIf { it > 0L }
+                        val sdSize = data.optLong("size", 0L).takeIf { it > 0L }
+
                         val formats = mutableListOf<FormatInfo>()
                         if (hdPlayUrl.isNotBlank()) {
                             formats.add(
@@ -2191,7 +2373,7 @@ class YtDlpClient(
                                     ext = "mp4",
                                     vcodec = "h264",
                                     acodec = "aac",
-                                    filesizeApprox = 24_000_000L,
+                                    filesize = hdSize,
                                     tbr = 3000.0,
                                     url = if (hdPlayUrl.startsWith("http")) hdPlayUrl else "https://www.tikwm.com$hdPlayUrl"
                                 )
@@ -2210,7 +2392,7 @@ class YtDlpClient(
                                     ext = "mp4",
                                     vcodec = "h264",
                                     acodec = "aac",
-                                    filesizeApprox = 12_000_000L,
+                                    filesize = sdSize,
                                     tbr = 1500.0,
                                     url = if (playUrl.startsWith("http")) playUrl else "https://www.tikwm.com$playUrl"
                                 )
@@ -2226,7 +2408,6 @@ class YtDlpClient(
                                     ext = "mp3",
                                     vcodec = "none",
                                     acodec = "mp3",
-                                    filesizeApprox = 4_500_000L,
                                     abr = 320.0,
                                     url = if (musicUrl.startsWith("http")) musicUrl else "https://www.tikwm.com$musicUrl"
                                 )
@@ -2297,7 +2478,6 @@ class YtDlpClient(
                                     ext = "mp4",
                                     vcodec = "h264",
                                     acodec = "aac",
-                                    filesizeApprox = 16_000_000L,
                                     tbr = 2000.0,
                                     url = streamUrl
                                 )
@@ -3057,7 +3237,7 @@ class YtDlpClient(
     private fun buildResponseFromMegaJson(json: JSONObject, megaUrl: String): VideoInfoResponse? {
         val fileName = json.optString("file_name", json.optString("filename", json.optString("name", json.optString("title", "MEGA Cloud Media"))))
         val downloadLink = json.optString("download_link", json.optString("dlink", json.optString("direct_link", json.optString("downloadUrl", json.optString("url", "")))))
-        val sizeBytes = json.optLong("size_bytes", json.optLong("size", 200_000_000L))
+        val sizeBytes = json.optLong("size_bytes", json.optLong("size", 0L)).takeIf { it > 0L }
 
         if (downloadLink.isNotBlank() && downloadLink.startsWith("http")) {
             return VideoInfoResponse(
@@ -3188,8 +3368,8 @@ class YtDlpClient(
                     if (vcodec.isNotBlank() && vcodec != "none" && (acodec == "none" || (acodec.isBlank() && fObj.optBoolean("video_only", false)))) {
                         continue
                     }
-                    val filesize = if (fObj.has("filesize")) fObj.optLong("filesize") else null
-                    val filesizeApprox = if (fObj.has("filesize_approx")) fObj.optLong("filesize_approx") else null
+                    val filesize = if (fObj.has("filesize") && !fObj.isNull("filesize")) fObj.optLong("filesize", 0L).takeIf { it > 0L } else null
+                    val filesizeApprox = if (fObj.has("filesize_approx") && !fObj.isNull("filesize_approx")) fObj.optLong("filesize_approx", 0L).takeIf { it > 0L } else null
                     val tbr = if (fObj.has("tbr")) fObj.optDouble("tbr") else null
                     val abr = if (fObj.has("abr")) fObj.optDouble("abr") else null
                     val streamUrl = fObj.optString("url", fObj.optString("download_url", fObj.optString("download_link", fObj.optString("stream_url", ""))))
@@ -3320,10 +3500,12 @@ class YtDlpClient(
         audioStreamUrl: String? = null,
         prefix: String = "render_vip",
         maxHeight: Int = 1080,
-        maxFps: Int = 30
+        maxFps: Int = 30,
+        knownVideoSizeBytes: Long? = null
     ): List<FormatInfo> {
         val streamUrl = videoStreamUrl
         val audioUrl = if (!audioStreamUrl.isNullOrBlank() && audioStreamUrl.startsWith("http")) audioStreamUrl else streamUrl
+        val realVideoSize = knownVideoSizeBytes?.takeIf { it > 0L }
         val formats = mutableListOf<FormatInfo>()
 
         // 8K Ultra HD (4320p) - Only if media natively supports >= 4000p
@@ -3339,7 +3521,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "av1",
                     acodec = "aac",
-                    filesizeApprox = 480_000_000L,
+                    filesize = realVideoSize,
                     tbr = 24000.0,
                     url = streamUrl
                 )
@@ -3359,7 +3541,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 290_000_000L,
+                    filesize = realVideoSize,
                     tbr = 14000.0,
                     url = streamUrl
                 )
@@ -3379,7 +3561,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 175_000_000L,
+                    filesize = realVideoSize,
                     tbr = 8500.0,
                     url = streamUrl
                 )
@@ -3399,7 +3581,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 160_000_000L,
+                    filesize = realVideoSize,
                     tbr = 9000.0,
                     url = streamUrl
                 )
@@ -3419,7 +3601,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 110_000_000L,
+                    filesize = realVideoSize,
                     tbr = 5500.0,
                     url = streamUrl
                 )
@@ -3439,7 +3621,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 75_000_000L,
+                    filesize = realVideoSize,
                     tbr = 4200.0,
                     url = streamUrl
                 )
@@ -3459,7 +3641,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 42_000_000L,
+                    filesize = realVideoSize,
                     tbr = 2200.0,
                     url = streamUrl
                 )
@@ -3479,7 +3661,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 24_000_000L,
+                    filesize = realVideoSize,
                     tbr = 1200.0,
                     url = streamUrl
                 )
@@ -3499,7 +3681,7 @@ class YtDlpClient(
                     ext = "mp4",
                     vcodec = "h264",
                     acodec = "aac",
-                    filesizeApprox = 14_000_000L,
+                    filesize = realVideoSize,
                     tbr = 800.0,
                     url = streamUrl
                 )
@@ -3507,7 +3689,11 @@ class YtDlpClient(
         }
 
         // Dedicated Audio Tracks (FLAC, MP3 320k, AAC 192k)
+        // Note: only preserve real audio stream size if audioStreamUrl is a distinct audio stream;
+        // if falling back to the video container URL, let the HTTP probe measure the actual audio/stream size without faking.
         if (!audioUrl.isNullOrBlank()) {
+            val isDedicatedAudioUrl = !audioStreamUrl.isNullOrBlank() && audioStreamUrl != videoStreamUrl
+            val audioSizeForTrack = if (isDedicatedAudioUrl) null else realVideoSize
             formats.add(
                 FormatInfo(
                     formatId = "${prefix}_flac",
@@ -3516,7 +3702,7 @@ class YtDlpClient(
                     ext = "flac",
                     vcodec = "none",
                     acodec = "flac",
-                    filesizeApprox = 32_000_000L,
+                    filesize = audioSizeForTrack,
                     abr = 1411.0,
                     url = audioUrl
                 )
@@ -3529,7 +3715,7 @@ class YtDlpClient(
                     ext = "mp3",
                     vcodec = "none",
                     acodec = "mp3",
-                    filesizeApprox = 9_500_000L,
+                    filesize = audioSizeForTrack,
                     abr = 320.0,
                     url = audioUrl
                 )
@@ -3542,7 +3728,7 @@ class YtDlpClient(
                     ext = "m4a",
                     vcodec = "none",
                     acodec = "aac",
-                    filesizeApprox = 5_800_000L,
+                    filesize = audioSizeForTrack,
                     abr = 192.0,
                     url = audioUrl
                 )
@@ -3557,7 +3743,7 @@ class YtDlpClient(
     }
 
     fun generateMegaFormats(title: String, directUrl: String? = null, sizeBytes: Long? = null): List<FormatInfo> {
-        return generateMasterQualityFormats(title, directUrl, directUrl, "mega", maxHeight = 1080, maxFps = 60)
+        return generateMasterQualityFormats(title, directUrl, directUrl, "mega", maxHeight = 1080, maxFps = 60, knownVideoSizeBytes = sizeBytes)
     }
 
     fun generateSocialFormats(title: String, directUrl: String? = null): List<FormatInfo> {
@@ -3578,7 +3764,6 @@ class YtDlpClient(
                 ext = "flac",
                 vcodec = "none",
                 acodec = "flac",
-                filesizeApprox = 45_000_000L,
                 abr = 1411.0,
                 url = streamUrl
             ),
@@ -3589,7 +3774,6 @@ class YtDlpClient(
                 ext = "mp3",
                 vcodec = "none",
                 acodec = "mp3",
-                filesizeApprox = 14_000_000L,
                 abr = 320.0,
                 url = streamUrl
             ),
@@ -3600,7 +3784,6 @@ class YtDlpClient(
                 ext = "m4a",
                 vcodec = "none",
                 acodec = "aac",
-                filesizeApprox = 9_500_000L,
                 abr = 256.0,
                 url = streamUrl
             )

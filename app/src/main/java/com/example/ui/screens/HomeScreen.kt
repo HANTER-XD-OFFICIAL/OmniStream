@@ -633,70 +633,125 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // High-Impact Gradient Analyze Button
-                    Button(
+                    // Signature Liquid Glass Hero Analyze Button (Exact User Reference Style)
+                    Surface(
                         onClick = {
-                            focusManager.clearFocus()
-                            viewModel.fetchInfo()
+                            if (!isFetching) {
+                                focusManager.clearFocus()
+                                viewModel.fetchInfo()
+                            }
                         },
+                        enabled = !isFetching,
+                        shape = CircleShape,
+                        color = Color.Transparent,
+                        border = BorderStroke(
+                            width = 1.5.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.94f),
+                                    Color.White.copy(alpha = 0.72f)
+                                )
+                            )
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
-                            .liquidGlassButton(
-                                shape = LiquidGlassPillShape,
-                                glowColor = CyanBright
-                            )
-                            .testTag("fetch_formats_button"),
-                        shape = LiquidGlassPillShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = Color.Black
-                        ),
-                        contentPadding = PaddingValues(),
-                        enabled = !isFetching
+                            .heightIn(min = 54.dp)
+                            .testTag("fetch_formats_button")
+                            .drawBehind {
+                                val r = size.maxDimension * 0.45f
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            CyanBright.copy(alpha = 0.16f),
+                                            NeonPurple.copy(alpha = 0.10f),
+                                            Color.Transparent
+                                        ),
+                                        center = Offset(size.width * 0.5f, size.height * 0.85f),
+                                        radius = r
+                                    ),
+                                    radius = r,
+                                    center = Offset(size.width * 0.5f, size.height * 0.85f)
+                                )
+                            }
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
+                                .heightIn(min = 54.dp)
+                                .clip(CircleShape)
                                 .background(
-                                    brush = Brush.horizontalGradient(
-                                        listOf(CyanBright, Color(0xFF06B6D4), NeonPurple)
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF22D3EE),
+                                            Color(0xFF14C1E6),
+                                            Color(0xFF33B2EC),
+                                            Color(0xFF8B5CF6),
+                                            Color(0xFFA855F7)
+                                        )
                                     )
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
+                            // Subtle top glass specular sheen
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(22.dp)
+                                    .align(Alignment.TopCenter)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color.White.copy(alpha = 0.26f), Color.Transparent)
+                                        )
+                                    )
+                            )
+
                             if (isFetching) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 18.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(18.dp),
-                                        color = Color.Black,
-                                        strokeWidth = 2.dp
+                                        color = Color(0xFF050A14),
+                                        strokeWidth = 2.2.dp
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        "Analyzing Media Streams...",
-                                        fontWeight = FontWeight.Black,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.5.sp,
-                                        color = Color.Black
+                                        text = "ANALYZING MEDIA STREAMS...",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.SansSerif,
+                                        fontSize = 13.5.sp,
+                                        letterSpacing = 0.5.sp,
+                                        color = Color(0xFF050A14),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             } else {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 18.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     Icon(
-                                        Icons.Default.Bolt,
+                                        imageVector = Icons.Default.Bolt,
                                         contentDescription = null,
-                                        tint = Color.Black,
-                                        modifier = Modifier.size(18.dp)
+                                        tint = Color(0xFF050A14),
+                                        modifier = Modifier.size(19.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        "ANALYZE & EXTRACT QUALITIES",
-                                        fontWeight = FontWeight.Black,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.5.sp,
-                                        letterSpacing = 0.5.sp,
-                                        color = Color.Black
+                                        text = "ANALYZE & EXTRACT QUALITIES",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.SansSerif,
+                                        fontSize = 13.5.sp,
+                                        letterSpacing = 0.6.sp,
+                                        color = Color(0xFF050A14),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -1238,7 +1293,16 @@ fun HomeScreen(
                 val isAudioSelected = format?.isAudioOnly == true
                 val badge = format?.displayQualityBadge ?: "Selected Quality"
                 val ext = format?.ext?.uppercase() ?: (if (isAudioSelected) "M4A" else "MP4")
-                val size = format?.readableSize ?: ""
+                val sizeLabel = if (format?.hasKnownSize == true) format.readableSize else "Exact size on download"
+
+                val mp3AudioFormat = videoInfo?.formats?.firstOrNull {
+                    it.isAudioOnly && (it.ext.equals("mp3", ignoreCase = true) || (it.abr ?: 0.0) >= 300.0)
+                } ?: videoInfo?.formats?.firstOrNull { it.isAudioOnly }
+                val mp3Subtitle = if (mp3AudioFormat?.hasKnownSize == true) {
+                    "MP3 • 320 KBPS • ${mp3AudioFormat.readableSize}"
+                } else {
+                    "High Fidelity Studio Sound • Exact size on download"
+                }
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     // Primary Video Download Button
@@ -1253,7 +1317,7 @@ fun HomeScreen(
                             }
                         },
                         title = if (isAudioSelected) "DOWNLOAD AUDIO STREAM" else "DOWNLOAD VIDEO STREAM",
-                        subtitle = "$badge • $ext${if (size.isNotEmpty() && size != "Dynamic / Stream") " • $size" else ""}",
+                        subtitle = "$badge • $ext • $sizeLabel",
                         icon = if (isAudioSelected) Icons.Default.Audiotrack else Icons.Default.Download,
                         accentColor = if (isAudioSelected) NeonPurple else CyanBright,
                         testTag = "start_download_button"
@@ -1271,7 +1335,7 @@ fun HomeScreen(
                             }
                         },
                         title = "EXTRACT MP3 MASTER AUDIO (320 KBPS)",
-                        subtitle = "High Fidelity Studio Sound • Universal Compatibility",
+                        subtitle = mp3Subtitle,
                         icon = Icons.Default.Audiotrack,
                         accentColor = NeonPurple,
                         testTag = "download_audio_mp3_button"

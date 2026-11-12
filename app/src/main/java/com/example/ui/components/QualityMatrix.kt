@@ -117,7 +117,8 @@ object QualityTierResolver {
                 ext = "flac",
                 vcodec = "none",
                 acodec = "flac",
-                filesizeApprox = ((anyMedia.filesizeApprox ?: 40_000_000L) * 0.4).toLong().coerceAtLeast(8_000_000L),
+                filesize = null,
+                filesizeApprox = null,
                 abr = 1411.0
             )
 
@@ -132,7 +133,8 @@ object QualityTierResolver {
                 ext = "mp3",
                 vcodec = "none",
                 acodec = "mp3",
-                filesizeApprox = ((anyMedia.filesizeApprox ?: 30_000_000L) * 0.25).toLong().coerceAtLeast(4_500_000L),
+                filesize = null,
+                filesizeApprox = null,
                 abr = 320.0
             )
 
@@ -145,7 +147,8 @@ object QualityTierResolver {
                 ext = "m4a",
                 vcodec = "none",
                 acodec = "aac",
-                filesizeApprox = ((anyMedia.filesizeApprox ?: 30_000_000L) * 0.15).toLong().coerceAtLeast(2_800_000L),
+                filesize = null,
+                filesizeApprox = null,
                 abr = 192.0
             )
 
