@@ -47,7 +47,7 @@ export default {
       return new Response(JSON.stringify({
         status: "online",
         service: "OmniStream Cloudflare Edge Worker API",
-        version: "2.0.0-beta",
+        version: "3.0.0",
         youtubeSupported: true,
         instagramMetaSupported: true,
         endpoints: ["POST /", "GET /?url=<media_url>"]

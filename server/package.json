@@ -1,6 +1,6 @@
 {
   "name": "download-all-in-one-telegram-bot",
-  "version": "2.0.0-beta",
+  "version": "3.0.0",
   "description": "Official 24/7 Telegram Video Downloader Bot for OmniStream - DOWNLOAD ALL IN ONE",
   "main": "bot.mjs",
   "type": "module",

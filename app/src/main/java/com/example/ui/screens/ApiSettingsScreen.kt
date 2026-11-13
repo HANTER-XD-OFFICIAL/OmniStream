@@ -250,7 +250,7 @@ fun ApiSettingsScreen(
                                     )
                                     Spacer(modifier = Modifier.width(5.dp))
                                     Text(
-                                        text = "v2.0.0-beta",
+                                        text = "v${com.example.BuildConfig.VERSION_NAME}",
                                         color = CyanBright,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,

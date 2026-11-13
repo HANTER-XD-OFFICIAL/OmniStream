@@ -36,5 +36,8 @@ class AppUpdateManagerTest {
     fun testVersionComparison_sameVersion_returnsFalse() {
         assertFalse(AppUpdateManager.isNewerVersion("2.0.0-beta", "v2.0.0-beta"))
         assertFalse(AppUpdateManager.isNewerVersion("2.0.0", "v2.0.0"))
+        assertFalse(AppUpdateManager.isNewerVersion("3.0.0", "v3.0.0"))
+        assertFalse(AppUpdateManager.isNewerVersion("3.0.0", "v2.0.0-beta"))
+        assertTrue(AppUpdateManager.isNewerVersion("3.0.0", "v3.0.1"))
     }
 }
