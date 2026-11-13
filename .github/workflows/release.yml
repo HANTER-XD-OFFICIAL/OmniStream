@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Version tag (e.g. v3.0.0)'
+        description: 'Version tag (e.g. v3.0.0-Beta)'
         required: false
-        default: 'v3.0.0'
+        default: 'v3.0.0-Beta'
         type: string
 
 jobs:

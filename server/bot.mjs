@@ -179,7 +179,7 @@ const DB_FILE = path.join(__dirname, 'users_db.json');
 let db = {
   users: {},
   blockedUsers: [],
-  lastReleaseTag: "v3.0.0_OmniStream",
+  lastReleaseTag: "v3.0.0-Beta_OmniStream",
   cachedApkFileId: null,
   cachedWelcomeAudioFileId: null,
   stats: {
@@ -197,7 +197,7 @@ function loadDatabase() {
       db = {
         users: parsed.users || {},
         blockedUsers: Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [],
-        lastReleaseTag: parsed.lastReleaseTag || "v3.0.0_OmniStream",
+        lastReleaseTag: parsed.lastReleaseTag || "v3.0.0-Beta_OmniStream",
         cachedApkFileId: parsed.cachedApkFileId || null,
         cachedWelcomeAudioFileId: parsed.cachedWelcomeAudioFileId || null,
         stats: {
@@ -1300,15 +1300,15 @@ function getReplyKeyboardForUser(userId) {
 
 // High-speed verified release metadata - always ready with zero failure
 let cachedLatestRelease = {
-  tag: "v3.0.0_OmniStream",
-  name: "OmniStream Official Android App (v3.0.0 Stable)",
+  tag: "v3.0.0-Beta_OmniStream",
+  name: "OmniStream Official Android App (v3.0.0-Beta)",
   publishedAt: "2026-09-23T11:43:00Z",
-  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v3.0.0_OmniStream`,
-  body: "Official OmniStream Android stable release v3.0.0 with upgraded multi-threaded download engine, 4K video & audio support, and instant direct Telegram delivery.",
+  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v3.0.0-Beta_OmniStream`,
+  body: "Official OmniStream Android release v3.0.0-Beta with upgraded multi-threaded download engine, 4K video & audio support, and instant direct Telegram delivery.",
   apkAsset: {
-    name: "OmniStream_v3.0.0.apk",
+    name: "OmniStream_v3.0.0-Beta.apk",
     size: 24732759,
-    downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v3.0.0_OmniStream/OmniStream_v3.0.0.apk`
+    downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v3.0.0-Beta_OmniStream/OmniStream_v3.0.0-Beta.apk`
   }
 };
 

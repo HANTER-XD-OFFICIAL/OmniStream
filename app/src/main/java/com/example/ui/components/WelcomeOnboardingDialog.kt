@@ -231,7 +231,7 @@ fun WelcomeOnboardingDialog(
                                 border = BorderStroke(1.dp, CyanBright.copy(alpha = 0.4f))
                             ) {
                                 Text(
-                                    text = "v${com.example.BuildConfig.VERSION_NAME} Stable (Official Latest)",
+                                    text = "v${com.example.BuildConfig.VERSION_NAME} (Official Latest)",
                                     color = CyanBright,
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,

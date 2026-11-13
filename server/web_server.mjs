@@ -751,7 +751,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.android.package-archive',
         'Content-Length': stat.size,
-        'Content-Disposition': 'attachment; filename="OmniStream_v3.0.0.apk"',
+        'Content-Disposition': 'attachment; filename="OmniStream_v3.0.0-Beta.apk"',
         'Cache-Control': 'public, max-age=86400'
       });
       if (req.method === 'HEAD') {
@@ -763,7 +763,7 @@ const server = http.createServer(async (req, res) => {
     } else {
       // Redirect to GitHub release if local file isn't found
       res.writeHead(302, {
-        'Location': 'https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest/download/OmniStream_v3.0.0.apk'
+        'Location': 'https://github.com/HANTER-XD-OFFICIAL/OmniStream/releases/latest/download/OmniStream_v3.0.0-Beta.apk'
       });
       res.end();
       return;

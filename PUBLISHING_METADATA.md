@@ -13,7 +13,7 @@
 | **App Title (Play Store ≤30 chars)** | `OmniStream Video Downloader` |
 | **Full Branded Name** | `OmniStream Pro - All Video & Audio Downloader` |
 | **Package / Application ID** | `com.aistudio.omnistream.dl` |
-| **Target Version** | `v3.0.0` (Version Code: `3`) |
+| **Target Version** | `v3.0.0-Beta` (Version Code: `3`) |
 | **Primary Category** | `Video Players & Editors` |
 | **Secondary Category** | `Tools & Utilities` |
 | **Content Rating** | `Everyone (PEGI 3 / ESRB Everyone)` |
@@ -134,10 +134,10 @@ video downloader, all video downloader, mp3 downloader, audio extractor, tiktok 
 
 ---
 
-## 📋 4. Release Notes / "What's New" (v3.0.0 Stable)
+## 📋 4. Release Notes / "What's New" (v3.0.0-Beta)
 
 ```text
-🎉 What's New in OmniStream Pro v3.0.0 Stable:
+🎉 What's New in OmniStream Pro v3.0.0-Beta:
 • 🎵 Dual Video + Audio Telegram Delivery: The official bot (@OmniStream34_bot) now sends both high-definition video AND extracted MP3 audio track directly to your chat!
 • 🌐 Official Web Downloader Integration: Direct access to our companion browser web app (hanter-xd-official.github.io/OmniStream).
 • 🚀 21+ Platform Multi-Engine Resolution: Enhanced download reliability for TikTok (no watermark), YouTube Shorts, Instagram Reels, and TeraBox.
@@ -168,10 +168,10 @@ When submitting to Google Play Console:
 Use this template for GitHub Releases, Product Hunt, or your official website:
 
 ```markdown
-## OmniStream Pro v3.0.0 Stable Release
+## OmniStream Pro v3.0.0-Beta Release
 
 ### Download APK:
-- **Direct APK**: [OmniStream_v3.0.0.apk](https://github.com/hanter-xd-official/OmniStream/releases/latest)
+- **Direct APK**: [OmniStream_v3.0.0-Beta.apk](https://github.com/hanter-xd-official/OmniStream/releases/latest)
 - **Web App**: [Launch In-Browser Downloader](https://hanter-xd-official.github.io/OmniStream/)
 - **Telegram Bot**: [@OmniStream34_bot](https://t.me/OmniStream34_bot)
 
