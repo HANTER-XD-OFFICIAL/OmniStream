@@ -57,9 +57,37 @@ Select your preferred platform below to start extracting and downloading media i
   * **Tier 4 (Rotating Proxy Scrapers)**: Multi-key RapidAPI and Piped/Invidious proxy fallbacks ensuring 99.9% download success rate.
 * 💾 **Android 14 Scoped Storage & MediaStore**: Files are directly saved to public storage (`Download/OmniStream`, `Movies/OmniStream`, `Music/OmniStream`), immediately accessible by system gallery apps and music players without root or storage permission hassles.
 * ⚡ **High-Speed Foreground Download Manager**: Native Android foreground service with live notification progress, speed indicators (MB/s), ETA calculations, and pause/resume/cancel controls.
-* 🎨 **Breathtaking Cyberpunk / Dark Slate UI**: Engineered with Jetpack Compose, Material 3 dynamic color theming, glowing neon accents, and fluid 60fps physics animations.
+* 🎨 **True-Black Liquid Glass UI (`LiquidGlassKit`)**: Engineered with Jetpack Compose & Material 3 on a pure `#000000` OLED dark backdrop with high-blur frosted translucent surfaces, multi-color cyan/purple specular borders, floating morphing pill navigation dock, and high-contrast white typography.
+* 📏 **Real Server File Size Engine (`KB / MB / GB`)**: Probes live `HTTP HEAD` (`Content-Length`) and `Range: bytes=0-0` (`Content-Range`) headers plus native Piped/TikWM/yt-dlp/MEGA metadata to show exact file sizes without fake approximations.
 * 🗄️ **Offline Room Database**: Complete local persistence storing download history, media metadata, file paths, thumbnails, and search history.
-* 🎬 **Integrated Media Player**: Instant in-app playback with ExoPlayer, fullscreen toggle, share sheet, and direct file management.
+* 🎬 **Integrated Media Player**: Instant in-app playback with Media3 / ExoPlayer, fullscreen toggle, share sheet, and direct file management.
+* 🔄 **GitHub OTA Auto-Updater & Telegram Sync**: Automatic `v3.0.0-Beta` release tracking with in-app APK installer and optional `@OmniStream34_bot` Telegram delivery.
+
+---
+
+## ✨ Release Changelog & What's New (`v3.0.0-Beta`)
+
+### 🔥 What's New & Changed in `v3.0.0-Beta` (Latest — Build 3)
+* **Liquid Glass Kit UI Overhaul (True Black OLED Edition)**:
+  * Enforced a pure `#000000` dark canvas across the entire app, replacing flat dark-grey containers with deep frosted translucent glass panels, subtle radial caustics, and crisp cyan/white/purple specular rims.
+  * Upgraded typography hierarchy and high-contrast solid white text across all screens, welcome onboarding, storage permission modals, and developer cards.
+* **Floating Morphing Pill Dock & Clean Download Badge**:
+  * Redesigned the bottom navigation bar into a floating animated Liquid Glass pill dock with spring physics and glowing droplet indicators.
+  * Fixed the active download counter badge on the `Downloads` tab with a compact cutout-ring gradient pill so icons and labels remain perfectly aligned.
+* **Signature Hero CTA & Quality Matrix Alignment**:
+  * Styled the `ANALYZE & EXTRACT QUALITIES` button as a vibrant cyan-to-purple capsule pill with crisp high-contrast dark typography.
+  * Refined **Dynamic Quality Matrix** & **Source Stream Intelligence**: clean horizontal `AUTHENTIC` status pill, aligned **Max Resolution** and **Video Aspect Ratio** telemetry cards, and accurate audio-only extraction buttons (`FLAC` / `MP3 320 kbps` / `AAC 192 kbps`).
+* **Real File Size Verification Engine (Zero Fake Sizes)**:
+  * Removed all hardcoded/synthetic file size placeholders across format extraction and quality tiers.
+  * Added parallel coroutine probing (`HEAD` `Content-Length` + fallback `Range` `Content-Range`) and live `Content-Range` tracking inside `DownloadRepository`, verifying exact on-disk bytes upon completion and formatting accurately in `B / KB / MB / GB`.
+* **Ecosystem Version Synchronization (`v3.0.0-Beta`)**:
+  * Synchronized `versionName = "3.0.0-Beta"` (`versionCode = 3`) across Android Gradle, `BuildConfig`, API & Engine, Developer Hub, Welcome Dialog, Cloudflare Worker, Telegram Bot (`OmniStream_v3.0.0-Beta.apk`), GitHub Release workflow, and companion web portals.
+
+### 🧱 Foundation From Earlier Releases (`v2.0.0-beta` — Build 2)
+* **21+ Platform Universal Extractor**: YouTube, Shorts, TikTok (No Watermark), Instagram Reels/Stories, Facebook, Twitter/X, Pinterest, TeraBox, MEGA, Reddit, SoundCloud, Vimeo, Dailymotion, and direct streams.
+* **Multi-Tier Edge Failover Pipeline**: Cloudflare Edge Worker primary API with Cobalt VIP, yt-dlp, Loader/SaveNow decoupler, and rotating Piped/TikWM fallbacks.
+* **Resumable Background Download Service**: Android 14/15 `FOREGROUND_SERVICE_DATA_SYNC` worker with `PARTIAL_WAKE_LOCK`, `WIFI_MODE_FULL_HIGH_PERF`, `HTTP 206` byte-range resume, and `MediaScannerConnection` gallery indexing.
+* **Built-in Media3 Playback & Developer Support Hub**: In-app video/audio preview modal plus direct Telegram, WhatsApp, Facebook, and Email developer support links.
 
 ---
 
@@ -164,20 +192,23 @@ OmniStream/
 │       │   ├── AndroidManifest.xml # App permissions, services & activities
 │       │   ├── java/com/example/
 │       │   │   ├── data/
-│       │   │   │   ├── api/       # YtDlpClient, Cloudflare Worker, Models
-│       │   │   │   ├── db/        # Room Database, DAOs, Entities
-│       │   │   │   └── repository/# DownloadRepository, VideoInfoRepository
-│       │   │   ├── service/       # DownloadService, NotificationHandler
+│       │   │   │   ├── api/       # YtDlpClient, YtDlpModels, AppUpdateManager, TelegramBotClient
+│       │   │   │   ├── local/     # Room AppDatabase, DownloadDao, DownloadEntity
+│       │   │   │   └── repository/# DownloadRepository, SettingsRepository
+│       │   │   ├── service/       # DownloadForegroundService
 │       │   │   ├── ui/
-│       │   │   │   ├── components/# QualityMatrix, MediaCards, ProgressBars
-│       │   │   │   ├── screens/   # HomeScreen, HistoryScreen, SettingsScreen
-│       │   │   │   ├── theme/     # Cyberpunk ColorScheme, Typography, Shapes
+│       │   │   │   ├── components/# QualityMatrix, MediaPreviewDialog, StoragePermissionHelper, Modals
+│       │   │   │   ├── screens/   # HomeScreen, DownloadsScreen, ApiSettingsScreen, DeveloperScreen
+│       │   │   │   ├── theme/     # LiquidGlassKit, Color, Theme, Typography
 │       │   │   │   └── DownloadViewModel.kt
 │       │   │   └── MainActivity.kt
-│       │   └── res/               # Vector drawables, strings, app icons
+│       │   └── res/               # Adaptive launcher icons, vector drawables, strings
+├── public/ & docs/                # Companion Web Downloader Landing Pages (v3.0.0-Beta)
+├── server/                        # 24/7 Telegram Bot & Web API Server (bot.mjs, web_server.mjs)
+├── cloudflare-worker.js           # Cloudflare Edge Worker Extraction API
 ├── gradle/                        # Version Catalog (libs.versions.toml)
 ├── metadata.json                  # AI Studio Application metadata
-└── README.md                      # Complete Project Documentation
+└── README.md                      # Complete Project Documentation & Changelog
 ```
 
 ---

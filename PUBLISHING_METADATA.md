@@ -137,13 +137,15 @@ video downloader, all video downloader, mp3 downloader, audio extractor, tiktok 
 ## 📋 4. Release Notes / "What's New" (v3.0.0-Beta)
 
 ```text
-🎉 What's New in OmniStream Pro v3.0.0-Beta:
-• 🎵 Dual Video + Audio Telegram Delivery: The official bot (@OmniStream34_bot) now sends both high-definition video AND extracted MP3 audio track directly to your chat!
-• 🌐 Official Web Downloader Integration: Direct access to our companion browser web app (hanter-xd-official.github.io/OmniStream).
-• 🚀 21+ Platform Multi-Engine Resolution: Enhanced download reliability for TikTok (no watermark), YouTube Shorts, Instagram Reels, and TeraBox.
-• ⚡ Upgraded ExoPlayer 3 Engine with smoother PiP, background play, and 320kbps audio playback.
-• 🛡️ Pure 100% Ad-Free & Tracker-Free interface with Cyberpunk Neon Glassmorphism theme.
-• 👨‍💻 Quick Connect 24/7 Developer Support Hub with WhatsApp, Telegram, and Facebook integration.
+🎉 What's New in OmniStream Pro v3.0.0-Beta (Build 3):
+• 🎨 True-Black OLED Liquid Glass UI: Deep frosted glass panels, cyan/purple specular refraction borders, crisp white high-contrast typography, and unified dialogs.
+• 💊 Floating Morphing Pill Navigation Dock: Smooth spring-animated pill bar with clean active download counter badge.
+• 📏 Real Server File Size Engine (KB / MB / GB): Live HTTP Content-Length & Content-Range probing eliminates fake sizes and displays accurate KB, MB, or GB values from server & disk.
+• 🎯 Upgraded Dynamic Quality Matrix & Source Intelligence: Authentic stream verification badge, Video Aspect Ratio alignment, and true audio-only stream matching (FLAC / MP3 320kbps / AAC).
+• ⚡ Signature Cyan-to-Purple Analyze CTA & Dual Video/MP3 Hero Download Controls.
+• 🎵 Dual Video + Audio Telegram Sync (@OmniStream34_bot) & GitHub OTA Auto-Updater.
+• 🚀 21+ Platform Multi-Engine Resolution: TikTok (no watermark), YouTube 8K/4K/Shorts, Instagram Reels, Facebook, X/Twitter, Pinterest, TeraBox, MEGA & Reddit.
+• 📺 Integrated Media3 / ExoPlayer Playback, Background Service with HTTP 206 Resume & 24/7 Developer Support Hub.
 ```
 
 ---
